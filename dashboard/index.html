@@ -1307,7 +1307,43 @@ function printClaim(id) {
 }
 
 /* ============ HOME ============ */
+// Phone home: ticket volume and the work queue only. Sales stay on the Sales & Invoices page (desktop home unchanged).
+const PHONE_W = matchMedia('(max-width:760px)');
+PHONE_W.addEventListener?.('change', () => { if (view === 'home') render(); });
+function vHomePhone() {
+  const open = DB.tickets.filter(t => OPEN.includes(t.status)), td = today(), now = new Date();
+  const cnt = k => open.filter(t => t.status === k).length;
+  const late = open.filter(t => t.status !== 'ready' && t.due && t.due < td);
+  const dayA = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString(), wkA = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
+  const inDay = DB.tickets.filter(t => t.created >= dayA).length, outDay = DB.tickets.filter(t => t.pickedUp && t.pickedUp >= dayA).length;
+  const inWk = DB.tickets.filter(t => t.created >= wkA).length, outWk = DB.tickets.filter(t => t.pickedUp && t.pickedUp >= wkA).length;
+  const stale = open.filter(t => t.status === 'ready' && daysSince(readySince(t)) >= S().staleDays).length;
+  const queue = open.filter(t => t.status !== 'ready').sort(prioSort), ready = open.filter(t => t.status === 'ready').sort((a, b) => readySince(a).localeCompare(readySince(b)));
+  const fu = followItems().filter(i => i.grp !== 'Unpaid invoices');          // money items live on the Sales & Follow-ups pages
+  const appts = DB.appts.filter(a => !a.done && a.date >= td && a.date <= addDays(td, 6)).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+  const row = t => `<div class="li" style="cursor:pointer" onclick="editTicket('${t.id}')"><div class="tx"><b>#${t.no} ${esc(t.name)}</b> ${prioTag(t)}<div class="s">${esc(devName(t))}${t.issue ? ' · ' + esc(t.issue.slice(0, 60)) : ''}</div></div><div style="text-align:right">${badge(t.status)}<div style="margin-top:3px">${dueTag(t) || `<span class="muted small">${daysSince(t.created)}d</span>`}</div></div></div>`;
+  return `<div class="grid kpis">
+    ${kpi('Open tickets', open.length, `${cnt('checkin') + cnt('diag')} new / diagnosing · ${cnt('repair')} in repair`, "go('tickets')")}
+    ${kpi('Ready for pickup', cnt('ready'), stale ? `${stale} waiting ${S().staleDays}+ days` : 'none waiting long', "ui.tMode='list';ui.tFilter='ready';go('tickets')", cnt('ready') ? 'good' : '')}
+    ${kpi('Waiting', cnt('approval') + cnt('parts'), `${cnt('approval')} approval · ${cnt('parts')} parts`, "go('follow')", cnt('approval') + cnt('parts') ? 'warn' : '')}
+    ${kpi('Past promised', late.length, late.length ? 'needs attention' : 'all on time', "go('follow')", late.length ? 'alert' : '')}
+    ${kpi('Today', `${inDay} in / ${outDay} out`, 'checked in / picked up', "go('tickets')")}
+    ${kpi('This week', `${inWk} in / ${outWk} out`, 'checked in / picked up', "go('tickets')")}
+  </div>
+  <div class="card" style="margin-bottom:12px"><h3>🛠️ Work queue <span class="r"><button class="btn sm" onclick="go('tickets')">Board →</button></span></h3>
+    ${queue.slice(0, 10).map(row).join('') || '<div class="empty">Nothing to work on — all caught up 🎉</div>'}
+    ${queue.length > 10 ? `<div style="margin-top:8px"><button class="btn sm" onclick="ui.tMode='list';ui.tFilter='open';go('tickets')">All ${queue.length} in the queue →</button></div>` : ''}</div>
+  ${ready.length ? `<div class="card" style="margin-bottom:12px"><h3>📦 Ready for pickup <span class="r muted small">oldest first</span></h3>${ready.slice(0, 8).map(row).join('')}</div>` : ''}
+  <div class="card" style="margin-bottom:12px"><h3>Open tickets by status</h3>
+    ${open.length ? hbars(OPEN.map(k => ({ l: ST[k].l, v: cnt(k), k, click: `ui.tMode='list';ui.tFilter='${k}';go('tickets')` })), null, i => ST[i.k].c) : '<div class="empty">No open tickets. Tap ＋ Check in when a device comes in.</div>'}</div>
+  <div class="card" style="margin-bottom:12px"><h3>🔔 Needs attention <span class="r"><button class="btn sm" onclick="go('follow')">All →</button></span></h3>
+    ${fu.slice(0, 6).map(liHTML).join('') || '<div class="empty">All caught up 🎉</div>'}</div>
+  <div class="card" style="margin-bottom:12px"><h3>📅 Next 7 days <span class="r"><button class="btn sm" onclick="editAppt()">+ Add</button></span></h3>
+    ${appts.map(a => `<div class="li"><div class="ic">${apptIcon(a.type)}</div><div class="tx"><b>${a.date === td ? 'Today' : fmtDs(a.date)} ${fmtT(a.time)}</b> · ${esc(a.type)}<div class="s">${esc(a.name || '')} ${a.phone ? '· ' + esc(fmtPhone(a.phone)) : ''}</div></div><div class="ac"><button class="btn sm" onclick="editAppt('${a.id}')">Edit</button></div></div>`).join('') || '<div class="empty">Nothing scheduled.</div>'}</div>
+  <div class="card"><h3>✅ To-do</h3>${tasksHTML(6)}</div>`;
+}
 function vHome() {
+  if (PHONE_W.matches) return vHomePhone();
   const open = DB.tickets.filter(t => OPEN.includes(t.status)), td = today(), now = new Date();
   const cnt = k => open.filter(t => t.status === k).length;
   const late = open.filter(t => t.status !== 'ready' && t.due && t.due < td).length;

@@ -1,7 +1,7 @@
 /* RCR Shop service worker: makes the web app installable and lets it open without a connection.
    Always tries the network first (so updates show up right away) and falls back to the last saved copy.
    Google sign-in and Google Drive requests are never cached. */
-const CACHE = 'rcr-shop-20261119-110414';                 // BUILD is replaced with a timestamp each time the site is published
+const CACHE = 'rcr-shop-20261119-110701';                 // BUILD is replaced with a timestamp each time the site is published
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', 'dashboard/', 'invoice/', 'shared/rcr-drive.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'])).catch(() => {}));
   self.skipWaiting();
