@@ -236,6 +236,10 @@
   .tabprev .pv.plus i { font-style:normal; background:var(--accent); color:#fff; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; font-size:22px; }
   .tabprev .pv.plus small { color:var(--accent); font-weight:700; }
   .phone-only { display:none; }
+  .lead { background:var(--card); border:1px solid var(--line); border-left:4px solid #1d5fd1; border-radius:12px; padding:10px 12px; margin-bottom:8px; }
+  .lead .lh { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:2px; } .lead .lh .r { margin-left:auto; }
+  .lead .note { margin:6px 0 0; font-size:12.5px; }
+  .lead .acts { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   .pk { max-height:88vh; overflow:auto; }
   .pk-step { border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px; }
   .pk-step.ok { border-color:#9ad8ae; background:rgba(22,163,74,.06); }
@@ -327,7 +331,7 @@
     .content { padding-bottom:calc(104px + env(safe-area-inset-bottom)); }
     #toasts { bottom:calc(92px + env(safe-area-inset-bottom)); }
     .sigs { grid-template-columns:1fr; }
-    body[data-view=tickets] .top .search { display:none; }   /* the tickets page has its own search box */
+    body[data-view=tickets] .top .search, body[data-view=leads] .top .search { display:none; }   /* the tickets page has its own search box */
     .li { flex-wrap:wrap; }                                /* buttons go under the text instead of squeezing it */
     .li .ac { flex-basis:100%; justify-content:flex-start; padding-left:36px; }
     .li .ac:has(> :only-child) { flex-basis:auto; padding-left:0; }   /* a single Edit / × stays on the right */
@@ -355,7 +359,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-114657">
+<meta name="rcr-build" content="20261119-144325">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -452,6 +456,7 @@ const DEF = {
          '• We are not responsible for pre-existing damage or for problems not listed on this ticket.\n' +
          '• Devices not picked up within 30 days of our ready-for-pickup notice may be charged a storage fee.\n' +
          '• Bring this ticket (or photo ID) when picking up your device.',
+  msgLead: 'Hi {first}, this is Rapid Computer Repair. You reached out through our website about a computer repair — are you still needing help? We can take a look today. Call or text {shopPhone}. Thanks!',
   msgReceived: 'Hi {first}, this is Rapid Computer Repair. We have your {device} — ticket #{no}.{estimateLine} We\'ll text you as soon as we know more. Questions? Call {shopPhone}.',
   msgFinal: 'Hi {first}, this is Rapid Computer Repair. Your {device} (ticket #{no}) has been ready for pickup since {readyDate} ({readyDays} days). Please pick it up or call {shopPhone} to make arrangements — storage fees may apply per our repair terms. Thank you!',
   msgReady: 'Hi {first}, this is Rapid Computer Repair. Your {device} (ticket #{no}) is ready for pickup.{total} Thank you!',
@@ -481,8 +486,8 @@ const idb = (() => {
 
 /* ============ data ============ */
 const LS = 'rcr-dashboard-v1', DATA_FILE = '_dashboard-data.json', LOG_FILE = '_invoice-log.json';
-const COLLS = ['tickets', 'parts', 'orders', 'appts', 'tasks'];
-const blank = () => ({ v: 1, tickets: [], parts: [], orders: [], appts: [], tasks: [], custNotes: {}, deleted: {}, settings: {}, settingsUpd: '', savedAt: '' });
+const COLLS = ['tickets', 'parts', 'orders', 'appts', 'tasks', 'leads'];
+const blank = () => ({ v: 1, tickets: [], parts: [], orders: [], appts: [], tasks: [], leads: [], custNotes: {}, deleted: {}, settings: {}, settingsUpd: '', savedAt: '' });
 function normalize(d) {
   d = { ...blank(), ...(d || {}) };
   d.settings = { ...JSON.parse(JSON.stringify(DEF)), ...(d.settings || {}) };
@@ -697,7 +702,7 @@ const formData = f => { const o = {}; for (const el of f.elements) if (el.name &
 
 /* ============ navigation ============ */
 const VIEWS = {
-  home: ['📊', 'Dashboard', vHome], tickets: ['🛠️', 'Repair Tickets', vTickets], customers: ['👥', 'Customers', vCustomers],
+  home: ['📊', 'Dashboard', vHome], tickets: ['🛠️', 'Repair Tickets', vTickets], customers: ['👥', 'Customers', vCustomers], leads: ['🎯', 'Leads', vLeads],
   money: ['💵', 'Sales & Invoices', vMoney], close: ['🧾', 'Daily Close', vClose], follow: ['🔔', 'Follow-ups', vFollow], calendar: ['📅', 'Appointments', vCalendar],
   inventory: ['📦', 'Inventory', vInventory], orders: ['🚚', 'Parts Orders', vOrders], tools: ['🧰', 'Tech Tools', vTools], settings: ['⚙️', 'Settings', vSettings] };
 let view = 'home';
@@ -717,7 +722,7 @@ function navHTML() {
 const TOUCH = () => matchMedia('(pointer:coarse)').matches || matchMedia('(max-width:760px)').matches;
 // Phone: tab bar along the bottom (the ☰ menu still has every page)
 // The 4 outer buttons are chosen per device (localStorage "rcr-tabs"); ＋ Check in always sits in the middle.
-const TAB_LABEL = { home: 'Home', tickets: 'Tickets', customers: 'Customers', money: 'Sales', close: 'Close', follow: 'Follow-ups', calendar: 'Appts', inventory: 'Inventory', orders: 'Orders', tools: 'Tools', settings: 'Settings', menu: 'More' };
+const TAB_LABEL = { home: 'Home', tickets: 'Tickets', customers: 'Customers', leads: 'Leads', money: 'Sales', close: 'Close', follow: 'Follow-ups', calendar: 'Appts', inventory: 'Inventory', orders: 'Orders', tools: 'Tools', settings: 'Settings', menu: 'More' };
 const TAB_DEFAULT = ['home', 'tickets', 'customers', 'menu'];
 const tabIcon = k => k === 'menu' ? '☰' : VIEWS[k][0];
 function tabSlots() {
@@ -911,6 +916,7 @@ function followItems() {
   for (const o of DB.orders) if (!['received', 'cancelled'].includes(o.status) && o.eta && o.eta < td) out.push({ sev: 2, ic: '🚚', grp: 'Parts orders past ETA', tx: `${o.part}${o.supplier ? ' from ' + o.supplier : ''}`, s: `ETA ${fmtD(o.eta)}${o.tracking ? ' · tracking ' + o.tracking : ''}${o.ticketId ? ' · ' + ticketRef(o.ticketId) : ''}`, ac: `<button class="btn sm" onclick="orderStatus('${o.id}','received')">Received</button><button class="btn sm" onclick="editOrder('${o.id}')">Edit</button>` });
   for (const e of INV) if (e.status === 'unpaid' && isRev(e)) { const d = Math.floor((Date.now() - e.t) / 864e5); if (d >= 3) out.push({ sev: d > 14 ? 3 : 2, ic: '💵', grp: 'Unpaid invoices', tx: `Invoice ${e.invno || '(no #)'} — ${e.name} — ${money(e.total)}`, s: `${e.date} · ${plural(d, 'day')} ago · ${e.job}`, ac: `${payBtn(e)} <button class="btn sm" onclick="invModal(${js(e.id)})">View</button>` }); }
   for (const p of DB.parts) if (num(p.qty) <= num(p.min) && !DB.orders.some(o => o.invId === p.id && !['received', 'cancelled'].includes(o.status))) out.push({ sev: 1, ic: '📉', grp: 'Low stock', tx: `${p.name}`, s: `${num(p.qty)} left (minimum ${num(p.min)})${p.supplier ? ' · ' + p.supplier : ''}`, ac: `<button class="btn sm" onclick="editOrder(null,{invId:'${p.id}',part:${js(p.name)},supplier:${js(p.supplier || '')},cost:${js(p.cost || '')},addToStock:true})">Order</button><button class="btn sm" onclick="ebaySearch(${js(partWords(p.name))})">🛒 eBay</button>` });
+  for (const l of DB.leads || []) if (leadSt(l) === 'new' && leadAge(l) <= 7) { const p = digits(l.phone).slice(-10); out.push({ sev: 2, ic: '🎯', grp: 'New website leads', tx: `${l.name || l.email || fmtPhone(l.phone)}`, s: `Reached out ${leadAge(l) <= 0 ? 'today' : plural(leadAge(l), 'day') + ' ago'} · ${[fmtPhone(l.phone), l.email].filter(Boolean).join(' · ')}`, ac: `${p.length === 10 ? `<a class="btn sm" href="tel:${p}" onclick="leadTouch('${l.id}','Called')">📞 Call</a><a class="btn sm" href="sms:+1${p}?body=${encodeURIComponent(fillLead(S().msgLead, l))}" onclick="leadTouch('${l.id}','Texted')">💬 Text</a>` : ''}<button class="btn sm" onclick="go('leads')">Leads →</button>` }); }
   for (const a of DB.tasks) if (!a.done && a.due && a.due <= td) out.push({ sev: a.due < td ? 2 : 1, ic: '✅', grp: 'Tasks due', tx: a.text, s: a.due < td ? 'Due ' + fmtD(a.due) : 'Due today', ac: `<button class="btn sm" onclick="toggleTask('${a.id}')">Done</button>` });
   return out.sort((a, b) => b.sev - a.sev);
 }
@@ -1614,6 +1620,114 @@ function toggleTask(id) { const t = DB.tasks.find(x => x.id === id); t.done = !t
 function delTask(id) { removeRec('tasks', id); render(); }
 
 /* ============ CUSTOMERS ============ */
+/* ============ LEADS: people who reached out through the website (Wix forms) but haven't become customers yet ============
+   DB.leads = [{ id, name, email, phone, created (YYYY-MM-DD), status: new|contacted|lost|spam, notes, lastContact, src, upd }].
+   "Became a customer" is worked out live: a customer (invoice or ticket) with the same phone or email. */
+const LEAD_ST = [['new', 'New', '#1d5fd1'], ['contacted', 'Contacted', '#d97706'], ['won', 'Customer', '#16a34a'], ['lost', 'Not interested', '#64748b'], ['spam', 'Spam / vendor', '#94a3b8']];
+const LST = Object.fromEntries(LEAD_ST.map(([k, l, c]) => [k, { l, c }]));
+const LEAD_SPAM = /servicewrap|webriloto|wixmasters|wixer\.site|ladokun|homeprosverified|tapcms|getcms|kraftoutsourcing|yongs-hk|bestwayindustry|domainguru|\bseo\b|marketing@|growthsdigital/i;
+let leadIx = null, leadIxOf = null;
+function leadCust(l) {
+  const cs = customers();
+  if (leadIxOf !== cs) { leadIx = { p: new Map(), e: new Map() }; for (const c of cs) { const p = digits(c.phone).slice(-10); if (p.length === 10) leadIx.p.set(p, c); if (c.email) leadIx.e.set(c.email.toLowerCase(), c); } leadIxOf = cs; }
+  const p = digits(l.phone).slice(-10);
+  return (p.length === 10 && leadIx.p.get(p)) || (l.email && leadIx.e.get(l.email.toLowerCase())) || null;
+}
+const leadSt = l => (!l.status || l.status === 'new' || l.status === 'contacted') && leadCust(l) ? 'won' : (l.status || 'new');
+const leadAge = l => Math.floor((Date.now() - (parseYMD(l.created) || new Date()).getTime()) / 864e5);
+const fillLead = (tpl, l) => tpl.replace(/\{(\w+)\}/g, (m, k) => ({ first: first(l.name), name: l.name || '', shopPhone: S().shopPhone })[k] ?? m);
+function vLeads() {
+  const all = DB.leads || [], per = ui.lPer || '90', f = ui.lSt || 'open', q = (ui.lq || '').trim().toLowerCase();
+  const rows = all.map(l => ({ l, s: leadSt(l), a: leadAge(l) }));
+  const inPer = x => per === 'all' || x.a <= +per;
+  const okSt = (x, k) => k === 'open' ? ['new', 'contacted'].includes(x.s) : k === 'all' ? true : x.s === k;
+  const won = rows.filter(x => x.s === 'won').length;
+  if (!all.length) return `<div class="card empty">No leads yet. Import your Wix contacts (Wix › Contacts › Export as CSV), then click <b>Import Wix CSV</b> here.<div style="margin-top:12px"><label class="btn pri">⬆ Import Wix CSV<input type="file" accept=".csv,text/csv" hidden onchange="leadImport(this)"></label></div></div>`;
+  return `<div class="grid kpis">
+      ${kpi('New this month', rows.filter(x => x.a <= 30).length, 'website requests in the last 30 days', "ui.lPer='30';ui.lSt='open';render()")}
+      ${kpi('Waiting for a call', rows.filter(x => x.s === 'new' && x.a <= 90).length, 'new in the last 90 days, not contacted yet', "ui.lPer='90';ui.lSt='new';render()", rows.some(x => x.s === 'new' && x.a <= 7) ? 'warn' : '')}
+      ${kpi('Contacted', rows.filter(x => x.s === 'contacted').length, 'reached out, no repair yet', "ui.lPer='all';ui.lSt='contacted';render()")}
+      ${kpi('Became customers', won, all.length ? Math.round(won / all.length * 100) + '% of these leads' : '', "ui.lPer='all';ui.lSt='won';render()", won ? 'good' : '')}
+    </div>
+    <div class="toolbar"><input type="search" class="inp" style="flex:1;min-width:180px" placeholder="Search name, phone, email…" value="${esc(ui.lq || '')}" oninput="ui.lq=this.value;$('#llist').innerHTML=leadsBody()">
+      <div class="seg">${[['30', '30 days'], ['90', '90 days'], ['365', '12 months'], ['all', 'All']].map(([k, l]) => `<button class="${per === k ? 'on' : ''}" onclick="ui.lPer='${k}';render()">${l}</button>`).join('')}</div>
+      <label class="btn sm" title="In Wix: Contacts › ⋯ › Export › CSV, then pick the file here. Only new people are added.">⬆ Import Wix CSV<input type="file" accept=".csv,text/csv" hidden onchange="leadImport(this)"></label></div>
+    <div class="dstrip chips-row">${[['open', 'To follow up'], ['new', 'New'], ['contacted', 'Contacted'], ['won', 'Customers'], ['lost', 'Not interested'], ['spam', 'Spam'], ['all', 'All']].map(([k, l]) => `<button class="chipbtn ${f === k ? 'on' : ''}" onclick="ui.lSt='${k}';render()">${k !== 'open' && k !== 'all' ? `<span class="dot" style="background:${LST[k].c}"></span>` : ''}${l} <b>${rows.filter(x => inPer(x) && okSt(x, k)).length}</b></button>`).join('')}</div>
+    <div id="llist">${leadsBody()}</div>`;
+}
+function leadsBody() {
+  const per = ui.lPer || '90', f = ui.lSt || 'open', q = (ui.lq || '').trim().toLowerCase(), qd = digits(q);
+  let list = (DB.leads || []).map(l => ({ l, s: leadSt(l), a: leadAge(l) }))
+    .filter(x => (per === 'all' || x.a <= +per) && (f === 'open' ? ['new', 'contacted'].includes(x.s) : f === 'all' ? true : x.s === f));
+  if (q) list = list.filter(x => [x.l.name, x.l.email, x.l.notes].join(' ').toLowerCase().includes(q) || (qd.length >= 3 && digits(x.l.phone).includes(qd)));
+  list.sort((a, b) => (b.l.created || '').localeCompare(a.l.created || ''));
+  if (!list.length) return `<div class="card empty">${q ? 'No leads match.' : 'Nothing here for this time range.'}</div>`;
+  const lim = ui.lLimit || 60;
+  return list.slice(0, lim).map(({ l, s, a }) => { const p = digits(l.phone).slice(-10), c = s === 'won' ? leadCust(l) : null;
+    return `<div class="lead" style="border-left-color:${LST[s].c}">
+      <div class="lh"><b>${esc(l.name || l.email || fmtPhone(l.phone) || 'No name')}</b> <span class="badge" style="background:${LST[s].c}">${LST[s].l}</span>
+        <span class="r muted small">${a <= 0 ? 'today' : a === 1 ? 'yesterday' : a < 60 ? a + ' days ago' : esc(fmtD(l.created))}</span></div>
+      <div class="small muted">${[l.phone ? '📞 ' + esc(fmtPhone(l.phone)) : '', l.email ? '✉ ' + esc(l.email) : ''].filter(Boolean).join(' · ')}${l.lastContact ? ` · last contact ${esc(fmtTs(l.lastContact))}` : ''}</div>
+      ${c ? `<div class="small" style="margin-top:3px">✓ <a href="#" onclick="custModal(${js(c.key)});return false">${esc(c.name || fmtPhone(c.phone))}</a> — ${plural(c.inv.length, 'invoice')}${c.spent ? ', ' + money0(c.spent) : ''}</div>` : ''}
+      ${l.notes ? `<div class="note">${esc(l.notes)}</div>` : ''}
+      <div class="acts">${p.length === 10 ? `<a class="btn sm" href="tel:${p}" onclick="leadTouch('${l.id}','Called')">📞 Call</a><a class="btn sm" href="sms:+1${p}?body=${encodeURIComponent(fillLead(S().msgLead, l))}" onclick="leadTouch('${l.id}','Texted')">💬 Text</a>` : ''}${l.email ? `<a class="btn sm" href="mailto:${encodeURIComponent(l.email)}?subject=${encodeURIComponent('Following up on your request — Rapid Computer Repair')}&body=${encodeURIComponent(fillLead(S().msgLead, l) + sig())}" onclick="leadTouch('${l.id}','Emailed')">✉ Email</a>` : ''}
+        ${s !== 'won' ? `<button class="btn sm ok" onclick="leadCheckin('${l.id}')">＋ Check in</button>` : ''}<button class="btn sm" onclick="leadMenu('${l.id}')">⋯</button></div></div>`; }).join('') +
+    (list.length > lim ? `<p><button class="btn" onclick="ui.lLimit=${lim + 100};$('#llist').innerHTML=leadsBody()">Show more (${list.length - lim} left)</button></p>` : '');
+}
+function leadTouch(id, how) {                 // a call / text / email counts as contact
+  const l = (DB.leads || []).find(x => x.id === id); if (!l) return;
+  l.lastContact = nowISO(); if (!l.status || l.status === 'new') l.status = 'contacted';
+  l.notes = ((l.notes ? l.notes + '\n' : '') + `${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}: ${how}`).slice(-600);
+  upsert('leads', l); setTimeout(() => { if (view === 'leads') $('#llist').innerHTML = leadsBody(); }, 300);
+}
+function leadCheckin(id) {
+  const l = (DB.leads || []).find(x => x.id === id); if (!l) return;
+  editTicket(null, { name: l.name || '', phone: fmtPhone(l.phone || ''), email: l.email || '' });
+  toast('New ticket started from this lead — it counts as a customer once you check it in.');
+}
+function leadMenu(id) {
+  const l = (DB.leads || []).find(x => x.id === id); if (!l) return; const s = leadSt(l);
+  sheet(esc(l.name || l.email || 'Lead'), [
+    ...LEAD_ST.filter(([k]) => k !== 'won').map(([k, lb, c]) => [`<span class="dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${c};margin-right:8px"></span>Mark as ${lb}`, () => { l.status = k; upsert('leads', l); render(); }, s === k]),
+    ['📝 Add a note', () => { const n = prompt('Note about this lead:'); if (n && n.trim()) { l.notes = ((l.notes ? l.notes + '\n' : '') + `${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}: ${n.trim()}`).slice(-600); upsert('leads', l); render(); } }]
+  ]);
+}
+// Import a Wix contacts export (CSV). Only people not already listed, from the last 2 years, are added.
+function parseCSV(t) {
+  const out = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (q) { if (ch === '"') { if (t[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"') q = true; else if (ch === ',') { row.push(cur); cur = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && t[i + 1] === '\n') i++; row.push(cur); out.push(row); row = []; cur = ''; }
+    else cur += ch;
+  }
+  if (cur || row.length) { row.push(cur); out.push(row); }
+  return out.filter(r => r.some(x => x.trim()));
+}
+async function leadImport(input) {
+  const file = input.files[0]; input.value = ''; if (!file) return;
+  const rows = parseCSV((await file.text()).replace(/^﻿/, '')); if (rows.length < 2) return toast('That file has no rows.', 'err');
+  const h = rows[0].map(x => x.trim().toLowerCase()), col = rx => h.findIndex(x => rx.test(x));
+  const iF = col(/first\s*name/), iL = col(/last\s*name/), iN = col(/^(full\s*)?name$/), iE = col(/e-?mail/), iP = col(/phone/), iD = col(/created|date added|creation|^date/);
+  if (iE < 0 && iP < 0) return toast("Couldn't find email or phone columns in that file.", 'err');
+  const have = new Set(); for (const l of DB.leads || []) { const p = digits(l.phone).slice(-10); if (p.length === 10) have.add('p' + p); if (l.email) have.add('e' + l.email.toLowerCase()); }
+  const cutoff = addDays(today(), -730); let added = 0, dup = 0, old = 0;
+  DB.leads = DB.leads || [];
+  for (const r of rows.slice(1)) {
+    const email = (iE >= 0 ? r[iE] : '').trim().toLowerCase(), phone = digits(iP >= 0 ? r[iP] : '').slice(-10);
+    if (!email && phone.length < 10) continue;
+    if ((phone.length === 10 && have.has('p' + phone)) || (email && have.has('e' + email))) { dup++; continue; }
+    const dt = iD >= 0 ? new Date(r[iD]) : new Date(), created = isNaN(dt) ? today() : dt.toISOString().slice(0, 10);
+    if (created < cutoff) { old++; continue; }
+    const name = (iN >= 0 ? r[iN] : [iF >= 0 ? r[iF] : '', iL >= 0 ? r[iL] : ''].join(' ')).replace(/\s+/g, ' ').trim();
+    const l = { id: uid(), name, email, phone: phone.length === 10 ? phone : '', created, status: LEAD_SPAM.test(email + ' ' + name) ? 'spam' : 'new', notes: '', src: 'Wix CSV ' + today(), upd: nowISO() };
+    DB.leads.push(l); if (l.phone) have.add('p' + l.phone); if (email) have.add('e' + email); added++;
+  }
+  commit(); render();
+  toast(`Imported ${plural(added, 'new lead')}${dup ? ` · ${dup} already listed` : ''}${old ? ` · ${old} older than 2 years skipped` : ''}.`);
+}
+
 function vCustomers() {
   const cs = customers();
   return `<div class="toolbar"><input type="search" placeholder="Search name, phone, email, device…" value="${esc(ui.cq)}" oninput="ui.cq=this.value;ui.cLimit=100;$('#clist').innerHTML=custBody()">
@@ -2213,7 +2327,7 @@ function vSettings() {
     <label>Next ticket number<input name="nextTicket" type="number" value="${esc(s.nextTicket)}"></label><label>Pickup reminder after (days)<input name="staleDays" type="number" value="${esc(s.staleDays)}"></label></form></div>
   <div class="card"><h3>💬 Message templates</h3><p class="small muted">Used by the "Copy … text" buttons. Fill-ins: {first} {name} {device} {no} {estimate} {estimateLine} {total} {diag} {review} {shopPhone} {readyDate} {readyDays}</p>
     <form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')">
-    ${MSG_TYPES.map(([k, l]) => `<label class="full">${l}<textarea name="${k}" rows="2">${esc(s[k])}</textarea></label>`).join('')}</form></div>
+    ${[...MSG_TYPES, ['msgLead', 'Website lead follow-up (Leads page)']].map(([k, l]) => `<label class="full">${l}<textarea name="${k}" rows="2">${esc(s[k])}</textarea></label>`).join('')}</form></div>
   <div class="card"><h3>🧾 Printed check-in ticket terms</h3><p class="small muted">Printed on every repair ticket. These are a starting point — not reviewed by a lawyer.</p>
     <form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')"><label class="full"><textarea name="terms" rows="8">${esc(s.terms)}</textarea></label></form></div>
   <div class="card"><h3>💾 Backup</h3><p class="small muted">${DB.tickets.length} tickets · ${DB.parts.length} parts · ${DB.orders.length} orders · ${DB.appts.length} appointments · ${DB.tasks.length} tasks${DB.savedAt ? ' · last change ' + fmtTs(DB.savedAt) : ''}</p>
