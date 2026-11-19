@@ -179,7 +179,7 @@
     table.items th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
-<meta name="rcr-build" content="20261119-145157">
+<meta name="rcr-build" content="20261119-150057">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -1299,11 +1299,20 @@ const saved = localStorage.getItem(KEY);
 load(saved ? JSON.parse(saved) : blank(2111));
 $('#favicon').href = $('.logo').src; // logo as the Chrome tab / bookmark icon
 updateDirty();
+// A device with no draft yet (or whose untouched draft number another device has since used) starts at the next free number.
+async function firstNumber() {
+  try {
+    if (hasWork()) return;
+    const log = await loadLog(), cur = String($('#invno').value || '');
+    const used = log.some(e => String(e.invno) === cur && e.id !== curId);
+    if ((!saved || used) && !hasWork()) { $('#invno').value = nextNumber(log); save(); markSaved(); }
+  } catch (e) { console.warn('next number:', e); }
+}
 if (HOSTED) {                       // web app: Google Drive instead of a picked folder, plus a way back to the dashboard
   $('#homebtn').hidden = false; $('#homebtn').href = '../dashboard/';
   $('#pdfbtn').hidden = false; document.body.classList.add('hosted');
-  if (!SIGNING_IN) { showFolder(); refreshLists(); }
-} else idb.get('dir').then(h => { dirHandle = h || null; showFolder(); refreshLists(); });
+  if (!SIGNING_IN) { showFolder(); refreshLists().then(firstNumber); }
+} else idb.get('dir').then(h => { dirHandle = h || null; showFolder(); refreshLists().then(firstNumber); });
 
 /* ---- Links from the RCR Dashboard ----
    …Invoice Form….html#ticket=<JSON>   start a new invoice filled in from a repair ticket

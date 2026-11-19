@@ -331,7 +331,13 @@
     .content { padding-bottom:calc(104px + env(safe-area-inset-bottom)); }
     #toasts { bottom:calc(92px + env(safe-area-inset-bottom)); }
     .sigs { grid-template-columns:1fr; }
-    body[data-view=tickets] .top .search, body[data-view=leads] .top .search { display:none; }   /* the tickets page has its own search box */
+    body[data-view=tickets] .top .search, body[data-view=leads] .top .search { display:none; }
+    .mbox { overflow-x:hidden; }                                       /* windows never slide sideways */
+    .mbody .grid.kpis { grid-template-columns:repeat(2, minmax(0, 1fr)) !important; gap:8px; }
+    .mbody .kpi .v { font-size:22px; overflow-wrap:anywhere; }
+    .mbody .kpi .tag { white-space:normal; display:inline-block; line-height:1.3; }
+    .mbody .row .btn, .mbody a.btn { white-space:normal; text-align:left; max-width:100%; }
+    .mbody .inp { max-width:100% !important; }   /* the tickets page has its own search box */
     .li { flex-wrap:wrap; }                                /* buttons go under the text instead of squeezing it */
     .li .ac { flex-basis:100%; justify-content:flex-start; padding-left:36px; }
     .li .ac:has(> :only-child) { flex-basis:auto; padding-left:0; }   /* a single Edit / × stays on the right */
@@ -359,7 +365,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-145157">
+<meta name="rcr-build" content="20261119-150057">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
