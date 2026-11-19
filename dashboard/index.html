@@ -1,0 +1,1763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RCR Dashboard</title>
+<link rel="icon" id="favicon" href="data:,">
+<script src="../shared/rcr-drive.js"></script><!-- Google Drive saving for the web app version; unused when opened from the computer -->
+<style>
+  :root { --bg:#f2f4f8; --card:#fff; --ink:#1b2333; --mut:#6b7486; --line:#e2e6ee; --accent:#1d5fd1; --accent2:#e8f0fe;
+          --side:#121a2b; --good:#16a34a; --warn:#d97706; --bad:#dc2626; --r:10px; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.4 "Segoe UI", system-ui, Arial, sans-serif; color:var(--ink); background:var(--bg); }
+  a { color:var(--accent); }
+  button, input, select, textarea { font:inherit; color:inherit; }
+  #app { display:grid; grid-template-columns:220px 1fr; min-height:100vh; }
+  aside { background:var(--side); color:#cfd6e4; position:sticky; top:0; height:100vh; display:flex; flex-direction:column; padding:14px 10px; overflow:auto; }
+  .brand { display:flex; align-items:center; gap:10px; padding:2px 8px 16px; color:#fff; font-weight:700; font-size:15px; line-height:1.15; }
+  .brand img { width:42px; height:42px; border-radius:8px; background:#fff; object-fit:contain; padding:2px; }
+  .brand small { display:block; font-weight:400; color:#8f9ab0; font-size:11px; }
+  nav a { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; color:#cfd6e4; text-decoration:none; margin:1px 0; cursor:pointer; user-select:none; }
+  nav a:hover { background:#1e2940; }
+  nav a.on { background:var(--accent); color:#fff; }
+  nav a .ct { margin-left:auto; background:#2b3854; border-radius:10px; padding:0 7px; font-size:11px; }
+  nav a .ct.hot { background:var(--bad); color:#fff; }
+  nav a.on .ct { background:rgba(255,255,255,.25); }
+  nav .sep { height:1px; background:#26314a; margin:10px 6px; }
+  .side-foot { margin-top:auto; font-size:11px; color:#8f9ab0; padding:8px; }
+  main { min-width:0; }
+  .top { position:sticky; top:0; z-index:5; background:rgba(242,244,248,.94); backdrop-filter:blur(6px); display:flex; align-items:center; gap:12px; padding:12px 22px; border-bottom:1px solid var(--line); }
+  .top h1 { font-size:19px; margin:0; white-space:nowrap; }
+  .search { position:relative; flex:1; max-width:460px; margin-left:auto; }
+  .search input { width:100%; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  #gres { position:absolute; top:40px; left:0; right:0; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.15); max-height:70vh; overflow:auto; z-index:30; }
+  #gres .h { font-size:11px; text-transform:uppercase; color:var(--mut); padding:8px 12px 2px; letter-spacing:.04em; }
+  #gres .it { padding:7px 12px; cursor:pointer; }
+  #gres .it:hover, #gres .it.sel { background:var(--accent2); }
+  #gres .it small { color:var(--mut); }
+  .sync { font-size:12px; padding:5px 10px; border-radius:20px; background:#fff; border:1px solid var(--line); cursor:pointer; white-space:nowrap; }
+  .sync.saved { color:var(--good); } .sync.warn { color:var(--warn); border-color:#f3d39b; background:#fff8eb; } .sync.err { color:var(--bad); border-color:#f5b5b5; background:#fff1f1; }
+  .content { padding:20px 22px 40px; }
+  .btn { border:1px solid var(--line); background:#fff; padding:7px 12px; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  .btn:hover { border-color:#b8c2d6; }
+  a.btn { text-decoration:none; color:inherit; display:inline-block; }
+  .btn.pri { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn.pri:hover { background:#174fb0; }
+  .btn.danger { color:var(--bad); }
+  .btn.sm { padding:3px 8px; font-size:12px; border-radius:6px; }
+  .btn.on { background:var(--accent2); border-color:var(--accent); color:var(--accent); }
+  .btn.ok { background:#16a34a; border-color:#16a34a; color:#fff; } .btn.ok:hover { background:#128a3e; }
+  .paygrid { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; } .paygrid .btn { padding:10px 6px; font-weight:600; }
+  .row2 { display:grid; grid-template-columns:1fr 2fr; gap:10px; } .row2 label { display:flex; flex-direction:column; gap:3px; font-size:12px; color:var(--mut); }
+  .row2 input { padding:7px 9px; border:1px solid var(--line); border-radius:8px; font:inherit; color:var(--ink, inherit); background:var(--card, #fff); }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .grow { flex:1; }
+  .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+  .toolbar input[type=search], .toolbar select { padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .toolbar input[type=search] { min-width:240px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; }
+  .seg button { border:0; background:none; padding:7px 12px; cursor:pointer; border-right:1px solid var(--line); }
+  .seg button:last-child { border-right:0; }
+  .seg button.on { background:var(--accent); color:#fff; }
+  .grid { display:grid; gap:14px; }
+  .kpis { grid-template-columns:repeat(auto-fill, minmax(175px, 1fr)); margin-bottom:14px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:13px 15px; cursor:pointer; transition:box-shadow .15s; }
+  .kpi:hover { box-shadow:0 4px 14px rgba(20,30,60,.08); }
+  .kpi .l { color:var(--mut); font-size:12px; }
+  .kpi .v { font-size:24px; font-weight:700; margin-top:2px; }
+  .kpi .s { font-size:12px; color:var(--mut); margin-top:2px; }
+  .kpi.alert .v { color:var(--bad); } .kpi.good .v { color:var(--good); } .kpi.warn .v { color:var(--warn); }
+  .up { color:var(--good); } .down { color:var(--bad); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; min-width:0; }
+  .card h3 { margin:0 0 10px; font-size:14px; display:flex; align-items:center; gap:8px; }
+  .card h3 .r { margin-left:auto; font-weight:400; }
+  .c2 { grid-template-columns:1.6fr 1fr; } .c3 { grid-template-columns:repeat(3, 1fr); } .c2e { grid-template-columns:1fr 1fr; }
+  @media (max-width:1150px) { .c2, .c3, .c2e { grid-template-columns:1fr; } }
+  .muted { color:var(--mut); } .small { font-size:12px; }
+  .empty { color:var(--mut); padding:14px 4px; text-align:center; }
+  table.t { width:100%; border-collapse:collapse; background:#fff; }
+  table.t th { text-align:left; font-size:12px; color:var(--mut); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; position:sticky; top:var(--toph, 60px); z-index:2; background:#fff; }
+  table.t td { padding:8px 10px; border-bottom:1px solid #eef1f6; vertical-align:top; }
+  table.t tr.click { cursor:pointer; }
+  table.t .ed { opacity:0; padding:0 5px; }
+  table.t tr:hover .ed { opacity:1; }
+  table.t tr.click:hover td { background:#f7f9fd; }
+  table.t td.num, table.t th.num { text-align:right; white-space:nowrap; }
+  .tablewrap { background:#fff; border:1px solid var(--line); border-radius:var(--r); overflow:clip; }   /* clip (not hidden) so the sticky header sticks under the top bar */
+  .mbox table.t th { position:static; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:20px; font-size:11.5px; font-weight:600; color:#fff; white-space:nowrap; }
+  .tag { display:inline-block; padding:0 6px; border-radius:5px; font-size:11px; background:#eef1f6; color:#4b5468; white-space:nowrap; }
+  .tag.red { background:#fde8e8; color:var(--bad); } .tag.amber { background:#fff3dc; color:#a35d00; } .tag.green { background:#e3f6e9; color:#13803c; } .tag.blue { background:var(--accent2); color:var(--accent); }
+  /* board */
+  .board { display:grid; grid-template-columns:repeat(6, minmax(190px, 1fr)); gap:10px; overflow-x:auto; padding-bottom:8px; }
+  .col { background:#e8ebf2; border-radius:var(--r); padding:8px; min-height:300px; }
+  .col.over { outline:2px dashed var(--accent); }
+  .col > header { display:flex; align-items:center; gap:6px; font-weight:600; font-size:13px; padding:2px 4px 8px; }
+  .col > header .dot { width:9px; height:9px; border-radius:50%; }
+  .col > header .n { margin-left:auto; color:var(--mut); font-weight:400; }
+  .tc { background:#fff; border-radius:8px; padding:9px 10px; margin-bottom:8px; border:1px solid var(--line); cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  .tc:hover { border-color:#b8c2d6; }
+  .tc .no { font-size:11px; color:var(--mut); display:flex; gap:6px; align-items:center; }
+  .tc .nm { font-weight:600; margin:2px 0 1px; }
+  .tc .dv { font-size:12.5px; }
+  .tc .is { font-size:12px; color:var(--mut); margin-top:3px; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .tc .ft { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; }
+  /* charts */
+  svg.chart { width:100%; height:auto; display:block; }
+  svg.chart text { font-size:11px; fill:#6b7486; }
+  svg.chart .bar { fill:var(--accent); } svg.chart .bar.cur { fill:#5b8fe8; }
+  svg.chart .bar:hover { fill:#0f3f99; }
+  .hb { display:grid; grid-template-columns:150px 1fr 90px; gap:8px; align-items:center; margin:5px 0; font-size:13px; }
+  .hb .trk { background:#eef1f6; border-radius:4px; height:12px; overflow:hidden; }
+  .hb .trk i { display:block; height:100%; border-radius:4px; }
+  .hb b { text-align:right; font-weight:600; white-space:nowrap; }
+  .hb span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* lists */
+  .li { display:flex; gap:10px; align-items:flex-start; padding:8px 2px; border-bottom:1px solid #eef1f6; }
+  .li:last-child { border-bottom:0; }
+  .li .ic { width:26px; text-align:center; font-size:16px; }
+  .li .tx { flex:1; min-width:0; }
+  .li .tx .s { color:var(--mut); font-size:12px; }
+  .li .ac { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; }
+  .li.done .tx { text-decoration:line-through; color:var(--mut); }
+  .sec-h { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--mut); margin:18px 0 6px; font-weight:600; }
+  /* modal */
+  #modal { position:fixed; inset:0; background:rgba(10,15,30,.5); z-index:40; display:flex; align-items:flex-start; justify-content:center; padding:4vh 16px; overflow:auto; }
+  #modal[hidden] { display:none; }
+  .mbox { background:#fff; border-radius:12px; width:560px; max-width:100%; box-shadow:0 20px 60px rgba(0,0,0,.3); }
+  .mbox.wide { width:1020px; }
+  .mbox > header { display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--line); }
+  .mbox > header h3 { margin:0; font-size:17px; }
+  .mbox > header .x { margin-left:auto; border:0; background:none; font-size:24px; line-height:1; cursor:pointer; color:var(--mut); }
+  .mbody { padding:16px 18px; }
+  .mbox > footer { display:flex; gap:8px; flex-wrap:wrap; padding:12px 18px; border-top:1px solid var(--line); background:#fafbfd; border-radius:0 0 12px 12px; }
+  .f { display:grid; gap:10px 14px; grid-template-columns:repeat(2, 1fr); }
+  .f.three { grid-template-columns:repeat(3, 1fr); }
+  .f .full { grid-column:1/-1; }
+  .f label, .fl { display:flex; flex-direction:column; gap:3px; font-size:12px; color:var(--mut); font-weight:600; }
+  .f input:not([type=checkbox]), .f select, .f textarea, .inp { padding:7px 9px; border:1px solid #d5dbe6; border-radius:7px; background:#fff; color:var(--ink); font-weight:400; font-size:14px; width:100%; }
+  .f textarea { min-height:62px; resize:vertical; }
+  .f input:focus, .f select:focus, .f textarea:focus, .inp:focus { outline:2px solid #b9d0fb; border-color:var(--accent); }
+  .chk { display:flex; flex-wrap:wrap; gap:6px 14px; font-weight:400; color:var(--ink); font-size:13px; }
+  .chk label { flex-direction:row; align-items:center; gap:5px; font-weight:400; color:var(--ink); font-size:13px; }
+  .tk { display:grid; grid-template-columns:1.25fr 1fr; gap:18px; }
+  @media (max-width:900px) { .tk { grid-template-columns:1fr; } .f.three { grid-template-columns:1fr 1fr; } }
+  .box { border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:12px; }
+  .box > .bh { font-weight:700; font-size:13px; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+  .box > .bh .r { margin-left:auto; }
+  .ret { background:#f0f6ff; border:1px solid #cfe0fb; border-radius:8px; padding:8px 10px; font-size:12.5px; margin-top:8px; }
+  .ret[hidden] { display:none; }
+  .note { border-left:3px solid #cfd8e8; padding:2px 0 2px 9px; margin:6px 0; font-size:13px; white-space:pre-wrap; }
+  .note small { display:block; color:var(--mut); }
+  .pl { display:grid; grid-template-columns:1fr 80px 80px 26px 24px; gap:5px; margin-bottom:5px; align-items:center; }
+  .pl input { padding:5px 7px; border:1px solid #d5dbe6; border-radius:6px; width:100%; }
+  .pl button { border:0; background:none; color:var(--bad); cursor:pointer; font-size:16px; }
+  /* toasts */
+  #toasts { position:fixed; right:18px; bottom:18px; z-index:60; display:flex; flex-direction:column; gap:8px; }
+  .toast { background:#1b2333; color:#fff; padding:10px 14px; border-radius:9px; box-shadow:0 6px 20px rgba(0,0,0,.25); display:flex; gap:10px; align-items:center; max-width:440px; }
+  .toast.err { background:#9b1c1c; }
+  .toast button { background:rgba(255,255,255,.15); border:0; color:#fff; padding:4px 9px; border-radius:6px; cursor:pointer; }
+  .banner { background:#fff8eb; border:1px solid #f3d39b; color:#7a4a00; padding:10px 14px; border-radius:10px; margin-bottom:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  details.inv summary { cursor:pointer; }
+  kbd { background:#eef1f6; border:1px solid #d5dbe6; border-bottom-width:2px; border-radius:4px; padding:0 5px; font-size:12px; }
+  /* tech tools */
+  .tools { grid-template-columns:repeat(auto-fill, minmax(380px, 1fr)); align-items:start; grid-auto-flow:row dense; }
+  .cmd { display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid #eef1f6; }
+  .cmd:last-child { border-bottom:0; }
+  .cmd code { flex:1; min-width:0; font:12px Consolas, "Cascadia Mono", monospace; background:#f3f5f9; padding:4px 7px; border-radius:5px; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .tools .wide { grid-column:span 2; }
+  @media (max-width:1150px) { .tools .wide { grid-column:auto; } }
+  .kb { overflow-x:auto; }
+  .cmd .d { width:170px; font-size:12.5px; }
+  .cmd .d small { display:block; color:var(--mut); font-size:11px; }
+  .kb { outline:none; padding:10px; border:2px dashed var(--line); border-radius:10px; user-select:none; }
+  .kb:focus { border-color:var(--accent); }
+  .kb .kr { display:flex; gap:4px; margin-bottom:4px; }
+  .kb .k { flex:0 0 auto; width:34px; height:30px; border:1px solid #c9d1df; border-radius:5px; font-size:10px; display:flex; align-items:center; justify-content:center; background:#fff; color:#333; }
+  .kb .k.hit { background:#bdf0cd; border-color:#16a34a; }
+  .kb .k.kd { background:var(--accent); color:#fff; }
+  .chips { display:flex; flex-wrap:wrap; gap:5px; }
+  .chip { border:1px solid var(--line); background:#fff; border-radius:16px; padding:2px 9px; font-size:12px; cursor:pointer; user-select:none; }
+  .chip.ok { background:#e3f6e9; border-color:#16a34a; color:#13803c; } .chip.bad { background:#fde8e8; border-color:var(--bad); color:var(--bad); } .chip.na { background:#eef1f6; color:#888; text-decoration:line-through; }
+  .out { font:13px Consolas, monospace; background:#f3f5f9; border-radius:7px; padding:8px 10px; margin-top:8px; white-space:pre-wrap; }
+  #screentest { position:fixed; inset:0; z-index:100; cursor:none; display:flex; align-items:flex-end; justify-content:center; }
+  #screentest span { margin-bottom:20px; padding:4px 10px; border-radius:6px; background:rgba(0,0,0,.5); color:#fff; font-size:12px; cursor:default; }
+  .tip { background:linear-gradient(90deg, var(--accent2), transparent); border:1px solid var(--line); border-radius:var(--r); padding:9px 14px; margin-bottom:14px; font-size:13px; }
+  .side-foot select { background:#1e2940; color:#cfd6e4; border:1px solid #2b3854; border-radius:6px; padding:2px 4px; font-size:11px; }
+  /* themes */
+  [data-theme] .top { background:var(--bg); }
+  [data-theme] table.t, [data-theme] table.t th, [data-theme] .tablewrap, [data-theme] .btn, [data-theme] .seg, [data-theme] .tc, [data-theme] .mbox,
+  [data-theme] .sync, [data-theme] .search input, [data-theme] .toolbar input, [data-theme] .toolbar select, [data-theme] .f input:not([type=checkbox]),
+  [data-theme] .f select, [data-theme] .f textarea, [data-theme] .inp, [data-theme] #gres, [data-theme] .pl input, [data-theme] .chip, [data-theme] .mbox > footer
+    { background:var(--card); color:var(--ink); border-color:var(--line); }
+  [data-theme] .btn.pri { background:var(--accent); border-color:var(--accent); color:#fff; }
+  [data-theme] .chip.ok { background:#123821; color:#5fe08c; } [data-theme] .chip.bad { background:#3d1515; color:#ff8a8a; }
+  [data-theme] table.t td, [data-theme] .li, [data-theme] .cmd { border-color:var(--line); }
+  [data-theme] table.t tr.click:hover td, [data-theme] #gres .it:hover, [data-theme] #gres .it.sel { background:var(--accent2); }
+  [data-theme] .col { background:#1a2131; }
+  [data-theme] .hb .trk, [data-theme] .tag, [data-theme] kbd, [data-theme] .cmd code, [data-theme] .out { background:#243049; color:var(--ink); }
+  [data-theme] .ret { background:#16243d; border-color:#2a3f66; }
+  [data-theme] .banner { background:#3a2d12; border-color:#6b5320; color:#f6d98b; }
+  [data-theme] svg.chart text { fill:var(--mut); }
+  [data-theme=dark] { --bg:#0e1320; --card:#161d2c; --ink:#e3e8f2; --mut:#93a0b8; --line:#283246; --accent:#4b8bf5; --accent2:#1b2a47; }
+  [data-theme=terminal] { --bg:#050805; --card:#0b120b; --ink:#39ff88; --mut:#25a75a; --line:#173b22; --accent:#39ff88; --accent2:#0f2a17; --side:#020402; }
+  [data-theme=terminal] body { font-family:Consolas, "Cascadia Mono", "Courier New", monospace; text-shadow:0 0 4px rgba(57,255,136,.35); }
+  [data-theme=terminal] .btn.pri, [data-theme=terminal] nav a.on, [data-theme=terminal] .seg button.on { color:#000; text-shadow:none; }
+  [data-theme=terminal] aside, [data-theme=terminal] nav a { color:#39ff88; }
+  [data-theme=terminal] .badge { color:#000; text-shadow:none; }
+  /* phone */
+  .btn.menu, #scrim { display:none; }
+  @media (max-width:760px) {
+    #app { grid-template-columns:1fr; }
+    aside { position:fixed; left:0; top:0; bottom:0; width:260px; height:auto; z-index:50; transform:translateX(-105%); transition:transform .2s; padding-top:calc(14px + env(safe-area-inset-top)); }
+    body.navopen aside { transform:none; box-shadow:0 0 40px rgba(0,0,0,.5); }
+    body.navopen #scrim { display:block; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:45; }
+    nav a { padding:12px 10px; font-size:15px; }
+    .side-foot .kbd-tip { display:none; }
+    .btn.menu { display:inline-flex; font-size:18px; padding:4px 11px; }
+    .top { flex-wrap:wrap; gap:8px; padding:8px 10px; padding-top:calc(8px + env(safe-area-inset-top)); }
+    .top h1 { font-size:17px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    .top .lbl { display:none; }
+    .search { order:5; flex-basis:100%; max-width:none; margin:0; }
+    .sync { font-size:11px; padding:4px 8px; max-width:140px; overflow:hidden; text-overflow:ellipsis; }
+    .content { padding:12px 10px calc(60px + env(safe-area-inset-bottom)); }
+    .kpis { grid-template-columns:repeat(2, 1fr); gap:8px; }
+    .board { grid-template-columns:repeat(6, 84vw); scroll-snap-type:x mandatory; }
+    .board .col { scroll-snap-align:start; min-height:200px; }
+    .tablewrap { overflow-x:auto; }
+    #modal { padding:0; }
+    .mbox, .mbox.wide { width:100%; min-height:100%; border-radius:0; }
+    .mbox > header { position:sticky; top:0; z-index:2; background:var(--card); padding-top:calc(14px + env(safe-area-inset-top)); }
+    .mbox > footer { position:sticky; bottom:0; border-radius:0; padding-bottom:calc(12px + env(safe-area-inset-bottom)); }
+    .mbody { padding:14px 12px; }
+    .f { grid-template-columns:1fr; } .f.three { grid-template-columns:1fr 1fr; }
+    .tools { grid-template-columns:1fr; } .tools .wide { grid-column:auto; }
+    input, select, textarea { font-size:16px !important; }   /* stops the iPhone zooming in on every field */
+    #toasts { left:10px; right:10px; bottom:calc(10px + env(safe-area-inset-bottom)); }
+    .toast { max-width:none; }
+    .row2 { grid-template-columns:1fr; }
+    .btn { padding:8px 12px; } .btn.sm { padding:5px 9px; }
+  }
+  /* print */
+  #print { display:none; }
+  @media print {
+    @page { size:letter; margin:0.5in; }
+    #app, #modal, #toasts { display:none !important; }
+    #print { display:block; font:12px/1.4 "Segoe UI", Arial, sans-serif; color:#000; }
+    body { background:#fff; }
+  }
+  .pr-head { display:flex; gap:14px; align-items:center; border-bottom:2px solid #000; padding-bottom:8px; }
+  .pr-head img { width:64px; height:64px; object-fit:contain; }
+  .pr-head .nm { font-size:20px; font-weight:700; }
+  .pr-title { display:flex; justify-content:space-between; align-items:baseline; margin:12px 0 6px; }
+  .pr-title b { font-size:18px; }
+  .pr-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 24px; }
+  .pr-grid div span { color:#555; display:inline-block; min-width:100px; }
+  .pr-box { border:1px solid #999; padding:6px 8px; margin:8px 0; white-space:pre-wrap; min-height:34px; }
+  .pr-terms { font-size:10.5px; color:#222; white-space:pre-wrap; margin-top:8px; }
+  .pr-sign { display:flex; gap:30px; margin-top:26px; }
+  .pr-sign div { flex:1; border-top:1px solid #000; padding-top:3px; font-size:11px; }
+  .pr-cut { border-top:2px dashed #777; margin:22px 0 10px; text-align:center; font-size:10px; color:#777; }
+  .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
+  .pr-tag .big { font-size:34px; font-weight:800; }
+</style>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="apple-touch-icon" href="../icons/icon-180.png">
+<meta name="theme-color" content="#121a2b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="RCR Shop">
+<meta name="robots" content="noindex">
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(function () {});</script>
+</head>
+<body>
+<div id="app">
+  <aside>
+    <div class="brand"><img id="logo" alt=""><div>Rapid Computer Repair<small>Shop Dashboard</small></div></div>
+    <nav id="nav"></nav>
+    <div class="side-foot">
+      <a href="#" onclick="openInvoice();return false" style="color:#9fb7e8">🧾 Open Invoice Form ↗</a><br><br>
+      <span class="kbd-tip">Shortcuts: <kbd>N</kbd> new ticket · <kbd>I</kbd> invoice · <kbd>/</kbd> search · <kbd>1</kbd>–<kbd>0</kbd> pages<br><br></span>
+      <div id="uptime"></div>
+      Theme <select id="theme" onchange="setTheme(this.value)"><option value="">☀ Light</option><option value="dark">🌙 Dark</option><option value="terminal">💾 Terminal</option></select>
+    </div>
+  </aside>
+  <main>
+    <div class="top">
+      <button class="btn menu" onclick="document.body.classList.toggle('navopen')" aria-label="Menu">☰</button>
+      <h1 id="title">Dashboard</h1>
+      <div class="search">
+        <input id="gq" type="search" placeholder="Search tickets, customers, invoices, serials…  ( / )" autocomplete="off"
+               oninput="gsearch(this.value)" onkeydown="gkey(event)" onblur="setTimeout(()=>$('#gres').hidden=true,180)">
+        <div id="gres" hidden></div>
+      </div>
+      <span id="sync" class="sync" onclick="syncClick()">…</span>
+      <button class="btn" onclick="openInvoice()" title="Open the Invoice Form (shortcut: I)">🧾<span class="lbl"> New Invoice</span></button>
+      <button class="btn pri" onclick="editTicket()">+<span class="lbl"> New Ticket</span></button>
+    </div>
+    <div class="content" id="main"></div>
+  </main>
+</div>
+<div id="scrim" onclick="document.body.classList.remove('navopen')"></div>
+<div id="modal" hidden></div>
+<div id="toasts"></div>
+<div id="print"></div>
+<datalist id="custList"></datalist>
+<datalist id="partList"></datalist>
+
+<script>
+'use strict';
+/* ============ helpers ============ */
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const js = v => esc(JSON.stringify(v));                       // safe value inside onclick="…"
+const num = v => { const n = parseFloat(String(v ?? '').replace(/[$,]/g, '')); return isFinite(n) ? n : 0; };
+const money = n => (n < 0 ? '-$' : '$') + Math.abs(+n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money0 = n => (n < 0 ? '-$' : '$') + Math.round(Math.abs(+n || 0)).toLocaleString('en-US');
+const sum = (a, f) => a.reduce((s, x) => s + (f ? f(x) : x), 0);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const nowISO = () => new Date().toISOString();
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => { d = new Date(d); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+const today = () => ymd(new Date());
+const parseYMD = s => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parseYMD(s); d.setDate(d.getDate() + n); return ymd(d); };
+const daysSince = iso => Math.floor((Date.now() - Date.parse(iso)) / 864e5);
+const dayDiff = (a, b) => Math.round((parseYMD(b) - parseYMD(a)) / 864e5);
+const fmtD = s => s ? parseYMD(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+const fmtDs = s => s ? parseYMD(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+const fmtTs = iso => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+const fmtT = t => { if (!t) return ''; const [h, m] = t.split(':').map(Number); return ((h + 11) % 12 + 1) + ':' + pad(m) + (h < 12 ? ' AM' : ' PM'); };
+const digits = s => String(s || '').replace(/\D/g, '');
+const fmtPhone = s => { const d = digits(s).slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (s || ''); };
+const first = n => String(n || '').trim().split(/\s+/)[0] || 'there';
+const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+
+/* ============ constants ============ */
+const STATUSES = [
+  { k: 'checkin', l: 'Checked In', c: '#64748b' }, { k: 'diag', l: 'Diagnosing', c: '#0891b2' },
+  { k: 'approval', l: 'Awaiting Approval', c: '#d97706' }, { k: 'parts', l: 'Waiting on Parts', c: '#9333ea' },
+  { k: 'repair', l: 'In Repair', c: '#2563eb' }, { k: 'ready', l: 'Ready for Pickup', c: '#16a34a' },
+  { k: 'done', l: 'Picked Up', c: '#475569' }, { k: 'cancel', l: 'Cancelled', c: '#dc2626' } ];
+const ST = Object.fromEntries(STATUSES.map(s => [s.k, s]));
+const OPEN = ['checkin', 'diag', 'approval', 'parts', 'repair', 'ready'];
+const badge = k => { const s = ST[k] || ST.checkin; return `<span class="badge" style="background:${s.c}">${s.l}</span>`; };
+const ACCESSORIES = ['Charger', 'Power cable', 'Case / Bag', 'Mouse', 'Keyboard', 'External drive', 'Stylus', 'Box'];
+const ADDRS = ['9800 HILLWOOD PKWY SUITE 140 FORT WORTH TX 76177', '9008 SAGEWOOD DR. FORT WORTH, TX 76177', '1264 WHITE PINE DR. HASLET, TX 76052'];
+const APPT_TYPES = ['Drop-off', 'Pickup', 'On-site', 'Remote session', 'Phone call', 'Consultation'];
+const DEF = {
+  techs: ['Owner'], nextTicket: 1001, logPaths: ['Invoice/2026 Invoices'], dataPath: 'Dashboard', staleDays: 7,
+  devTypes: ['Laptop', 'Desktop', 'All-in-One', 'Custom PC Build', 'MacBook', 'iMac / Mac', 'Tablet', 'Phone', 'Printer', 'Network / Router', 'Game Console', 'Other'],
+  shopPhone: '(682) 308-6824', shopEmail: 'rapidcomrepair@gmail.com', shopWeb: 'rapidcomrepair.com', shopAddr: ADDRS[0],
+  reviewLink: '', goal: 0,
+  terms: '• The estimate may change once the device is opened. We will contact you for approval before doing any work beyond the approved amount.\n' +
+         '• Please back up your data. Rapid Computer Repair is not responsible for loss of data, software or settings.\n' +
+         '• We are not responsible for pre-existing damage or for problems not listed on this ticket.\n' +
+         '• Devices not picked up within 30 days of our ready-for-pickup notice may be charged a storage fee.\n' +
+         '• Bring this ticket (or photo ID) when picking up your device.',
+  msgReady: 'Hi {first}, this is Rapid Computer Repair. Your {device} (ticket #{no}) is ready for pickup.{total} Thank you!',
+  msgApproval: 'Hi {first}, this is Rapid Computer Repair about your {device} (ticket #{no}). {diag} The estimate is {estimate}. Please reply or call {shopPhone} to approve the repair.',
+  msgReminder: 'Hi {first}, a friendly reminder from Rapid Computer Repair: your {device} (ticket #{no}) is still ready for pickup. Call {shopPhone} with any questions.',
+  msgReview: 'Hi {first}, thank you for choosing Rapid Computer Repair! If you have a minute, a Google review would really help our small business: {review}',
+};
+const CATS = [
+  ['Liquid damage', /liquid|spill|water|coffee|oil|soda|wet/i], ['Screen / display', /screen|lcd|display|digitizer|panel|backlight/i],
+  ['Battery / power', /battery|charg|power jack|dc jack|adapter|won.?t turn on|no power|psu/i], ['Logic board', /logic ?board|board repair|motherboard repair/i],
+  ['Virus / malware', /virus|malware|spyware|scam|pop.?up|hack/i], ['Data recovery / transfer', /data|recover|backup|transfer|migrat|clone/i],
+  ['Windows / OS', /windows|reinstall|corrupt|boot|macos|os install|reload|update|blue screen|bsod/i],
+  ['Upgrade (SSD / RAM)', /ssd|ram|memory|upgrade|hard drive|hdd|nvme|storage/i], ['Custom build', /build|custom|gpu|graphics|cpu|gaming/i],
+  ['Keyboard / hinge / body', /keyboard|hinge|frame|case|fan|bottom|port|usb|trackpad/i], ['Network / setup / remote', /network|wifi|wi-fi|router|remote|printer|email|setup|install|tv|camera/i],
+  ['Sale (device / parts)', /bill of sale|sale|sold/i], ['Diagnostic / estimate', /diag|estimate|inspect|check/i] ];
+const catOf = text => (CATS.find(([, re]) => re.test(text)) || ['Other'])[0];
+
+/* ============ storage (IndexedDB for folder handle + invoice cache) ============ */
+const idb = (() => {
+  let p; const db = () => p || (p = new Promise((res, rej) => { const r = indexedDB.open('rcr-dashboard', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+  return {
+    get: async k => { const d = await db(); return new Promise((res, rej) => { const r = d.transaction('kv').objectStore('kv').get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+    set: async (k, v) => { const d = await db(); return new Promise((res, rej) => { const t = d.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); },
+  };
+})();
+
+/* ============ data ============ */
+const LS = 'rcr-dashboard-v1', DATA_FILE = '_dashboard-data.json', LOG_FILE = '_invoice-log.json';
+const COLLS = ['tickets', 'parts', 'orders', 'appts', 'tasks'];
+const blank = () => ({ v: 1, tickets: [], parts: [], orders: [], appts: [], tasks: [], custNotes: {}, deleted: {}, settings: {}, settingsUpd: '', savedAt: '' });
+function normalize(d) {
+  d = { ...blank(), ...(d || {}) };
+  d.settings = { ...JSON.parse(JSON.stringify(DEF)), ...(d.settings || {}) };
+  COLLS.forEach(k => d[k] = Array.isArray(d[k]) ? d[k] : []);
+  d.custNotes = d.custNotes || {}; d.deleted = d.deleted || {};
+  return d;
+}
+let DB; try { DB = normalize(JSON.parse(localStorage.getItem(LS) || 'null')); } catch { DB = normalize(); }
+const S = () => DB.settings;
+let INV = [];                // slimmed invoice-log entries (read only)
+let invInfo = { files: [], errors: [], loadedAt: '' };
+let folder = null, folderOK = false, pending = false, busy = false, wt = 0, backupDay = '', invMod = {};
+
+function merge(a, b) {          // combine two copies of the data (e.g. office PC + home PC via Google Drive): newest edit of each record wins
+  const m = blank(), del = { ...(a.deleted || {}) };
+  for (const [k, v] of Object.entries(b.deleted || {})) if (!del[k] || v > del[k]) del[k] = v;
+  const cutoff = new Date(Date.now() - 180 * 864e5).toISOString();
+  for (const k of Object.keys(del)) if (del[k] < cutoff) delete del[k];
+  m.deleted = del;
+  for (const c of COLLS) {
+    const map = new Map();
+    for (const r of [...b[c], ...a[c]]) { const o = map.get(r.id); if (!o || (r.upd || '') >= (o.upd || '')) map.set(r.id, r); }
+    m[c] = [...map.values()].filter(r => !(del[r.id] && del[r.id] >= (r.upd || '')));
+  }
+  m.custNotes = { ...b.custNotes };
+  for (const [k, v] of Object.entries(a.custNotes || {})) if (!m.custNotes[k] || (v.upd || '') >= (m.custNotes[k].upd || '')) m.custNotes[k] = v;
+  const useA = (a.settingsUpd || '') >= (b.settingsUpd || '');
+  m.settings = { ...(useA ? a.settings : b.settings) }; m.settingsUpd = useA ? a.settingsUpd : b.settingsUpd;
+  m.settings.nextTicket = Math.max(a.settings.nextTicket || 0, b.settings.nextTicket || 0, ...m.tickets.map(t => (t.no || 0) + 1));
+  m.savedAt = (a.savedAt || '') > (b.savedAt || '') ? a.savedAt : b.savedAt;
+  return normalize(m);
+}
+function persistLocal() { try { localStorage.setItem(LS, JSON.stringify(DB)); } catch (e) { toast('Could not save in the browser: ' + e.message, 'err'); } }
+function commit() { DB.savedAt = nowISO(); persistLocal(); pending = true; setSync('saving'); clearTimeout(wt); wt = setTimeout(flush, 700); }
+function upsert(coll, rec) { rec.upd = nowISO(); const a = DB[coll], i = a.findIndex(x => x.id === rec.id); if (i < 0) a.push(rec); else a[i] = rec; commit(); }
+function removeRec(coll, id) { DB[coll] = DB[coll].filter(x => x.id !== id); DB.deleted[id] = nowISO(); commit(); }
+function saveSettings(patch) { Object.assign(DB.settings, patch); DB.settingsUpd = nowISO(); commit(); }
+
+async function getDir(root, path, create) { let d = root; for (const part of String(path || '').split(/[\\/]/).filter(Boolean)) d = await d.getDirectoryHandle(part, { create }); return d; }
+async function readText(dir, name) { try { return await (await (await dir.getFileHandle(name)).getFile()).text(); } catch (e) { if (e.name === 'NotFoundError') return null; throw e; } }
+async function writeText(dir, name, text) { const fh = await dir.getFileHandle(name, { create: true }); const w = await fh.createWritable(); await w.write(text); await w.close(); }
+const parseJSON = t => JSON.parse(t.replace(/^﻿/, ''));
+
+async function flush() {
+  if (!folder || !folderOK) { pending = false; setSync(folder ? 'reconnect' : 'local'); return; }
+  if (busy) { clearTimeout(wt); wt = setTimeout(flush, 500); return; }
+  busy = true;
+  try {
+    const d = await getDir(folder, S().dataPath, true);
+    const t = await readText(d, DATA_FILE);
+    const before = JSON.stringify(DB);
+    if (t) DB = merge(DB, normalize(parseJSON(t)));
+    persistLocal();
+    await writeText(d, DATA_FILE, JSON.stringify(DB));
+    pending = false;
+    await weeklyBackup(d);
+    setSync('saved');
+    if (JSON.stringify(DB) !== before) softRender();
+  } catch (e) { driveError(e); }
+  finally { busy = false; }
+}
+async function pullFromFolder() {           // read the Drive copy and merge it in (another computer may have changed it)
+  if (!folder || !folderOK || busy) return;
+  busy = true;
+  try {
+    const d = await getDir(folder, S().dataPath, true);
+    const t = await readText(d, DATA_FILE);
+    const before = JSON.stringify(DB);
+    let needWrite = !t;
+    if (t) { const remote = normalize(parseJSON(t)); DB = merge(DB, remote); needWrite = JSON.stringify(DB) !== JSON.stringify(remote); }
+    persistLocal();
+    if (needWrite) await writeText(d, DATA_FILE, JSON.stringify(DB));
+    await weeklyBackup(d);
+    setSync('saved');
+    if (JSON.stringify(DB) !== before) softRender();
+  } catch (e) { driveError(e); }
+  finally { busy = false; }
+  await loadInvoices();
+}
+async function weeklyBackup(d) {
+  const day = today(); if (backupDay === day) return; backupDay = day;
+  const b = await d.getDirectoryHandle('Backups', { create: true }); const names = [];
+  for await (const [n] of b.entries()) if (/^Dashboard Backup \d{4}-\d\d-\d\d\.json$/.test(n)) names.push(n);
+  names.sort(); const last = names[names.length - 1];
+  if (!last || dayDiff(last.slice(17, 27), day) >= 7) { const n = `Dashboard Backup ${day}.json`; await writeText(b, n, JSON.stringify(DB, null, 1)); names.push(n); }
+  while (names.length > 8) await b.removeEntry(names.shift());
+}
+
+const noPhone = s => { s = String(s).trim(); return /^[\d\s().+-]{7,}$/.test(s) ? '' : s; };   // invoices with only a phone number have no real name
+function slim(e) {
+  const d = e.data || {};
+  let t = Date.parse(e.date || d.date); if (!isFinite(t)) t = Date.parse(e.savedAt) || 0;
+  return { id: e.id || (e.invno + '|' + e.date + '|' + e.job), invno: e.invno || d.invno || '', date: e.date || d.date || '', t,
+    name: noPhone(e.name || d.custname || String(e.customer || '').split('\n')[0] || ''), phone: e.phone || d.custphone || '',
+    job: e.job || d.job || '', make: e.make || d.make || '', model: e.model || d.model || '',
+    total: num(e.total), sub: num(e.subtotal), status: e.status ?? d.status ?? '', kind: e.kind || '',
+    paidDate: e.paidDate || '', paidMethod: e.paidMethod || '', flags: e.flags || [], file: e.file || '', addr: d.addr || '',
+    desc: d.desc || '', res: d.res || '', ticketNo: String(e.ticketNo || d.ticketNo || ''),
+    lines: (d.lines || []).filter(l => l && (l.desc || l.price)).map(l => ({ q: num(l.qty) || 1, d: l.desc || '', p: num(l.price) })) };
+}
+// Find the invoice log even if a folder one level too high or too low was picked
+// (e.g. "Invoice", "2026 Invoices", "Documents" or "My Drive" instead of "RCR").
+async function findLog(root, p) {
+  const parts = String(p).split(/[\\/]/).filter(Boolean), tries = [];
+  for (let i = 0; i <= parts.length; i++) tries.push(parts.slice(i).join('/'));          // Invoice/2026 Invoices → 2026 Invoices → (picked folder itself)
+  tries.push('RCR/' + p, 'Documents/RCR/' + p, 'My Drive/Documents/RCR/' + p);
+  for (const t of tries) {
+    try { const dir = await getDir(root, t, false); return { dir, fh: await dir.getFileHandle(LOG_FILE), path: t }; }
+    catch (e) { if (e.name !== 'NotFoundError' && e.name !== 'TypeMismatchError') throw e; }
+  }
+  return null;
+}
+async function loadInvoices(force) {
+  if (!folder || !folderOK) return;
+  const map = new Map(), errors = [], files = []; let changed = !!force;
+  const texts = [];
+  for (const p of S().logPaths) {
+    try {
+      const r = await findLog(folder, p);
+      if (!r) { errors.push(`Couldn't find "${p}/${LOG_FILE}" in the folder you picked ("${folder.name}"). Click "Change folder" and pick My Drive › Documents › RCR.`); continue; }
+      const f = await r.fh.getFile();
+      if (invMod[p] !== f.lastModified) changed = true;
+      texts.push([p, f]);
+    } catch (e) { if (e.name === 'AuthError') return void driveError(e); errors.push(`${p}: ${e.message}`); }
+  }
+  if (!changed && errors.length === invInfo.errors.length) return;
+  if (!texts.length) { invInfo = { ...invInfo, errors }; softRender(); return; }   // keep the last good copy if the log can't be read right now
+  for (const [p, f] of texts) {
+    try { const arr = parseJSON(await f.text()); for (const e of (Array.isArray(arr) ? arr : [])) { const s = slim(e); map.set(s.id, s); } invMod[p] = f.lastModified; files.push(`${p} (${arr.length})`); }
+    catch (e) { if (e.name === 'AuthError') return void driveError(e); errors.push(`${p}: ${e.message}`); }
+  }
+  INV = [...map.values()].sort((a, b) => b.t - a.t);
+  invInfo = { files, errors, loadedAt: nowISO() };
+  custCache = null;
+  linkInvoices();
+  idb.set('inv', { INV, invInfo }).catch(() => {});
+  softRender();
+}
+
+/* ============ folder connect ============ */
+// Web app (GitHub Pages): the "folder" is My Drive › Documents › RCR through Google sign-in (shared/rcr-drive.js).
+const HOSTED = !!(window.RCRDrive && RCRDrive.hosted);
+async function driveConnect(auto) {
+  if (!RCRDrive.signedIn()) { if (auto && !RCRDrive.wasSignedIn()) { setSync('local'); return; } return RCRDrive.signIn({ silent: RCRDrive.wasSignedIn() }); }
+  try {
+    folder = await RCRDrive.root(); folderOK = true;
+    await pullFromFolder(); await loadInvoices(true); render();
+  } catch (e) { if (!driveError(e)) toast('Google Drive: ' + e.message, 'err'); }
+}
+function driveError(e) {          // true if it was an expired sign-in
+  console.error(e);
+  if (e && e.name === 'AuthError') { folderOK = false; setSync('reconnect'); return true; }
+  setSync('error', e && e.message); return false;
+}
+async function connectFolder() {
+  if (HOSTED) return driveConnect();
+  if (!window.showDirectoryPicker) return alert('Saving to a folder needs Google Chrome or Microsoft Edge.');
+  let h; try { h = await showDirectoryPicker({ id: 'rcr-dashboard', mode: 'readwrite' }); } catch { return; }
+  let found = null; for (const p of S().logPaths) { try { found = found || await findLog(h, p); } catch {} }
+  if (found && found.path !== S().logPaths[0] && h.name !== 'RCR' &&
+      !confirm(`You picked "${h.name}". I found your invoices, but the best folder to pick is RCR (My Drive › Documents › RCR) so the dashboard saves its data next to the Invoice folder.\n\nUse "${h.name}" anyway? (Cancel to pick again.)`)) return connectFolder();
+  if (!found && !confirm(`I couldn't find "${S().logPaths[0]}" inside "${h.name}".\n\nPick your RCR folder (My Drive › Documents › RCR — the one that contains the Invoice folder) so the dashboard can read your invoices.\n\nUse "${h.name}" anyway?`)) return;
+  await useFolder(h);
+}
+async function useFolder(h) {
+  folder = h; folderOK = true; await idb.set('folder', h).catch(() => {});
+  invMod = {}; await pullFromFolder(); await loadInvoices(true);
+  toast(`Connected to "${h.name}". Data saves to ${h.name}/${S().dataPath}/${DATA_FILE}`);
+  render();
+}
+async function reconnect() {
+  if (HOSTED) return driveConnect();
+  if (!folder) return connectFolder();
+  try { if (await folder.requestPermission({ mode: 'readwrite' }) === 'granted') { folderOK = true; await pullFromFolder(); await loadInvoices(true); render(); } }
+  catch (e) { toast('Could not reconnect: ' + e.message, 'err'); }
+}
+function syncClick() { if (!folder) connectFolder(); else if (!folderOK) reconnect(); else { flush(); loadInvoices(true); } }
+let syncState = 'local';
+function setSync(st, msg) {
+  syncState = st; const el = $('#sync');
+  const m = { local: ['warn', HOSTED ? '⚠ Sign in with Google' : '⚠ Saved in this browser only — click to connect Drive folder'], reconnect: ['warn', HOSTED ? '⚠ Tap to sign in again' : '⚠ Click to reconnect the Drive folder'],
+    saving: ['', 'Saving…'], saved: ['saved', (matchMedia('(max-width:760px)').matches ? '✓ Saved ' : '✓ Saved to Drive ') + new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })], error: ['err', '✕ Save failed — click to retry'] }[st];
+  el.className = 'sync ' + m[0]; el.textContent = m[1]; el.title = msg || (folder ? `Folder: ${folder.name}` : '');
+  if (st === 'saving' && (!folder || !folderOK)) { el.className = 'sync warn'; el.textContent = HOSTED ? '⚠ Saved on this device — tap to sign in' : folder ? '⚠ Saved here — click to reconnect Drive' : '⚠ Saved in this browser only — click to connect Drive folder'; }
+}
+
+/* ============ UI basics ============ */
+function toast(msg, kind, actions) {
+  const el = document.createElement('div'); el.className = 'toast ' + (kind || '');
+  el.innerHTML = `<span>${esc(msg)}</span>`;
+  (actions || []).forEach(([label, fn]) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => { fn(); el.remove(); }; el.appendChild(b); });
+  $('#toasts').appendChild(el); setTimeout(() => el.remove(), actions ? 9000 : 3800);
+}
+function modal(title, body, foot, wide) {
+  const m = $('#modal');
+  m.innerHTML = `<div class="mbox ${wide ? 'wide' : ''}" role="dialog"><header><h3>${title}</h3><button class="x" onclick="closeModal()" title="Close (Esc)">×</button></header><div class="mbody">${body}</div>${foot ? `<footer>${foot}</footer>` : ''}</div>`;
+  m.hidden = false; const f = $('input:not([type=hidden]):not([type=checkbox]), textarea', m); if (f && !f.value) setTimeout(() => f.focus(), 30);
+}
+let modalDirty = false;
+function leaveModal() { if ($('#modal').hidden) return true; closeModal(); return $('#modal').hidden; }  // false if the user chose to keep unsaved edits
+function closeModal(force) {
+  if (!force && modalDirty && !confirm('Close without saving your changes?')) return;
+  $('#modal').hidden = true; $('#modal').innerHTML = ''; modalDirty = false;
+}
+async function copyText(t, what) {
+  try { await navigator.clipboard.writeText(t); }
+  catch { const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select(); document.execCommand('copy'); a.remove(); }
+  toast((what || 'Text') + ' copied — paste it into your text or email.');
+}
+const formData = f => { const o = {}; for (const el of f.elements) if (el.name && el.type !== 'checkbox' && el.type !== 'button') o[el.name] = el.value.trim(); return o; };
+
+/* ============ navigation ============ */
+const VIEWS = {
+  home: ['📊', 'Dashboard', vHome], tickets: ['🛠️', 'Repair Tickets', vTickets], customers: ['👥', 'Customers', vCustomers],
+  money: ['💵', 'Sales & Invoices', vMoney], follow: ['🔔', 'Follow-ups', vFollow], calendar: ['📅', 'Appointments', vCalendar],
+  inventory: ['📦', 'Inventory', vInventory], orders: ['🚚', 'Parts Orders', vOrders], tools: ['🧰', 'Tech Tools', vTools], settings: ['⚙️', 'Settings', vSettings] };
+let view = 'home';
+const ui = { tMode: 'board', tFilter: 'open', tTech: '', tq: '', cq: '', cSort: 'last', cLimit: 100, period: 'month', iq: '', iStatus: '', iLimit: 100,
+  pq: '', pLow: false, oAll: false, aPast: false };
+function go(v) { if (location.hash !== '#' + v) location.hash = v; else render(); }
+window.addEventListener('hashchange', () => render());
+function navHTML() {
+  const open = DB.tickets.filter(t => OPEN.includes(t.status)).length, fu = followItems().length,
+    low = DB.parts.filter(p => num(p.qty) <= num(p.min)).length, tdAppts = DB.appts.filter(a => !a.done && a.date === today()).length,
+    lateOrders = DB.orders.filter(o => !['received', 'cancelled'].includes(o.status)).length;
+  const ct = { tickets: open, follow: fu, inventory: low, calendar: tdAppts, orders: lateOrders };
+  const hot = { follow: fu > 0, inventory: low > 0 };
+  return Object.entries(VIEWS).map(([k, [ic, l]], i) => (k === 'follow' || k === 'tools' ? '<div class="sep"></div>' : '') +
+    `<a class="${k === view ? 'on' : ''}" onclick="go('${k}')" title="Shortcut: ${(i + 1) % 10}">${ic} ${l}${ct[k] ? `<span class="ct ${hot[k] ? 'hot' : ''}">${ct[k]}</span>` : ''}</a>`).join('');
+}
+function render() {
+  view = location.hash.slice(1); if (!VIEWS[view]) view = 'home';
+  document.body.classList.remove('navopen');
+  $('#nav').innerHTML = navHTML(); $('#title').textContent = VIEWS[view][1];
+  document.title = 'RCR Dashboard · ' + VIEWS[view][1];
+  const sy = window.scrollY; $('#main').innerHTML = banner() + VIEWS[view][2](); window.scrollTo(0, sy);
+  fillDatalists(); drawUptime();
+  document.documentElement.style.setProperty('--toph', $('.top').offsetHeight + 'px');
+  if (view === 'tools') toolsInit();
+}
+function softRender() {              // re-render unless the user is typing on the page
+  const a = document.activeElement;
+  if (a && $('#main').contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) { $('#nav').innerHTML = navHTML(); return; }
+  render();
+}
+function banner() {
+  if (HOSTED && !folderOK) return `<div class="banner"><span>🔒 Sign in with your Google account to load your tickets and invoices from Google Drive.</span> <button class="btn pri sm" onclick="driveConnect()">Sign in with Google</button></div>`;
+  if (folder && folderOK) return invInfo.errors.length ? `<div class="banner">⚠ Invoice log problem: ${esc(invInfo.errors.join(' · '))} <button class="btn pri sm" onclick="connectFolder()">Change folder</button></div>` : '';
+  if (folder) return `<div class="banner">🔒 Chrome needs your OK to use the Drive folder again. <button class="btn pri sm" onclick="reconnect()">Reconnect folder</button></div>`;
+  return `<div class="banner"><span>📁 Connect your <b>RCR</b> folder on Google Drive (My Drive › Documents › RCR) so the dashboard can read your invoices and save its data to Drive for every computer.</span> <button class="btn pri sm" onclick="connectFolder()">Connect folder</button></div>`;
+}
+
+/* ============ customers index ============ */
+let custCache = null, custCacheKey = '';
+const ckey = (name, phone) => { const d = digits(phone); return d.length >= 7 ? 'p' + d.slice(-10) : 'n' + String(name || '').trim().toLowerCase().replace(/\s+/g, ' '); };
+function customers() {
+  const key = INV.length + '|' + DB.savedAt;
+  if (custCache && custCacheKey === key) return custCache;
+  const map = new Map(), byName = new Map();
+  const get = (name, phone) => {
+    name = String(name || '').trim(); if (!name && !digits(phone)) return null;
+    let k = ckey(name, phone);
+    if (k[0] === 'n' && byName.has(k.slice(1))) k = byName.get(k.slice(1));
+    let c = map.get(k);
+    if (!c) { c = { key: k, name, phone: fmtPhone(phone), email: '', addr: '', inv: [], tix: [], spent: 0, last: 0, first: Infinity, unpaid: 0 }; map.set(k, c); }
+    if (name && k[0] === 'p' && !byName.has(name.toLowerCase().replace(/\s+/g, ' '))) byName.set(name.toLowerCase().replace(/\s+/g, ' '), k);
+    if (!c.name && name) c.name = name;
+    return c;
+  };
+  // phone-keyed records first so name-only records can attach to them
+  const invSorted = [...INV].sort((a, b) => (digits(b.phone).length >= 7) - (digits(a.phone).length >= 7));
+  for (const e of invSorted) {
+    const c = get(e.name, e.phone); if (!c) continue;
+    c.inv.push(e); if (isRev(e)) c.spent += e.total; if (e.status === 'unpaid') c.unpaid += e.total;
+    c.last = Math.max(c.last, e.t); c.first = Math.min(c.first, e.t); if (!c.addr && e.addr) c.addr = e.addr;
+  }
+  for (const t of DB.tickets) {
+    const c = get(t.name, t.phone); if (!c) continue;
+    c.tix.push(t); const tt = Date.parse(t.created) || 0; c.last = Math.max(c.last, tt); c.first = Math.min(c.first, tt);
+    if (t.email) c.email = t.email; if (t.addr && !c.addr) c.addr = t.addr; if (t.phone && !c.phone) c.phone = fmtPhone(t.phone);
+  }
+  for (const c of map.values()) {
+    c.inv.sort((a, b) => b.t - a.t); c.visits = c.inv.length + c.tix.filter(t => !t.invno || !c.inv.some(e => e.invno === t.invno)).length;
+    const o = DB.custNotes[c.key]; c.origName = c.name; if (o && o.name) c.name = o.name;   // name added in the dashboard wins
+  }
+  custCache = [...map.values()]; custCacheKey = key; return custCache;
+}
+// Names added in the Customers list (stored with the customer notes in the dashboard data; invoices aren't changed)
+function setCustName(key, name) {
+  name = String(name || '').trim(); const cur = DB.custNotes[key] || {};
+  if ((cur.name || '') === name) return;
+  DB.custNotes[key] = { ...cur, name, upd: nowISO() }; custCache = null; commit();
+  toast(name ? `Saved name: ${name}` : 'Name cleared');
+}
+const nameFor = e => e.name || DB.custNotes[ckey('', e.phone)]?.name || '';   // invoice → customer name (incl. names added here)
+function nameCell(c) {
+  return c.name ? `<b>${esc(c.name)}</b> <button class="btn sm ed" title="Change name" onclick="event.stopPropagation();editName(this.closest('td'),${js(c.key)})">✏️</button>`
+    : `<button class="btn sm" title="Add this customer's name" onclick="event.stopPropagation();editName(this.closest('td'),${js(c.key)})">+ Add name</button>`;
+}
+function editName(td, key) {
+  const c = customers().find(x => x.key === key); if (!c) return;
+  td.onclick = e => e.stopPropagation();
+  td.innerHTML = `<input class="inp" style="padding:4px 8px;max-width:230px" placeholder="Customer name" value="${esc(c.name)}"><div class="small muted">Enter to save · Esc to cancel</div>`;
+  const i = td.querySelector('input'); i.focus(); i.select(); let done = false;
+  const finish = save => { if (done) return; done = true; if (save) setCustName(key, i.value); if ($('#clist')) $('#clist').innerHTML = custBody(); };
+  i.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); finish(false); } };
+  i.onblur = () => finish(true);
+}
+const findCust = (name, phone) => { const k = ckey(name, phone); return customers().find(c => c.key === k) || (k[0] === 'p' ? null : customers().find(c => c.name.toLowerCase() === String(name).trim().toLowerCase())); };
+function warranty(c) {
+  const last = c.inv.find(e => isRev(e)); if (!last) return '';
+  const d = Math.floor((Date.now() - last.t) / 864e5);
+  if (d <= 30) return `<span class="tag green">Parts + labor warranty (${30 - d}d / ${90 - d}d left)</span>`;
+  if (d <= 90) return `<span class="tag green">Labor warranty (${90 - d}d left)</span>`;
+  return '';
+}
+function fillDatalists() {
+  const cs = customers(); if ($('#custList').childElementCount !== cs.length)
+    $('#custList').innerHTML = cs.filter(c => c.name).map(c => `<option value="${esc(c.name)}">${esc(c.phone)}</option>`).join('');
+  $('#partList').innerHTML = DB.parts.map(p => `<option value="${esc(p.name)}">${esc(p.qty)} in stock · ${money(p.price)}</option>`).join('');
+}
+
+/* ============ invoices / money helpers ============ */
+const isRev = e => e.status !== 'quote' && !/quote/i.test(e.kind) && !/\bquote\b/i.test(e.job);
+const invStatus = e => e.status === 'paid' ? '<span class="tag green">Paid</span>' : e.status === 'unpaid' ? '<span class="tag red">Unpaid</span>' : e.status === 'quote' ? '<span class="tag blue">Quote</span>' : '<span class="muted">—</span>';
+const lineKind = d => /^labor|^remote labor/i.test(d) ? 'Labor' : /^parts?\b/i.test(d) ? 'Parts' : /travel|fee/i.test(d) ? 'Fees / travel' : 'Other';
+function periodRange(k) {
+  const n = new Date(), y = n.getFullYear(), m = n.getMonth();
+  const r = { week: [new Date(y, m, n.getDate() - n.getDay()), null, 'This week'], month: [new Date(y, m, 1), null, 'This month'],
+    lastmonth: [new Date(y, m - 1, 1), new Date(y, m, 1), 'Last month'], quarter: [new Date(y, Math.floor(m / 3) * 3, 1), null, 'This quarter'],
+    year: [new Date(y, 0, 1), null, 'This year'], lastyear: [new Date(y - 1, 0, 1), new Date(y, 0, 1), 'Last year'],
+    l12: [new Date(y, m - 11, 1), null, 'Last 12 months'], all: [new Date(2000, 0, 1), null, 'All time'] }[k];
+  return { a: r[0].getTime(), b: r[1] ? r[1].getTime() : Infinity, label: r[2] };
+}
+function monthly(n) {
+  const out = [], d = new Date(); d.setDate(1);
+  for (let i = n - 1; i >= 0; i--) {
+    const a = new Date(d.getFullYear(), d.getMonth() - i, 1), b = new Date(d.getFullYear(), d.getMonth() - i + 1, 1);
+    const list = INV.filter(e => isRev(e) && e.t >= a && e.t < b);
+    out.push({ l: a.toLocaleDateString('en-US', { month: 'short' }) + (a.getMonth() === 0 || i === n - 1 ? " '" + String(a.getFullYear()).slice(2) : ''), v: sum(list, e => e.total), n: list.length, cur: i === 0, full: a.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) });
+  }
+  return out;
+}
+function barChart(items, fmt = money0, h = 170) {
+  if (!items.length) return '<div class="empty">No data yet</div>';
+  const bw = 46, w = items.length * bw, max = Math.max(1, ...items.map(i => i.v));
+  return `<svg class="chart" viewBox="0 0 ${w} ${h + 40}">` + items.map((it, i) => {
+    const bh = Math.max(it.v ? 2 : 0, it.v / max * h), x = i * bw;
+    return `<g><title>${esc(it.full || it.l)}: ${fmt(it.v)}${it.n != null ? ' · ' + plural(it.n, 'invoice') : ''}</title>
+      <rect class="bar ${it.cur ? 'cur' : ''}" x="${x + 7}" y="${h + 14 - bh}" width="${bw - 14}" height="${bh}" rx="3"></rect>
+      <text x="${x + bw / 2}" y="${h + 30}" text-anchor="middle">${esc(it.l)}</text>
+      ${it.v ? `<text x="${x + bw / 2}" y="${h + 10 - bh}" text-anchor="middle" style="font-size:10px">${fmt(it.v).replace('$', '$').replace(/,(\d)\d\d$/, '.$1k')}</text>` : ''}</g>`;
+  }).join('') + '</svg>';
+}
+function hbars(items, fmt, colorFn) {
+  if (!items.length) return '<div class="empty">Nothing to show</div>';
+  const max = Math.max(1, ...items.map(i => i.v));
+  return items.map(i => `<div class="hb" ${i.click ? `style="cursor:pointer" onclick="${i.click}"` : ''}><span title="${esc(i.l)}">${esc(i.l)}</span><div class="trk"><i style="width:${i.v / max * 100}%;background:${colorFn ? colorFn(i) : 'var(--accent)'}"></i></div><b>${fmt ? fmt(i.v, i) : i.v}</b></div>`).join('');
+}
+
+/* ============ follow-up engine ============ */
+function readySince(t) { const h = [...(t.history || [])].reverse().find(x => x.s === 'ready'); return h ? h.t : t.updated || t.created; }
+function followItems() {
+  const out = [], td = today();
+  for (const t of DB.tickets) {
+    const dev = devName(t);
+    if (t.status === 'ready') { const d = daysSince(readySince(t)); if (d >= 2) out.push({ sev: d >= S().staleDays ? 3 : 1, ic: '📦', grp: 'Ready but not picked up', tx: `#${t.no} ${t.name} — ${dev}`, s: `Ready for ${plural(d, 'day')}${t.lastReminder ? ' · last reminder ' + fmtTs(t.lastReminder) : ''}`, ac: `<button class="btn sm" onclick="msgOpen('${t.id}','msgReminder')">💬 Remind</button><button class="btn sm" onclick="remindedTicket('${t.id}')">Mark reminded</button><button class="btn sm" onclick="setStatus('${t.id}','done')">Picked up</button>` }); }
+    if (t.status === 'approval') { const d = daysSince((t.history || []).slice(-1)[0]?.t || t.created); if (d >= 1) out.push({ sev: 2, ic: '☎️', grp: 'Waiting on customer approval', tx: `#${t.no} ${t.name} — ${dev}`, s: `Waiting ${plural(d, 'day')} · estimate ${t.estimate ? money(t.estimate) : 'not set'} · ${esc(fmtPhone(t.phone))}`, ac: `<button class="btn sm" onclick="msgOpen('${t.id}','msgApproval')">💬 Ask approval</button><button class="btn sm" onclick="setStatus('${t.id}','repair')">Approved</button>` }); }
+    if (OPEN.includes(t.status) && t.status !== 'ready' && t.due && t.due < td) out.push({ sev: 3, ic: '⏰', grp: 'Past promised date', tx: `#${t.no} ${t.name} — ${dev}`, s: `Promised ${fmtD(t.due)} (${plural(dayDiff(t.due, td), 'day')} late) · ${ST[t.status].l}`, ac: `<button class="btn sm" onclick="editTicket('${t.id}')">Open</button>` });
+    if (t.status === 'done' && !t.invno && t.pickedUp && daysSince(t.pickedUp) <= 30) out.push({ sev: 2, ic: '🧾', grp: 'Picked up — no invoice yet', tx: `#${t.no} ${t.name} — ${dev}`, s: `Picked up ${fmtTs(t.pickedUp)}${t.estimate ? ' · estimate ' + money(t.estimate) : ''}`, ac: `<button class="btn sm" onclick="openInvoice('${t.id}')">🧾 Make invoice</button><button class="btn sm" onclick="editTicket('${t.id}')">Open</button>` });
+    if (t.status === 'done' && !t.reviewAsked && t.pickedUp && daysSince(t.pickedUp) <= 21) out.push({ sev: 0, ic: '⭐', grp: 'Ask for a Google review', tx: `#${t.no} ${t.name} — ${dev}`, s: `Picked up ${fmtTs(t.pickedUp)}`, ac: `<button class="btn sm" onclick="msgOpen('${t.id}','msgReview')">💬 Ask for review</button><button class="btn sm" onclick="reviewAsked('${t.id}')">Mark asked</button>` });
+  }
+  for (const o of DB.orders) if (!['received', 'cancelled'].includes(o.status) && o.eta && o.eta < td) out.push({ sev: 2, ic: '🚚', grp: 'Parts orders past ETA', tx: `${o.part}${o.supplier ? ' from ' + o.supplier : ''}`, s: `ETA ${fmtD(o.eta)}${o.tracking ? ' · tracking ' + o.tracking : ''}${o.ticketId ? ' · ' + ticketRef(o.ticketId) : ''}`, ac: `<button class="btn sm" onclick="orderStatus('${o.id}','received')">Received</button><button class="btn sm" onclick="editOrder('${o.id}')">Edit</button>` });
+  for (const e of INV) if (e.status === 'unpaid' && isRev(e)) { const d = Math.floor((Date.now() - e.t) / 864e5); if (d >= 3) out.push({ sev: d > 14 ? 3 : 2, ic: '💵', grp: 'Unpaid invoices', tx: `Invoice ${e.invno || '(no #)'} — ${e.name} — ${money(e.total)}`, s: `${e.date} · ${plural(d, 'day')} ago · ${e.job}`, ac: `${payBtn(e)} <button class="btn sm" onclick="invModal(${js(e.id)})">View</button>` }); }
+  for (const p of DB.parts) if (num(p.qty) <= num(p.min) && !DB.orders.some(o => o.invId === p.id && !['received', 'cancelled'].includes(o.status))) out.push({ sev: 1, ic: '📉', grp: 'Low stock', tx: `${p.name}`, s: `${num(p.qty)} left (minimum ${num(p.min)})${p.supplier ? ' · ' + p.supplier : ''}`, ac: `<button class="btn sm" onclick="editOrder(null,{invId:'${p.id}',part:${js(p.name)},supplier:${js(p.supplier || '')},cost:${js(p.cost || '')},addToStock:true})">Order</button><button class="btn sm" onclick="ebaySearch(${js(partWords(p.name))})">🛒 eBay</button>` });
+  for (const a of DB.tasks) if (!a.done && a.due && a.due <= td) out.push({ sev: a.due < td ? 2 : 1, ic: '✅', grp: 'Tasks due', tx: a.text, s: a.due < td ? 'Due ' + fmtD(a.due) : 'Due today', ac: `<button class="btn sm" onclick="toggleTask('${a.id}')">Done</button>` });
+  return out.sort((a, b) => b.sev - a.sev);
+}
+
+/* ============ tickets ============ */
+const devName = t => [t.make, t.model].filter(Boolean).join(' ') || t.devType || 'device';
+const ticketRef = id => { const t = DB.tickets.find(x => x.id === id); return t ? `ticket #${t.no} (${esc(t.name)})` : 'ticket'; };
+function fillMsg(tpl, t) {
+  const total = num(t.estimate) - num(t.deposit);
+  const map = { first: first(t.name), name: t.name, device: devName(t), no: t.no, estimate: t.estimate ? money(t.estimate) : 'to be determined',
+    total: t.estimate ? ` Your balance is ${money(total)}.` : '', diag: t.diag || '', review: S().reviewLink || '[Google review link — add it in Settings]', shopPhone: S().shopPhone, phone: fmtPhone(t.phone) };
+  return tpl.replace(/\{(\w+)\}/g, (m, k) => map[k] ?? m).replace(/\s+\./g, '.').replace(/ {2,}/g, ' ').trim();
+}
+/* ---- message panel: email / text / copy ---- */
+const MSG_TYPES = [['msgReady', 'Ready for pickup'], ['msgApproval', 'Ask for approval'], ['msgReminder', 'Pickup reminder'], ['msgReview', 'Review request']];
+const MSG_SUBJ = { msgReady: 'Your {device} is ready for pickup — Rapid Computer Repair', msgApproval: 'Repair estimate for your {device} (ticket #{no})',
+  msgReminder: 'Reminder: your {device} is ready for pickup', msgReview: 'Thank you from Rapid Computer Repair' };
+let msgKind = 'msgReady';
+const curTicket = () => { const f = $('#tf'); return f ? { ...tmp, ...formData(f) } : tmp; };   // includes edits not saved yet
+const sig = () => `\n\nRapid Computer Repair\n${S().shopPhone}\n${S().shopWeb}`;
+function msgOpen(id, k) { editTicket(id); showMsg(k); }
+function showMsg(k) {
+  const p = $('#msgpanel'); if (!p) return;
+  k = k || (tmp.status === 'approval' ? 'msgApproval' : tmp.status === 'done' ? 'msgReview' : tmp.status === 'ready' && daysSince(readySince(tmp)) >= 2 ? 'msgReminder' : 'msgReady');
+  msgKind = k; const t = curTicket(); p.hidden = false;
+  $$('#msgseg button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+  $('#msgsubj').value = fillMsg(MSG_SUBJ[k], t); $('#msgbody').value = fillMsg(S()[k], t);
+  $('#msgto').innerHTML = [t.email ? '✉ ' + esc(t.email) : '<span class="down">No email on this ticket — add it in the Customer box</span>', t.phone ? '📱 ' + esc(fmtPhone(t.phone)) : ''].filter(Boolean).join(' · ');
+  setTimeout(() => p.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+}
+function launch(href) { const a = document.createElement('a'); a.href = href; document.body.appendChild(a); a.click(); a.remove(); }
+function sendMsg(how) {
+  const t = curTicket(), body = $('#msgbody').value.trim(), subj = $('#msgsubj').value.trim();
+  if (how === 'email') {
+    if (!t.email) { toast("Add the customer's email in the Customer box first.", 'err'); $('#tf').email.focus(); return; }
+    launch(`mailto:${encodeURIComponent(t.email)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body + sig())}`);
+  } else if (how === 'text') {
+    const d = digits(t.phone); if (d.length < 10) return toast("Add the customer's phone number first.", 'err');
+    launch(`sms:+1${d.slice(-10)}?body=${encodeURIComponent(body)}`);
+  } else copyText(body, 'Message');
+  msgSent(t.id, msgKind, how);
+}
+function msgSent(id, k, how) {
+  const t = DB.tickets.find(x => x.id === id); if (!t) return;          // ticket not checked in yet: nothing to note
+  if (k === 'msgReminder') t.lastReminder = nowISO(); if (k === 'msgReview') t.reviewAsked = nowISO();
+  const note = { t: nowISO(), x: `"${MSG_TYPES.find(m => m[0] === k)[1]}" message ${how === 'email' ? 'emailed' : how === 'text' ? 'texted' : 'copied'}.` };
+  (t.notes = t.notes || []).push(note);
+  if (tmp && tmp.id === id) { (tmp.notes = tmp.notes || []).push(note); tmp.lastReminder = t.lastReminder; tmp.reviewAsked = t.reviewAsked; if ($('#tnotes')) drawNotes(); }
+  upsert('tickets', t);
+  if (how !== 'copy') toast(how === 'email' ? 'Email opened — check it and click Send.' : 'Text opened in your messaging app.');
+}
+function msgTicket(id, which) { const t = DB.tickets.find(x => x.id === id); if (!t) return; copyText(fillMsg(S()[which], t), 'Message'); if (which === 'msgReminder') remindedTicket(id, true); if (which === 'msgReview') reviewAsked(id, true); }
+function remindedTicket(id, quiet) { const t = DB.tickets.find(x => x.id === id); t.lastReminder = nowISO(); (t.notes = t.notes || []).push({ t: nowISO(), x: 'Pickup reminder sent.' }); upsert('tickets', t); if (!quiet) toast('Marked as reminded'); softRender(); }
+function reviewAsked(id, quiet) { const t = DB.tickets.find(x => x.id === id); t.reviewAsked = nowISO(); upsert('tickets', t); if (!quiet) toast('Marked as asked'); softRender(); }
+function setStatus(id, k, quiet) {
+  const t = DB.tickets.find(x => x.id === id); if (!t || t.status === k) return;
+  t.status = k; t.updated = nowISO(); (t.history = t.history || []).push({ t: nowISO(), s: k });
+  if (k === 'done') t.pickedUp = nowISO();
+  upsert('tickets', t); render();
+  if (quiet) return;
+  if (k === 'ready') toast(`#${t.no} is ready for pickup.`, '', [['💬 Tell the customer', () => msgOpen(id, 'msgReady')]]);
+  else if (k === 'approval') toast(`#${t.no} is waiting for approval.`, '', [['💬 Ask for approval', () => msgOpen(id, 'msgApproval')]]);
+  else if (k === 'done') toast(`#${t.no} picked up.${t.invno ? '' : ' Remember to make the invoice.'}`, '', t.invno ? [] : [['🧾 Make invoice', () => openInvoice(id)]]);
+  else toast(`#${t.no} → ${ST[k].l}`);
+}
+let dragId = null;
+function dragStart(e, id) { dragId = id; e.dataTransfer.effectAllowed = 'move'; }
+function dropOn(e, k) { e.preventDefault(); e.currentTarget.classList.remove('over'); if (dragId) setStatus(dragId, k); dragId = null; }
+
+function vTickets() {
+  const techs = S().techs;
+  return `<div class="toolbar">
+    <div class="seg"><button class="${ui.tMode === 'board' ? 'on' : ''}" onclick="ui.tMode='board';render()">Board</button><button class="${ui.tMode === 'list' ? 'on' : ''}" onclick="ui.tMode='list';render()">List</button></div>
+    <input type="search" placeholder="Filter by name, phone, device, serial, #…" value="${esc(ui.tq)}" oninput="ui.tq=this.value;$('#tlist').innerHTML=ticketsBody()">
+    <select onchange="ui.tFilter=this.value;$('#tlist').innerHTML=ticketsBody()"><option value="open">Open tickets</option><option value="all">All tickets</option>${STATUSES.map(s => `<option value="${s.k}">${s.l}</option>`).join('')}</select>
+    ${techs.length > 1 ? `<select onchange="ui.tTech=this.value;$('#tlist').innerHTML=ticketsBody()"><option value="">All techs</option>${techs.map(x => `<option ${ui.tTech === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''}
+    <span class="grow"></span><button class="btn pri" onclick="editTicket()">+ New Ticket</button></div>
+    <div id="tlist">${ticketsBody()}</div>`.replace(`<option value="${ui.tFilter}">`, `<option value="${ui.tFilter}" selected>`);
+}
+function ticketMatches(t) {
+  const q = ui.tq.trim().toLowerCase();
+  if (ui.tTech && t.tech !== ui.tTech) return false;
+  if (!q) return true;
+  return [t.no, t.name, t.phone, digits(t.phone), t.email, t.make, t.model, t.serial, t.devType, t.issue, t.invno].join(' ').toLowerCase().includes(q.replace(/^#/, ''));
+}
+function ticketsBody() {
+  const list = DB.tickets.filter(ticketMatches).sort((a, b) => (b.no || 0) - (a.no || 0));
+  if (ui.tMode === 'board' && (ui.tFilter === 'open' || ui.tFilter === 'all')) {
+    const done = list.filter(t => !OPEN.includes(t.status)).length;
+    return `<div class="board">${OPEN.map(k => { const col = list.filter(t => t.status === k).sort(prioSort);
+      return `<div class="col" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="dropOn(event,'${k}')">
+        <header><span class="dot" style="background:${ST[k].c}"></span>${ST[k].l}<span class="n">${col.length}</span></header>${col.map(tCard).join('') || '<div class="empty small">Drag tickets here</div>'}</div>`; }).join('')}</div>
+      <p class="muted small">${done ? `${plural(done, 'closed ticket')} not shown on the board — <a href="#" onclick="ui.tMode='list';ui.tFilter='all';render();return false">see all in the list</a>.` : ''} Drag a card to change its status.</p>`;
+  }
+  const rows = list.filter(t => ui.tFilter === 'all' ? true : ui.tFilter === 'open' ? OPEN.includes(t.status) : t.status === ui.tFilter);
+  if (!rows.length) return `<div class="card empty">${DB.tickets.length ? 'No tickets match.' : 'No repair tickets yet. Click <b>+ New Ticket</b> (or press N) when a device comes in.'}</div>`;
+  return `<div class="tablewrap"><table class="t"><tr><th>#</th><th>Status</th><th>Customer</th><th>Device</th><th>Problem</th><th>Tech</th><th>Promised</th><th class="num">Age</th><th class="num">Estimate</th></tr>
+    ${rows.map(t => `<tr class="click" onclick="editTicket('${t.id}')"><td><b>${t.no}</b></td><td>${badge(t.status)} ${prioTag(t)}</td><td>${esc(t.name)}<div class="muted small">${esc(fmtPhone(t.phone))}</div></td>
+    <td>${esc(devName(t))}<div class="muted small">${esc(t.devType || '')}</div></td><td class="small" style="max-width:300px">${esc((t.issue || '').slice(0, 120))}</td><td>${esc(t.tech || '')}</td>
+    <td>${dueTag(t)}</td><td class="num">${OPEN.includes(t.status) ? daysSince(t.created) + 'd' : '—'}</td><td class="num">${t.estimate ? money(t.estimate) : ''}<div>${invTag(t)}</div></td></tr>`).join('')}</table></div>`;
+}
+const prioRank = { rush: 0, high: 1, normal: 2 };
+const prioSort = (a, b) => (prioRank[a.priority] ?? 2) - (prioRank[b.priority] ?? 2) || (a.due || '9') .localeCompare(b.due || '9') || a.no - b.no;
+const prioTag = t => t.priority === 'rush' ? '<span class="tag red">RUSH</span>' : t.priority === 'high' ? '<span class="tag amber">High</span>' : '';
+function dueTag(t) {
+  if (!t.due) return '';
+  if (!OPEN.includes(t.status) || t.status === 'ready') return `<span class="muted small">${fmtDs(t.due)}</span>`;
+  const d = dayDiff(today(), t.due);
+  return d < 0 ? `<span class="tag red">${fmtDs(t.due)} · late</span>` : d === 0 ? '<span class="tag amber">Due today</span>' : d === 1 ? '<span class="tag amber">Tomorrow</span>' : `<span class="tag">${fmtDs(t.due)}</span>`;
+}
+function tCard(t) {
+  const age = daysSince(t.status === 'ready' ? readySince(t) : t.created);
+  return `<div class="tc" draggable="true" ondragstart="dragStart(event,'${t.id}')" onclick="editTicket('${t.id}')">
+    <div class="no">#${t.no} ${prioTag(t)} ${t.warrantyReturn ? '<span class="tag amber">Warranty</span>' : ''}<span style="margin-left:auto">${t.tech ? esc(t.tech) : ''}</span></div>
+    <div class="nm">${esc(t.name)}</div><div class="dv">${esc(devName(t))}</div><div class="is">${esc(t.issue || '')}</div>
+    <div class="ft">${dueTag(t)}<span class="tag ${age >= (t.status === 'ready' ? S().staleDays : 5) ? 'amber' : ''}">${age}d${t.status === 'ready' ? ' waiting' : ''}</span>${t.estimate && !t.invno ? `<span class="tag">${money0(t.estimate)}</span>` : ''}${invTag(t)}${t.backup ? '<span class="tag blue">Backup</span>' : ''}</div></div>`;
+}
+
+/* ---- ticket editor ---- */
+let tmp = null;   // working copy while the ticket window is open
+function editTicket(id, pre) {
+  const t = id ? JSON.parse(JSON.stringify(DB.tickets.find(x => x.id === id))) : { id: uid(), status: 'checkin', priority: 'normal', created: nowISO(), devType: 'Laptop', tech: S().techs[0] || '', accessories: [], parts: [], notes: [], history: [], ...(pre || {}) };
+  if (!t) return; tmp = t; modalDirty = false;
+  const opt = (arr, v) => arr.map(x => { const [val, lab] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(val)}" ${val === v ? 'selected' : ''}>${esc(lab)}</option>`; }).join('');
+  const accOther = (t.accessories || []).filter(a => !ACCESSORIES.includes(a)).join(', ');
+  const body = `<form id="tf" class="tk" oninput="modalDirty=true" onsubmit="return false">
+   <div>
+    <div class="box"><div class="bh">👤 Customer</div>
+      <div class="f"><label>Name *<input name="name" list="custList" value="${esc(t.name || '')}" oninput="custLookup()" onchange="custFill()" required></label>
+      <label>Phone<input name="phone" value="${esc(t.phone || '')}" oninput="custLookup()" onblur="this.value=fmtPhone(this.value)"></label>
+      <label>Email<input name="email" type="email" value="${esc(t.email || '')}"></label>
+      <label>Address (on-site jobs)<input name="addr" value="${esc(t.addr || '')}"></label></div>
+      <div id="ret" class="ret" hidden></div></div>
+    <div class="box" oninput="wl()"><div class="bh">💻 Device</div>
+      <div class="f three"><label>Type<select name="devType">${opt(S().devTypes, t.devType)}</select></label>
+      <label>Make<input name="make" value="${esc(t.make || '')}" list="makes"></label><label>Model<input name="model" value="${esc(t.model || '')}"></label>
+      <label>Serial / service tag<input name="serial" value="${esc(t.serial || '')}"></label>
+      <label>Password / PIN<input name="pass" value="${esc(t.pass || '')}" autocomplete="off" placeholder="not printed"></label>
+      <label>Condition on arrival<input name="condition" value="${esc(t.condition || '')}" placeholder="scratches, cracks, missing keys…"></label>
+      <div class="full fl">Left with device<div class="chk">${ACCESSORIES.map(a => `<label><input type="checkbox" name="acc" value="${esc(a)}" ${(t.accessories || []).includes(a) ? 'checked' : ''}>${esc(a)}</label>`).join('')}
+        <input name="accOther" class="inp" style="width:170px;padding:3px 7px" placeholder="Other…" value="${esc(accOther)}"></div></div></div>
+      <div id="wlinks" class="small" style="margin-top:8px;line-height:1.8"></div>
+      <datalist id="makes">${['Dell', 'HP', 'Lenovo', 'Apple', 'ASUS', 'Acer', 'MSI', 'Microsoft', 'Samsung', 'Razer', 'Gigabyte', 'Toshiba', 'LG', 'Alienware', 'Custom'].map(x => `<option value="${x}">`).join('')}</datalist></div>
+    <div class="box"><div class="bh">🛠️ Job</div>
+      <div class="f"><label class="full">Problem (what the customer says) *<textarea name="issue">${esc(t.issue || '')}</textarea></label>
+      <label class="full">Diagnosis / work done<textarea name="diag">${esc(t.diag || '')}</textarea></label></div>
+      <div class="f three" style="margin-top:10px"><label>Status<select name="status">${opt(STATUSES.map(s => [s.k, s.l]), t.status)}</select></label>
+      <label>Priority<select name="priority">${opt([['normal', 'Normal'], ['high', 'High'], ['rush', 'Rush']], t.priority)}</select></label>
+      <label>Technician<select name="tech">${opt(['', ...S().techs], t.tech)}</select></label>
+      <label>Promised by<input type="date" name="due" value="${esc(t.due || '')}"></label>
+      <label>Estimate $<input name="estimate" inputmode="decimal" value="${esc(t.estimate || '')}"></label>
+      <label>Deposit paid $<input name="deposit" inputmode="decimal" value="${esc(t.deposit || '')}"></label>
+      <label>Invoice #<input name="invno" value="${esc(t.invno || '')}" placeholder="after invoicing"></label>
+      <div class="fl" style="grid-column:span 2">Options<div class="chk" style="margin-top:6px"><label><input type="checkbox" name="backup" ${t.backup ? 'checked' : ''}>Back up data first</label>
+        <label><input type="checkbox" name="warrantyReturn" ${t.warrantyReturn ? 'checked' : ''}>Warranty / come-back</label><label><input type="checkbox" name="onsite" ${t.onsite ? 'checked' : ''}>On-site job</label></div></div></div></div>
+   </div>
+   <div>
+    <div class="box"><div class="bh">🔩 Parts & labor <span class="r muted small" id="ptot"></span></div><div id="tparts"></div>
+      <div class="row" style="margin-top:6px"><input class="inp" id="padd" list="partList" placeholder="Add from inventory or type a part…" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addPart()}"><button class="btn sm" type="button" onclick="addPart()">Add</button>
+      <button class="btn sm" type="button" onclick="ebaySearch(ebayQuery($('#padd').value, curTicket()))" title="Search eBay (Buy It Now, US sellers) for this part, for this device">🛒 eBay</button>
+      <button class="btn sm" type="button" onclick="useEstimate()" title="Set the estimate to the parts + labor total">= Estimate</button></div>
+      <div class="muted small" style="margin-top:4px">Parts picked from inventory are taken out of stock when you save.</div></div>
+    <div class="box"><div class="bh">🩺 Diagnostics checklist <span class="r muted small" id="chksum"></span></div>
+      <div class="small muted" style="margin-bottom:6px">Click to mark: ✓ works → ✗ problem → N/A → not tested</div><div id="tchecks" class="chips"></div>
+      <div class="f three" style="margin-top:10px"><label>Battery health %<input name="battHealth" inputmode="numeric" value="${esc(t.battHealth || '')}" placeholder="e.g. 78"></label>
+      <label>Drive health<input name="driveHealth" value="${esc(t.driveHealth || '')}" placeholder="Good · 96% · 3 bad sectors"></label>
+      <label>Temps (idle / load)<input name="temps" value="${esc(t.temps || '')}" placeholder="45° / 88°C"></label></div></div>
+    <div class="box"><div class="bh">📝 Notes</div><div id="tnotes"></div>
+      <div class="row" style="margin-top:6px"><textarea class="inp" id="nadd" rows="2" placeholder="Add a note (called customer, found bad SSD…)" style="flex:1"></textarea><button class="btn sm" type="button" onclick="addNote()">Add</button></div></div>
+    <div class="box"><div class="bh">🕓 History</div><div class="small">${(t.history || []).length ? [...t.history].reverse().map(h => `<div>${fmtTs(h.t)} — ${ST[h.s]?.l || h.s}</div>`).join('') : 'New ticket'}
+      ${t.created && id ? `<div class="muted">Created ${fmtTs(t.created)}</div>` : ''}${t.invno ? invLinkFor(t.invno) : ''}</div></div>
+   </div></form>
+   <div id="msgpanel" class="box" hidden style="margin-top:4px"><div class="bh">💬 Message customer <span class="r"><button class="btn sm" type="button" onclick="$('#msgpanel').hidden=true">Close</button></span></div>
+     <div class="row"><div class="seg" id="msgseg">${MSG_TYPES.map(([k, l]) => `<button type="button" data-k="${k}" onclick="showMsg('${k}')">${l}</button>`).join('')}</div><span class="small" id="msgto"></span></div>
+     <label class="fl" style="margin-top:8px">Email subject<input class="inp" id="msgsubj"></label>
+     <label class="fl" style="margin-top:6px">Message (you can edit it)<textarea class="inp" id="msgbody" rows="4" style="overflow-x:hidden;resize:vertical"></textarea></label>
+     <div class="row" style="margin-top:8px"><button class="btn pri" type="button" onclick="sendMsg('email')">✉ Email</button><button class="btn" type="button" onclick="sendMsg('text')">📱 Text</button><button class="btn" type="button" onclick="sendMsg('copy')">📋 Copy</button>
+     <span class="small muted">Email opens a ready-to-send message in your email program. Each message is noted on the ticket.</span></div></div>`;
+  const foot = `<button class="btn pri" onclick="saveTicket()">${id ? 'Save' : 'Check in'}</button>
+    <button class="btn" onclick="saveTicket(true)">${id ? 'Save' : 'Check in'} & print ticket</button>
+    ${id ? `<button class="btn" onclick="printClaim('${t.id}')">🖨 Print</button><button class="btn" onclick="showMsg()">💬 Message customer</button><button class="btn" onclick="openInvoice('${t.id}')" title="${t.invno ? 'Opens this ticket\'s invoice in the Invoice Form (to mark it paid, reprint…)' : 'Opens the Invoice Form with this ticket\'s customer, device, work and parts filled in'}">${invoiceBtnLabel(t)}</button>
+    <button class="btn" onclick="editAppt(null,{ticketId:'${t.id}',name:${js(t.name || '')},phone:${js(t.phone || '')},type:'Pickup'})">📅 Schedule</button>
+    <button class="btn" onclick="editOrder(null,{ticketId:'${t.id}'})">🚚 Order part</button>
+    <span class="grow"></span><button class="btn danger" onclick="delTicket('${t.id}')">Delete</button>` : ''}`;
+  modal(id ? `Ticket #${t.no} · ${badge(t.status)}` : 'New repair ticket — check in', body, foot, true);
+  drawParts(); drawNotes(); custLookup(); drawChecks(); wl();
+}
+const CHECKS = [['power', 'Powers on'], ['boot', 'Boots to OS'], ['display', 'Display'], ['keyboard', 'Keyboard'], ['touchpad', 'Trackpad / mouse'], ['ports', 'USB / ports'],
+  ['wifi', 'Wi-Fi / Bluetooth'], ['audio', 'Speakers / mic'], ['camera', 'Webcam'], ['charging', 'Charging'], ['battery', 'Battery'], ['storage', 'Drive / SMART'],
+  ['ram', 'Memory test'], ['fans', 'Fans / temps'], ['malware', 'Malware scan'], ['updates', 'Updates'], ['backup', 'Data backed up']];
+const CHK_NEXT = { '': 'ok', ok: 'bad', bad: 'na', na: '' }, CHK_ICON = { '': '', ok: '✓ ', bad: '✗ ', na: '' };
+function drawChecks() {
+  const c = tmp.checks || {};
+  $('#tchecks').innerHTML = CHECKS.map(([k, l]) => `<span class="chip ${c[k] || ''}" onclick="tmp.checks=tmp.checks||{};tmp.checks['${k}']=CHK_NEXT[tmp.checks['${k}']||''];modalDirty=true;drawChecks()">${CHK_ICON[c[k] || '']}${l}</span>`).join('');
+  const v = Object.values(c), ok = v.filter(x => x === 'ok').length, bad = v.filter(x => x === 'bad').length;
+  $('#chksum').innerHTML = ok || bad ? `${ok} ok${bad ? ` · <span class="down">${bad} problem${bad > 1 ? 's' : ''}</span>` : ''}` : '';
+}
+function wl() { const f = $('#tf'); if (f) $('#wlinks').innerHTML = warrantyLinks(f.make.value, f.model.value, f.serial.value); }
+// Invoices made with "Make invoice" carry ticketNo; link the newest one to its ticket automatically.
+function linkInvoices() {
+  const seen = new Set(), linked = [];
+  for (const e of INV) {                        // INV is newest first
+    if (!e.ticketNo || seen.has(e.ticketNo)) continue; seen.add(e.ticketNo);
+    const t = DB.tickets.find(x => String(x.no) === e.ticketNo);
+    if (!t || (t.invId === e.id && String(t.invno) === String(e.invno))) continue;
+    t.invno = String(e.invno); t.invId = e.id;
+    (t.notes = t.notes || []).push({ t: nowISO(), x: `Invoice ${e.invno} saved (${money(e.total)}).` });
+    upsert('tickets', t); linked.push(`#${t.no} → invoice ${e.invno}`);
+  }
+  if (linked.length) toast('Linked: ' + linked.join(', '));
+}
+const invoiceFor = t => t.invno ? (INV.find(e => e.id === t.invId) || INV.find(e => String(e.invno) === String(t.invno) && (!e.ticketNo || e.ticketNo === String(t.no)))) : null;
+function invTag(t) {
+  const e = invoiceFor(t);
+  if (e) return e.status === 'paid' ? `<span class="tag green" title="Invoice ${esc(e.invno)}">✓ Paid #${esc(e.invno)}</span>` : e.status === 'unpaid' ? `<span class="tag red" title="Invoice ${esc(e.invno)}">Unpaid #${esc(e.invno)} · ${money0(e.total)}</span>` : `<span class="tag">Inv #${esc(e.invno)}</span>`;
+  if (t.invno) return `<span class="tag">Inv #${esc(t.invno)}</span>`;
+  return t.status === 'done' ? '<span class="tag amber">No invoice</span>' : '';
+}
+function invLinkFor(no) { const t0 = tmp && String(tmp.invno) === String(no) ? tmp : null; const e = (t0 && invoiceFor(t0)) || INV.find(x => String(x.invno) === String(no)); return e ? `<div style="margin-top:6px"><a href="#" onclick="invModal(${js(e.id)});return false">Invoice ${esc(no)}</a> — ${money(e.total)} ${invStatus(e)} ${e.status === 'unpaid' ? payBtn(e) : ''}</div>` : `<div class="muted" style="margin-top:6px">Invoice ${esc(no)} not found in the invoice log yet.</div>`; }
+function custLookup() {
+  const f = $('#tf'); if (!f) return; const c = findCust(f.name.value, f.phone.value), el = $('#ret');
+  if (!c || (!c.inv.length && !c.tix.filter(x => x.id !== tmp.id).length)) { el.hidden = true; return; }
+  const tix = c.tix.filter(x => x.id !== tmp.id);
+  el.hidden = false;
+  el.innerHTML = `<b>Returning customer</b> — ${plural(c.inv.length, 'invoice')}${tix.length ? ', ' + plural(tix.length, 'ticket') : ''}, ${money0(c.spent)} total, last visit ${c.last ? new Date(c.last).toLocaleDateString() : '—'}
+    ${warranty(c)} ${c.unpaid ? `<span class="tag red">Owes ${money(c.unpaid)}</span>` : ''} ${tix.some(x => OPEN.includes(x.status)) ? '<span class="tag amber">Has an open ticket</span>' : ''}
+    ${c.inv.slice(0, 3).map(e => `<div class="small">• ${esc(e.date)} — ${esc(e.job)} — ${money(e.total)}</div>`).join('')}
+    <a href="#" class="small" onclick="custModal(${js(c.key)});return false">Open customer →</a>`;
+}
+function custFill() {
+  const f = $('#tf'); const c = customers().find(x => x.name.toLowerCase() === f.name.value.trim().toLowerCase());
+  if (c) { if (!f.phone.value) f.phone.value = c.phone; if (!f.email.value && c.email) f.email.value = c.email; if (!f.addr.value && c.addr) f.addr.value = c.addr; }
+  custLookup();
+}
+function drawParts() {
+  const ps = tmp.parts || [];
+  $('#tparts').innerHTML = ps.length ? `<div class="pl muted small"><span>Item</span><span>Cost</span><span>Price</span><span></span><span></span></div>` + ps.map((p, i) => `<div class="pl">
+    <input value="${esc(p.desc)}" oninput="tmp.parts[${i}].desc=this.value;modalDirty=true" title="${p.invId ? 'From inventory' : ''}" ${p.invId ? 'style="background:#f3f8ff"' : ''}>
+    <input value="${esc(p.cost ?? '')}" placeholder="cost" oninput="tmp.parts[${i}].cost=this.value;partTot();modalDirty=true">
+    <input value="${esc(p.price ?? '')}" placeholder="price" oninput="tmp.parts[${i}].price=this.value;partTot();modalDirty=true">
+    ${/^(labor|fee|travel|remote)/i.test(p.desc || '') ? '<span></span>' : `<button type="button" title="Find this part on eBay" style="color:inherit" onclick="ebaySearch(ebayQuery(tmp.parts[${i}].desc, curTicket()))">🛒</button>`}
+    <button type="button" title="Remove" onclick="tmp.parts.splice(${i},1);drawParts();modalDirty=true">×</button></div>`).join('') : '<div class="muted small">No parts or labor added yet.</div>';
+  partTot();
+}
+function partTot() { const ps = tmp.parts || [], pr = sum(ps, p => num(p.price)), co = sum(ps, p => num(p.cost)); $('#ptot').textContent = ps.length ? `Price ${money(pr)} · Cost ${money(co)} · Profit ${money(pr - co)}` : ''; }
+function addPart() {
+  const v = $('#padd').value.trim(); if (!v) return;
+  const inv = DB.parts.find(p => p.name.toLowerCase() === v.toLowerCase());
+  (tmp.parts = tmp.parts || []).push(inv ? { desc: inv.name, cost: inv.cost || '', price: inv.price || '', invId: inv.id, fresh: true } : { desc: v, cost: '', price: /^labor/i.test(v) ? '' : '' });
+  if (inv && num(inv.qty) <= 0) toast(`"${inv.name}" shows 0 in stock.`, 'err');
+  $('#padd').value = ''; modalDirty = true; drawParts();
+}
+function useEstimate() { const v = sum(tmp.parts || [], p => num(p.price)); if (v) { $('#tf').estimate.value = v.toFixed(2); modalDirty = true; } }
+function drawNotes() { $('#tnotes').innerHTML = (tmp.notes || []).length ? [...tmp.notes].reverse().map(n => `<div class="note"><small>${fmtTs(n.t)}</small>${esc(n.x)}</div>`).join('') : '<div class="muted small">No notes yet.</div>'; }
+function addNote() { const v = $('#nadd').value.trim(); if (!v) return; (tmp.notes = tmp.notes || []).push({ t: nowISO(), x: v }); $('#nadd').value = ''; modalDirty = true; drawNotes(); }
+function saveTicket(andPrint) {
+  const f = $('#tf'), d = formData(f);
+  if (!d.name) { f.name.focus(); return toast('Please enter the customer name.', 'err'); }
+  if (!d.issue) { f.issue.focus(); return toast('Please describe the problem.', 'err'); }
+  if ($('#nadd').value.trim()) addNote();
+  const isNew = !DB.tickets.some(x => x.id === tmp.id);
+  const t = tmp, old = DB.tickets.find(x => x.id === t.id);
+  const acc = $$('input[name=acc]:checked', f).map(x => x.value).concat(d.accOther ? d.accOther.split(',').map(s => s.trim()).filter(Boolean) : []);
+  delete d.accOther;
+  Object.assign(t, d, { phone: fmtPhone(d.phone), accessories: acc, backup: f.backup.checked, warrantyReturn: f.warrantyReturn.checked, onsite: f.onsite.checked, updated: nowISO() });
+  if (isNew) { t.no = S().nextTicket; DB.settings.nextTicket = t.no + 1; DB.settingsUpd = nowISO(); t.history = [{ t: t.created, s: t.status }]; }
+  else if (old.status !== t.status) { t.history.push({ t: nowISO(), s: t.status }); if (t.status === 'done') t.pickedUp = nowISO(); }
+  // stock: take parts out of inventory once; put back removed ones
+  const oldInv = (old?.parts || []).filter(p => p.invId).map(p => p.invId);
+  for (const p of t.parts || []) if (p.invId && p.fresh) { const ip = DB.parts.find(x => x.id === p.invId); if (ip) { ip.qty = num(ip.qty) - 1; upsert('parts', ip); } delete p.fresh; }
+  const nowInv = (t.parts || []).filter(p => p.invId).map(p => p.invId);
+  for (const idv of oldInv) { const i = nowInv.indexOf(idv); if (i >= 0) nowInv.splice(i, 1); else { const ip = DB.parts.find(x => x.id === idv); if (ip) { ip.qty = num(ip.qty) + 1; upsert('parts', ip); } } }
+  upsert('tickets', t); modalDirty = false; closeModal(true); render();
+  toast(isNew ? `Ticket #${t.no} checked in for ${t.name}.` : `Ticket #${t.no} saved.`);
+  if (old && old.status !== t.status && t.status === 'ready') toast(`#${t.no} is ready.`, '', [['💬 Tell the customer', () => msgOpen(t.id, 'msgReady')]]);
+  if (andPrint) setTimeout(() => printClaim(t.id), 150);
+}
+function delTicket(id) { const t = DB.tickets.find(x => x.id === id); if (!confirm(`Delete ticket #${t.no} for ${t.name}? This can't be undone (weekly backups are kept in the Drive folder).`)) return; removeRec('tickets', id); closeModal(true); render(); toast(`Ticket #${t.no} deleted.`); }
+function copyForInvoice(id, open) {
+  const t = DB.tickets.find(x => x.id === id);
+  const lines = [`Customer: ${t.name}  ${fmtPhone(t.phone)}`, `Job: ${devName(t)}`, `Make: ${t.make || ''}   Model: ${t.model || ''}`, `Problem: ${t.issue || ''}`, `Resolution: ${t.diag || ''}`,
+    t.battHealth ? `Battery health: ${String(t.battHealth).replace(/%$/, '')}%` : '', t.driveHealth ? `Drive health: ${t.driveHealth}` : '',
+    Object.entries(t.checks || {}).some(([, v]) => v === 'bad') ? `Problems found: ${CHECKS.filter(([k]) => (t.checks || {})[k] === 'bad').map(([, l]) => l).join(', ')}` : '',
+    ...(t.parts || []).map(p => `  ${p.desc} — ${money(num(p.price))}`), t.deposit ? `Deposit paid: ${money(num(t.deposit))}` : '', `Ticket #${t.no}`].filter(Boolean);
+  copyText(lines.join('\n'), 'Invoice details');
+  if (open) openInvoice();
+}
+// The Invoice Form lives next to this project: My Drive/Claude Projects/RCR/Invoice Form/ (keep the folders side by side)
+// It reads  #ticket=<JSON>  on open and starts a new invoice filled in from the ticket.
+const INVOICE_URL = (window.RCRDrive && RCRDrive.hosted) ? '../invoice/' : '../Invoice Form/Invoice Form - Rapid Computer Repair.html';
+const PHONE = () => matchMedia('(max-width: 760px)').matches || matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+function invoicePayload(t) {
+  const bad = CHECKS.filter(([k]) => (t.checks || {})[k] === 'bad').map(([, l]) => l);
+  return { no: t.no, name: t.name, phone: t.phone, make: t.make || (t.devType === 'Custom PC Build' ? 'CB' : ''), model: t.model, issue: t.issue, diag: t.diag,
+    estimate: t.estimate, deposit: t.deposit, parts: (t.parts || []).map(p => ({ desc: p.desc, price: p.price })),
+    extra: [t.battHealth ? `Battery health: ${String(t.battHealth).replace(/%$/, '')}%.` : '', t.driveHealth ? `Drive health: ${t.driveHealth}.` : '', bad.length ? `Problems found: ${bad.join(', ')}.` : ''].filter(Boolean) };
+}
+function openInvoice(ticketId) {
+  // From a ticket window (or the top-bar button while one is open): use that ticket, saving any edits first.
+  // Only when a ticket window is actually showing ($('#tf')) — not an invoice or customer window opened later.
+  const ticketOpen = !$('#modal').hidden && $('#tf') && tmp;
+  if (ticketId === undefined && ticketOpen && DB.tickets.some(x => x.id === tmp.id)) ticketId = tmp.id;
+  if (ticketId && ticketOpen && tmp.id === ticketId && modalDirty) saveTicket();
+  const t = ticketId && DB.tickets.find(x => x.id === ticketId);
+  if (t && t.invno) {                                  // already invoiced: open that invoice, never make a second one
+    const e = invoiceFor(t);
+    return openInvoiceForm('#open=' + encodeURIComponent(e ? e.id : t.invno), `Opening invoice #${t.invno} for ticket #${t.no}.`);
+  }
+  openInvoiceForm(t ? '#ticket=' + encodeURIComponent(JSON.stringify(invoicePayload(t))) : '',
+    t ? `Invoice started for ticket #${t.no}. Check it and save it — it links back to the ticket by itself.` : '');
+}
+function openInvoiceEntry(id) { const e = INV.find(x => x.id === id); openInvoiceForm('#open=' + encodeURIComponent(id), e ? `Opening invoice #${e.invno}.` : ''); }
+function openInvoiceForm(hash, msg) {
+  if (HOSTED && PHONE()) { flush(); location.href = INVOICE_URL + (hash || ''); return; }   // phone / installed app: same screen (the form has a 🏠 Dashboard button)
+  const w =window.open(INVOICE_URL + (hash || ''), 'rcr-invoice');        // reuses the same tab if it's already open
+  if (!w) return toast('Chrome blocked the new tab — click the blocked pop-up icon in the address bar and choose "Always allow".', 'err');
+  w.focus(); if (msg) toast(msg);
+}
+const invoiceBtnLabel = t => t.invno ? `🧾 Invoice #${esc(t.invno)}` : '🧾 Make invoice';
+
+/* ---- claim ticket print ---- */
+function printClaim(id) {
+  const t = DB.tickets.find(x => x.id === id); if (!t) return; const s = S();
+  $('#print').innerHTML = `<div class="pr-head"><img src="${LOGO}" alt=""><div><div class="nm">Rapid Computer Repair</div><div>${esc(s.shopAddr)}</div><div>${esc(s.shopPhone)} · ${esc(s.shopEmail)} · ${esc(s.shopWeb)}</div></div></div>
+   <div class="pr-title"><b>Repair Ticket #${t.no}</b><span>Checked in ${new Date(t.created).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span></div>
+   <div class="pr-grid"><div><span>Customer</span> <b>${esc(t.name)}</b></div><div><span>Phone</span> ${esc(fmtPhone(t.phone))}</div>
+   <div><span>Device</span> ${esc(t.devType || '')} — ${esc(devName(t))}</div><div><span>Serial</span> ${esc(t.serial || '')}</div>
+   <div><span>Left with it</span> ${esc((t.accessories || []).join(', ') || 'Nothing')}</div><div><span>Condition</span> ${esc(t.condition || '')}</div>
+   <div><span>Estimate</span> ${t.estimate ? money(num(t.estimate)) : 'After diagnosis'}</div><div><span>Deposit paid</span> ${t.deposit ? money(num(t.deposit)) : '—'}</div>
+   <div><span>Promised by</span> ${t.due ? fmtD(t.due) : 'We will call you'}</div><div><span>Data backup</span> ${t.backup ? 'Requested' : 'Not requested'}</div></div>
+   <div style="margin-top:8px"><b>Problem described:</b></div><div class="pr-box">${esc(t.issue || '')}</div>
+   <div class="pr-terms"><b>Terms</b>\n${esc(s.terms)}</div>
+   <div class="pr-sign"><div>Customer signature</div><div>Date</div></div>
+   <div class="pr-cut">✂ — cut and attach to device — ✂</div>
+   <div class="pr-tag"><div class="big">#${t.no}</div><div><b>${esc(t.name)}</b><br>${esc(fmtPhone(t.phone))}<br>${esc(devName(t))}<br>In: ${new Date(t.created).toLocaleDateString()}${t.due ? ' · Due: ' + fmtDs(t.due) : ''}${t.priority === 'rush' ? ' · <b>RUSH</b>' : ''}<br><small>${esc((t.issue || '').slice(0, 90))}</small></div></div>`;
+  setTimeout(() => window.print(), 50);
+}
+
+/* ============ HOME ============ */
+function vHome() {
+  const open = DB.tickets.filter(t => OPEN.includes(t.status)), td = today(), now = new Date();
+  const cnt = k => open.filter(t => t.status === k).length;
+  const late = open.filter(t => t.status !== 'ready' && t.due && t.due < td).length;
+  const mA = new Date(now.getFullYear(), now.getMonth(), 1).getTime(), lmA = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+  const rev = (a, b) => sum(INV.filter(e => isRev(e) && e.t >= a && e.t < b), e => e.total);
+  const thisM = rev(mA, Infinity), lastSame = rev(lmA, lmA + (Date.now() - mA)), lastFull = rev(lmA, mA);
+  const yA = new Date(now.getFullYear(), 0, 1).getTime(), ytd = rev(yA, Infinity), lytd = rev(new Date(now.getFullYear() - 1, 0, 1).getTime(), new Date(now.getFullYear() - 1, now.getMonth(), now.getDate() + 1).getTime());
+  const unpaid = INV.filter(e => e.status === 'unpaid' && isRev(e)), low = DB.parts.filter(p => num(p.qty) <= num(p.min));
+  const wkA = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
+  const inWk = DB.tickets.filter(t => t.created >= wkA).length, outWk = DB.tickets.filter(t => t.pickedUp && t.pickedUp >= wkA).length;
+  const chg = (a, b) => b ? `<span class="${a >= b ? 'up' : 'down'}">${a >= b ? '▲' : '▼'} ${Math.abs(Math.round((a - b) / b * 100))}%</span>` : '';
+  const goal = num(S().goal);
+  const fu = followItems();
+  const appts = DB.appts.filter(a => !a.done && a.date >= td && a.date <= addDays(td, 6)).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+  const recentT = [...DB.tickets].sort((a, b) => (b.updated || b.created).localeCompare(a.updated || a.created)).slice(0, 6);
+  const hasInv = INV.length > 0;
+  return `<div class="grid kpis">
+    ${kpi('Open tickets', open.length, `${cnt('checkin') + cnt('diag')} new / diagnosing · ${cnt('repair')} in repair`, "go('tickets')")}
+    ${kpi('Ready for pickup', cnt('ready'), open.filter(t => t.status === 'ready' && daysSince(readySince(t)) >= S().staleDays).length + ` waiting ${S().staleDays}+ days`, "ui.tMode='list';ui.tFilter='ready';go('tickets')", cnt('ready') ? 'good' : '')}
+    ${kpi('Waiting on customer / parts', cnt('approval') + cnt('parts'), `${cnt('approval')} approval · ${cnt('parts')} parts`, "go('follow')", cnt('approval') + cnt('parts') ? 'warn' : '')}
+    ${kpi('Past promised date', late, late ? 'needs attention' : 'all on time', "go('follow')", late ? 'alert' : '')}
+    ${kpi('Sales this month', hasInv ? money0(thisM) : '—', hasInv ? `${chg(thisM, lastSame)} vs same point last month${goal ? ` · ${Math.round(thisM / goal * 100)}% of ${money0(goal)} goal` : ''}` : 'connect the RCR folder', "ui.period='month';go('money')")}
+    ${kpi('Sales this year', hasInv ? money0(ytd) : '—', hasInv ? `${chg(ytd, lytd)} vs last year to date` : '', "ui.period='year';go('money')")}
+    ${kpi('Unpaid invoices', hasInv ? money0(sum(unpaid, e => e.total)) : '—', plural(unpaid.length, 'invoice') + ' marked unpaid', "ui.iStatus='unpaid';ui.period='all';go('money')", unpaid.length ? 'alert' : '')}
+    ${kpi('This week', `${inWk} in / ${outWk} out`, `tickets checked in / picked up · ${low.length} low-stock part${low.length === 1 ? '' : 's'}`, "go('tickets')")}
+  </div>
+  <div class="tip">💡 <b>Tech tip of the day:</b> ${esc(tipOfDay())}</div>
+  <div class="grid c2" style="margin-bottom:14px">
+    <div class="card"><h3>Sales by month <span class="r small muted">last 12 months · last month ${money0(lastFull)}</span></h3>${hasInv ? barChart(monthly(12)) : '<div class="empty">Connect your RCR folder to see sales from your invoice log.</div>'}</div>
+    <div class="card"><h3>Open tickets by status <span class="r"><button class="btn sm" onclick="go('tickets')">Board →</button></span></h3>
+      ${open.length ? hbars(OPEN.map(k => ({ l: ST[k].l, v: cnt(k), k, click: `ui.tMode='list';ui.tFilter='${k}';go('tickets')` })), null, i => ST[i.k].c) : '<div class="empty">No open tickets. Press <kbd>N</kbd> to check one in.</div>'}
+      ${open.length ? `<div class="small muted" style="margin-top:8px">Oldest open: #${[...open].sort((a, b) => a.created.localeCompare(b.created))[0].no} (${daysSince([...open].sort((a, b) => a.created.localeCompare(b.created))[0].created)} days)</div>` : ''}</div>
+  </div>
+  <div class="grid c3" style="margin-bottom:14px">
+    <div class="card"><h3>🔔 Needs attention <span class="r"><button class="btn sm" onclick="go('follow')">All ${fu.length} →</button></span></h3>
+      ${fu.slice(0, 7).map(liHTML).join('') || '<div class="empty">All caught up 🎉</div>'}</div>
+    <div class="card"><h3>📅 Next 7 days <span class="r"><button class="btn sm" onclick="editAppt()">+ Add</button></span></h3>
+      ${appts.map(a => `<div class="li"><div class="ic">${apptIcon(a.type)}</div><div class="tx"><b>${a.date === td ? 'Today' : fmtDs(a.date)} ${fmtT(a.time)}</b> · ${esc(a.type)}<div class="s">${esc(a.name || '')} ${a.phone ? '· ' + esc(fmtPhone(a.phone)) : ''}${a.notes ? ' · ' + esc(a.notes) : ''}</div></div><div class="ac"><button class="btn sm" onclick="editAppt('${a.id}')">Edit</button></div></div>`).join('') || '<div class="empty">Nothing scheduled.</div>'}</div>
+    <div class="card"><h3>✅ To-do</h3>${tasksHTML(6)}</div>
+  </div>
+  <div class="grid c2e">
+    <div class="card"><h3>Recently updated tickets</h3>${recentT.map(t => `<div class="li" style="cursor:pointer" onclick="editTicket('${t.id}')"><div class="tx"><b>#${t.no} ${esc(t.name)}</b> — ${esc(devName(t))}<div class="s">${esc((t.issue || '').slice(0, 80))}</div></div><div>${badge(t.status)}</div></div>`).join('') || '<div class="empty">No tickets yet.</div>'}</div>
+    <div class="card"><h3>Latest invoices <span class="r"><button class="btn sm" onclick="go('money')">All →</button></span></h3>${INV.slice(0, 6).map(e => `<div class="li" style="cursor:pointer" onclick="invModal(${js(e.id)})"><div class="tx"><b>${esc(e.invno || '—')}</b> ${esc(nameFor(e))}<div class="s">${esc(e.date)} · ${esc(e.job)}</div></div><div style="text-align:right"><b>${money(e.total)}</b><br>${invStatus(e)}</div></div>`).join('') || '<div class="empty">No invoices loaded.</div>'}</div>
+  </div>`;
+}
+const kpi = (l, v, s, click, cls) => `<div class="kpi ${cls || ''}" onclick="${click}"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+const liHTML = i => `<div class="li"><div class="ic">${i.ic}</div><div class="tx">${esc(i.tx)}<div class="s">${i.s}</div></div><div class="ac">${i.ac}</div></div>`;
+
+/* ============ tasks ============ */
+function tasksHTML(limit) {
+  const list = [...DB.tasks].sort((a, b) => (a.done - b.done) || (a.due || '9').localeCompare(b.due || '9') || (a.created || '').localeCompare(b.created || ''));
+  const shown = limit ? list.filter(t => !t.done).slice(0, limit) : list;
+  return `<div class="row" style="margin-bottom:6px"><input class="inp" id="taskIn" placeholder="Add a task… (Enter)" style="flex:1" onkeydown="if(event.key==='Enter')addTask()"><input class="inp" type="date" id="taskDue" style="width:140px"></div>` +
+    (shown.map(t => `<div class="li ${t.done ? 'done' : ''}"><input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}')" style="margin-top:3px"><div class="tx">${esc(t.text)}${t.due ? `<div class="s">${t.due < today() && !t.done ? '<span class="tag red">Overdue</span> ' : ''}Due ${fmtD(t.due)}</div>` : ''}</div><div class="ac"><button class="btn sm" onclick="delTask('${t.id}')" title="Delete">×</button></div></div>`).join('') || '<div class="empty">No tasks.</div>') +
+    (limit && list.filter(t => !t.done).length > limit ? `<div class="small muted">+ ${list.filter(t => !t.done).length - limit} more on Follow-ups</div>` : '');
+}
+function addTask() { const v = $('#taskIn').value.trim(); if (!v) return; upsert('tasks', { id: uid(), text: v, due: $('#taskDue').value, done: false, created: nowISO() }); render(); setTimeout(() => $('#taskIn')?.focus(), 0); }
+function toggleTask(id) { const t = DB.tasks.find(x => x.id === id); t.done = !t.done; upsert('tasks', t); render(); }
+function delTask(id) { removeRec('tasks', id); render(); }
+
+/* ============ CUSTOMERS ============ */
+function vCustomers() {
+  const cs = customers();
+  return `<div class="toolbar"><input type="search" placeholder="Search name, phone, email, device…" value="${esc(ui.cq)}" oninput="ui.cq=this.value;ui.cLimit=100;$('#clist').innerHTML=custBody()">
+    <select onchange="ui.cSort=this.value;$('#clist').innerHTML=custBody()">${[['last', 'Most recent visit'], ['spent', 'Total spent'], ['visits', 'Most visits'], ['name', 'Name A–Z'], ['unpaid', 'Owes money']].map(([v, l]) => `<option value="${v}" ${ui.cSort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <span class="muted">${cs.length} customers · ${cs.filter(c => c.visits > 1).length} repeat</span></div><div id="clist">${custBody()}</div>`;
+}
+function custBody() {
+  const q = ui.cq.trim().toLowerCase(), qd = digits(q);
+  let list = customers().filter(c => !q || c.name.toLowerCase().includes(q) || (qd.length >= 3 && digits(c.phone).includes(qd)) || c.email.toLowerCase().includes(q) || c.inv.some(e => (e.job + ' ' + e.model).toLowerCase().includes(q)) || c.tix.some(t => devName(t).toLowerCase().includes(q)));
+  if (ui.cSort === 'unpaid') list = list.filter(c => c.unpaid > 0);
+  const sorters = { last: (a, b) => b.last - a.last, spent: (a, b) => b.spent - a.spent, visits: (a, b) => b.visits - a.visits || b.last - a.last, name: (a, b) => a.name.localeCompare(b.name), unpaid: (a, b) => b.unpaid - a.unpaid };
+  list.sort(sorters[ui.cSort]);
+  if (!list.length) return `<div class="card empty">${customers().length ? 'No customers match.' : 'Customers appear here from your invoices and tickets.'}</div>`;
+  return `<div class="tablewrap"><table class="t"><tr><th>Customer</th><th>Phone</th><th class="num">Visits</th><th class="num">Total spent</th><th>Last visit</th><th>Last job</th><th></th></tr>
+   ${list.slice(0, ui.cLimit).map(c => `<tr class="click" onclick="custModal(${js(c.key)})"><td style="white-space:nowrap">${nameCell(c)}</td><td style="white-space:nowrap">${esc(c.phone)}</td><td class="num">${c.visits}</td><td class="num">${money0(c.spent)}</td>
+   <td>${c.last ? new Date(c.last).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</td><td class="small">${esc(c.inv[0]?.job || (c.tix[0] ? devName(c.tix[0]) : ''))}</td>
+   <td>${warranty(c)} ${c.unpaid ? `<span class="tag red">Owes ${money0(c.unpaid)}</span>` : ''} ${c.tix.some(t => OPEN.includes(t.status)) ? '<span class="tag blue">Open ticket</span>' : ''}</td></tr>`).join('')}</table></div>
+   ${list.length > ui.cLimit ? `<p><button class="btn" onclick="ui.cLimit+=200;$('#clist').innerHTML=custBody()">Show more (${list.length - ui.cLimit} left)</button></p>` : ''}`;
+}
+function custModal(key) {
+  const c = customers().find(x => x.key === key); if (!c) return;
+  const note = DB.custNotes[key]?.text || '';
+  const body = `<div class="grid kpis" style="grid-template-columns:repeat(4,1fr)">
+     ${kpi('Visits', c.visits, c.first !== Infinity && c.first ? 'since ' + new Date(c.first).toLocaleDateString() : '', '')}${kpi('Total spent', money0(c.spent), c.inv.length ? 'avg ' + money0(c.spent / Math.max(1, c.inv.filter(isRev).length)) : '', '')}
+     ${kpi('Last visit', c.last ? new Date(c.last).toLocaleDateString() : '—', warranty(c) || 'no active warranty', '')}${kpi('Balance owed', money(c.unpaid), c.unpaid ? 'unpaid invoices' : 'all clear', '', c.unpaid ? 'alert' : 'good')}</div>
+   <div class="row" style="margin-bottom:10px">${c.phone ? `<a class="btn" href="tel:${digits(c.phone)}">📞 ${esc(c.phone)}</a>` : ''}${c.email ? `<a class="btn" href="mailto:${esc(c.email)}">✉ ${esc(c.email)}</a>` : ''}${c.addr ? `<a class="btn" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(c.addr)}">📍 ${esc(c.addr)}</a>` : ''}</div>
+   <label class="fl" style="margin-bottom:10px">Name${c.origName && c.origName !== c.name ? ` <span class="muted" style="font-weight:400">(on invoices as "${esc(c.origName)}")</span>` : !c.origName ? ` <span class="muted" style="font-weight:400">(${c.name ? 'added here — the invoices only have the phone number' : 'not on the invoices — add it here'})</span>` : ''}
+     <input class="inp" style="max-width:340px" value="${esc(c.name)}" placeholder="Customer name" onchange="setCustName(${js(key)},this.value);$('.mbox > header h3').textContent=this.value.trim()||${js(c.phone)};if($('#clist'))$('#clist').innerHTML=custBody()"></label>
+   <label class="fl">Customer notes (preferences, gate code, how they like to be contacted…)<textarea class="inp" rows="2" onchange="saveCustNote(${js(key)},this.value)">${esc(note)}</textarea></label>
+   ${c.tix.length ? `<div class="sec-h">Repair tickets</div><div class="tablewrap"><table class="t">${c.tix.sort((a, b) => b.no - a.no).map(t => `<tr class="click" onclick="closeModal();editTicket('${t.id}')"><td>#${t.no}</td><td>${new Date(t.created).toLocaleDateString()}</td><td>${esc(devName(t))}</td><td class="small">${esc((t.issue || '').slice(0, 90))}</td><td>${badge(t.status)}</td></tr>`).join('')}</table></div>` : ''}
+   <div class="sec-h">Invoices (${c.inv.length})</div>
+   ${c.inv.length ? c.inv.map(e => `<details class="inv card" style="padding:8px 12px;margin-bottom:6px"><summary><b>${esc(e.invno || '—')}</b> · ${esc(e.date)} · ${esc(e.job)} · <b>${money(e.total)}</b> ${invStatus(e)} ${e.status === 'unpaid' ? payBtn(e) : ''}</summary>${invDetail(e)}</details>`).join('') : '<div class="muted">No invoices in the log.</div>'}`;
+  modal(esc(c.name || c.phone), body, `<button class="btn pri" onclick="closeModal();editTicket(null,{name:${js(c.name)},phone:${js(c.phone)},email:${js(c.email)},addr:${js(c.addr)}})">+ New ticket for ${esc(first(c.name))}</button>
+    <button class="btn" onclick="closeModal();editAppt(null,{name:${js(c.name)},phone:${js(c.phone)},addr:${js(c.addr)}})">📅 Schedule</button>`, true);
+}
+function saveCustNote(key, v) { DB.custNotes[key] = { ...(DB.custNotes[key] || {}), text: v, upd: nowISO() }; commit(); toast('Note saved'); }
+function invDetail(e) {
+  return `<div class="small" style="margin-top:6px">${e.make || e.model ? `<div><b>Device:</b> ${esc(e.make)} ${esc(e.model)}</div>` : ''}${e.desc ? `<div><b>Problem:</b> ${esc(e.desc)}</div>` : ''}${e.res ? `<div><b>Resolution:</b> ${esc(e.res)}</div>` : ''}
+   ${e.lines.length ? `<table class="t" style="margin-top:6px">${e.lines.map(l => `<tr><td>${l.q}</td><td>${esc(l.d)}</td><td class="num">${money(l.p * l.q)}</td></tr>`).join('')}<tr><td></td><td><b>Total</b></td><td class="num"><b>${money(e.total)}</b></td></tr></table>` : ''}
+   ${e.status === 'paid' ? `<div class="up">Paid ${esc(e.paidDate)} ${esc(e.paidMethod)}</div>` : ''}${e.flags.length ? `<div class="down">⚠ ${esc(e.flags.join(' · '))}</div>` : ''}${e.file ? `<div class="muted">File: ${esc(e.file)}</div>` : ''}</div>`;
+}
+function invModal(id) {
+  const e = INV.find(x => x.id === id); if (!e) return;
+  const c = findCust(e.name, e.phone);
+  modal(`Invoice ${esc(e.invno || '(no number)')} ${invStatus(e)}`, `<div class="pr-grid" style="margin-bottom:6px"><div><b>${esc(nameFor(e))}</b> ${esc(fmtPhone(e.phone))}</div><div>${esc(e.date)}</div><div>${esc(e.job)}</div><div><b>${money(e.total)}</b></div></div>${invDetail(e)}
+    <p class="muted small">${canPay(e) ? '💵 Mark paid updates the invoice log right away. ' : ''}To change anything else, open this same invoice in the Invoice Form; save it there and the dashboard picks up the change.</p>`,
+    `${c ? `<button class="btn" onclick="custModal(${js(c.key)})">Customer history</button>` : ''}${canPay(e) ? `<button class="btn ok" onclick="payModal(${js(e.id)})">💵 Mark paid</button>` : ''}<button class="btn" onclick="openInvoiceEntry(${js(e.id)})">🧾 Open invoice ${esc(e.invno)} in the Invoice Form ↗</button>`);
+}
+
+/* ---- Quick "Mark paid": writes the paid status straight into the invoice log (same fields the Invoice Form uses) ---- */
+const PAY_METHODS = ['Cash', 'Card', 'Check', 'Zelle', 'Venmo', 'Cash App', 'PayPal', 'Other'];
+const canPay = e => e && e.status !== 'paid' && e.status !== 'quote' && !/quote/i.test(e.kind || '');
+const payBtn = (e, cls) => canPay(e) ? `<button class="btn sm ok ${cls || ''}" title="Mark invoice ${esc(e.invno)} paid" onclick="event.stopPropagation();payModal(${js(e.id)})">💵 Paid</button>` : '';
+const longDate = d => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+function payModal(id) {
+  const e = INV.find(x => x.id === id); if (!e) return;
+  if (!folder || !folderOK) return toast('Connect your RCR folder first (top of the page) so the dashboard can update the invoice log.', 'err');
+  const today = new Date(), iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const last = localStorage.getItem('rcr-paymethod') || 'Cash';
+  modal(`💵 Mark invoice ${esc(e.invno || '')} paid`, `<div style="margin-bottom:10px"><b>${esc(nameFor(e) || fmtPhone(e.phone))}</b> · ${esc(e.job)} · <b>${money(e.total)}</b></div>
+    <div class="small muted" style="margin-bottom:6px">How did they pay? (click one to mark it paid)</div>
+    <div class="paygrid">${PAY_METHODS.map(m => `<button class="btn ${m === last ? 'ok' : ''}" onclick="doPay(${js(id)},${js(m)})">${m}</button>`).join('')}</div>
+    <div class="row2" style="margin-top:12px"><label>Paid on<input type="date" id="paydate" value="${iso}"></label><label>Note (optional)<input id="paynote" placeholder="e.g. check #1234, last 4 of card"></label></div>`,
+    `<button class="btn" onclick="closeModal()">Cancel</button>`);
+}
+async function doPay(id, method) {
+  const dv = $('#paydate') && $('#paydate').value, note = ($('#paynote') && $('#paynote').value || '').trim();
+  const pay = { status: 'paid', paidDate: longDate(dv ? new Date(dv + 'T12:00') : new Date()), paidMethod: method, paidNote: note };
+  try {
+    const before = await setInvoicePay(id, pay);
+    localStorage.setItem('rcr-paymethod', method);
+    closeModal(true);
+    const e = INV.find(x => x.id === id);
+    toast(`Invoice ${e ? e.invno : ''} marked paid (${method}).`, 'ok', [['Undo', () => setInvoicePay(id, before).then(() => toast('Undone — back to unpaid.')).catch(err => toast('Undo failed: ' + err.message, 'err'))]]);
+  } catch (err) { if (err.name === 'AuthError') { folderOK = false; setSync('reconnect'); } toast('Could not mark it paid: ' + err.message + (err.name === 'AuthError' ? ' — tap "Sign in again" at the top, then try again.' : ''), 'err'); }
+}
+// Reads the log fresh from the folder, changes only this invoice's payment fields, writes it back. Returns the old values (for Undo).
+async function setInvoicePay(id, pay) {
+  if (!folder || !folderOK) throw new Error('the RCR folder is not connected');
+  for (const p of S().logPaths) {
+    const r = await findLog(folder, p); if (!r) continue;
+    const log = parseJSON(await (await r.fh.getFile()).text());
+    if (!Array.isArray(log)) continue;
+    const e = log.find(x => slim(x).id === id); if (!e) continue;
+    const before = { status: e.status ?? e.data?.status ?? 'unpaid', paidDate: e.paidDate || '', paidMethod: e.paidMethod || '', paidNote: e.paidNote || '' };
+    Object.assign(e, pay); if (e.data) Object.assign(e.data, pay);
+    const text = JSON.stringify(log, null, 1);
+    if (!Array.isArray(JSON.parse(text)) || JSON.parse(text).length !== log.length) throw new Error('safety check failed, nothing was written');
+    await writeText(r.dir, LOG_FILE, text);
+    const s = INV.find(x => x.id === id); if (s) Object.assign(s, { status: pay.status, paidDate: pay.paidDate, paidMethod: pay.paidMethod });
+    custCache = null; idb.set('inv', { INV, invInfo }).catch(() => {});
+    invMod[p] = (await r.fh.getFile()).lastModified;
+    render();
+    return before;
+  }
+  throw new Error('that invoice was not found in the invoice log');
+}
+
+/* ============ MONEY ============ */
+function vMoney() {
+  if (!INV.length) return `<div class="card empty">${folder && folderOK ? 'No invoices found. Check the invoice log folder in Settings.' : 'Connect your RCR folder (top of the page) to see sales from your invoice log.'}</div>`;
+  const P = periodRange(ui.period), list = INV.filter(e => e.t >= P.a && e.t < P.b), rev = list.filter(isRev);
+  const total = sum(rev, e => e.total), n = rev.length;
+  // same-length previous period for comparison
+  const span = (P.b === Infinity ? Date.now() : P.b) - P.a, prev = INV.filter(e => isRev(e) && e.t >= P.a - span && e.t < P.a), prevTot = sum(prev, e => e.total);
+  const kinds = {}; for (const e of rev) for (const l of e.lines) { const k = lineKind(l.d); kinds[k] = (kinds[k] || 0) + l.p * l.q; }
+  const cats = {}; for (const e of rev) { const k = catOf(e.job + ' ' + e.desc + ' ' + e.lines.map(l => l.d).join(' ')); (cats[k] = cats[k] || { v: 0, n: 0 }); cats[k].v += e.total; cats[k].n++; }
+  const brands = {}; for (const e of rev) { const b = (e.make || '').trim().replace(/^apple.*$/i, 'Apple').replace(/^hp\b.*$/i, 'HP').replace(/^dell.*$/i, 'Dell') || 'Unknown'; const k = b.charAt(0).toUpperCase() + b.slice(1); brands[k] = (brands[k] || 0) + 1; }
+  const tops = {}; for (const e of rev) { const k = ckey(e.name, e.phone); (tops[k] = tops[k] || { l: nameFor(e) || fmtPhone(e.phone), v: 0, k }); tops[k].v += e.total; }
+  const wd = [0, 0, 0, 0, 0, 0, 0]; for (const e of rev) wd[new Date(e.t).getDay()] += e.total;
+  const unpaid = list.filter(e => e.status === 'unpaid'), quotes = list.filter(e => e.status === 'quote' || /quote/i.test(e.kind));
+  const pay = {}; for (const e of rev.filter(e => e.status === 'paid')) pay[e.paidMethod || 'Unknown'] = (pay[e.paidMethod || 'Unknown'] || 0) + e.total;
+  const flagged = INV.filter(e => e.flags.length).length;
+  const periods = [['week', 'Week'], ['month', 'Month'], ['lastmonth', 'Last month'], ['quarter', 'Quarter'], ['year', 'Year'], ['lastyear', 'Last year'], ['l12', '12 months'], ['all', 'All']];
+  return `<div class="toolbar"><div class="seg">${periods.map(([k, l]) => `<button class="${ui.period === k ? 'on' : ''}" onclick="ui.period='${k}';render()">${l}</button>`).join('')}</div>
+    <span class="muted">${P.label}${P.a > 0 ? ' · ' + new Date(P.a).toLocaleDateString() + ' – ' + (P.b === Infinity ? 'today' : new Date(P.b - 1).toLocaleDateString()) : ''}</span></div>
+  <div class="grid kpis">
+    ${kpi('Sales', money0(total), ui.period !== 'all' && prevTot ? `<span class="${total >= prevTot ? 'up' : 'down'}">${total >= prevTot ? '▲' : '▼'} ${Math.abs(Math.round((total - prevTot) / prevTot * 100))}%</span> vs previous ${money0(prevTot)}` : '', '')}
+    ${kpi('Invoices', n, quotes.length ? plural(quotes.length, 'quote') + ' not counted' : '', '')}
+    ${kpi('Average invoice', money0(n ? total / n : 0), '', '')}
+    ${kpi('Labor', money0(kinds.Labor || 0), total ? Math.round((kinds.Labor || 0) / total * 100) + '% of sales' : '', '')}
+    ${kpi('Parts', money0(kinds.Parts || 0), total ? Math.round((kinds.Parts || 0) / total * 100) + '% of sales' : '', '')}
+    ${kpi('Unpaid', money0(sum(unpaid, e => e.total)), plural(unpaid.length, 'invoice'), "ui.iStatus='unpaid';$('#ilist').innerHTML=invBody()", unpaid.length ? 'alert' : '')}
+  </div>
+  <div class="grid c2" style="margin-bottom:14px"><div class="card"><h3>Sales by month <span class="r small muted">last 24 months</span></h3>${barChart(monthly(24))}</div>
+    <div class="card"><h3>Sales by weekday</h3>${hbars(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((l, i) => ({ l, v: wd[i] })), money0)}
+      <h3 style="margin-top:14px">Where the money comes from</h3>${hbars(Object.entries(kinds).sort((a, b) => b[1] - a[1]).map(([l, v]) => ({ l, v })), money0)}</div></div>
+  <div class="grid c3" style="margin-bottom:14px">
+    <div class="card"><h3>Job types <span class="r small muted">by keywords</span></h3>${hbars(Object.entries(cats).sort((a, b) => b[1].v - a[1].v).map(([l, o]) => ({ l: `${l} (${o.n})`, v: o.v })), money0, () => '#0891b2')}</div>
+    <div class="card"><h3>Top customers</h3>${hbars(Object.values(tops).sort((a, b) => b.v - a.v).slice(0, 10).map(t => ({ ...t, click: `custModal(${js(t.k)})` })), money0, () => '#9333ea')}</div>
+    <div class="card"><h3>Brands repaired</h3>${hbars(Object.entries(brands).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([l, v]) => ({ l, v })), (v) => v + ' jobs', () => '#16a34a')}
+      ${Object.keys(pay).length ? `<h3 style="margin-top:14px">Payment methods <span class="r small muted">paid invoices only</span></h3>${hbars(Object.entries(pay).map(([l, v]) => ({ l, v })), money0, () => '#d97706')}` : ''}</div>
+  </div>
+  <div class="toolbar"><b>Invoices in this period</b><input type="search" placeholder="Search number, name, job…" value="${esc(ui.iq)}" oninput="ui.iq=this.value;$('#ilist').innerHTML=invBody()">
+    <select onchange="ui.iStatus=this.value;$('#ilist').innerHTML=invBody()">${[['', 'All'], ['unpaid', 'Unpaid'], ['paid', 'Paid'], ['quote', 'Quotes'], ['untracked', 'Payment not tracked'], ['flag', '⚠ Problems']].map(([v, l]) => `<option value="${v}" ${ui.iStatus === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <span class="grow"></span><span class="small muted">${flagged ? flagged + ' invoices have import warnings · ' : ''}💵 Paid marks an invoice paid · edit everything else in the Invoice Form</span></div>
+  <div id="ilist">${invBody()}</div>`;
+}
+function invBody() {
+  const P = periodRange(ui.period), q = ui.iq.trim().toLowerCase();
+  let list = INV.filter(e => (ui.iq ? true : e.t >= P.a && e.t < P.b));
+  if (q) list = list.filter(e => [e.invno, nameFor(e), e.phone, e.job, e.make, e.model, e.date].join(' ').toLowerCase().includes(q));
+  if (ui.iStatus === 'untracked') list = list.filter(e => !e.status); else if (ui.iStatus === 'flag') list = list.filter(e => e.flags.length); else if (ui.iStatus) list = list.filter(e => e.status === ui.iStatus);
+  if (!list.length) return '<div class="card empty">No invoices match.</div>';
+  return `<div class="tablewrap"><table class="t"><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Job</th><th class="num">Total</th><th>Status</th></tr>
+    ${list.slice(0, ui.iLimit).map(e => `<tr class="click" onclick="invModal(${js(e.id)})"><td><b>${esc(e.invno || '—')}</b>${e.flags.length ? ' <span title="' + esc(e.flags.join('; ')) + '">⚠</span>' : ''}</td><td>${esc(e.date)}</td><td>${esc(nameFor(e))}<div class="muted small">${esc(fmtPhone(e.phone))}</div></td><td>${esc(e.job)}</td><td class="num">${money(e.total)}</td><td style="white-space:nowrap">${invStatus(e)} ${e.status === 'unpaid' ? payBtn(e) : ''}</td></tr>`).join('')}
+    <tr><td colspan="4"><b>${plural(list.length, 'invoice')}</b>${q ? ' (all dates)' : ''}</td><td class="num"><b>${money(sum(list.filter(isRev), e => e.total))}</b></td><td></td></tr></table></div>
+    ${list.length > ui.iLimit ? `<p><button class="btn" onclick="ui.iLimit+=200;$('#ilist').innerHTML=invBody()">Show more (${list.length - ui.iLimit} left)</button></p>` : ''}`;
+}
+
+/* ============ FOLLOW-UPS ============ */
+function vFollow() {
+  const items = followItems(), groups = {};
+  for (const i of items) (groups[i.grp] = groups[i.grp] || []).push(i);
+  return `<div class="grid c2"><div>${Object.keys(groups).length ? Object.entries(groups).map(([g, list]) => `<div class="card" style="margin-bottom:14px"><h3>${list[0].ic} ${g} <span class="r muted">${list.length}</span></h3>${list.map(liHTML).join('')}</div>`).join('') : '<div class="card empty">Nothing needs follow-up right now 🎉</div>'}</div>
+    <div><div class="card"><h3>✅ To-do list</h3>${tasksHTML()}</div>
+    <div class="card" style="margin-top:14px"><h3>How follow-ups work</h3><div class="small muted">This list builds itself from your tickets, orders, inventory and invoices:<br>
+      • tickets ready 2+ days (red after ${S().staleDays}) • waiting on approval 1+ day • past promised date<br>• picked up in the last 3 weeks without a review request
+      • parts orders past their ETA • low stock with no order open • invoices unpaid 3+ days • tasks due today or earlier.<br>Message templates and the Google review link are in Settings.</div></div></div></div>`;
+}
+
+/* ============ APPOINTMENTS ============ */
+const apptIcon = t => ({ 'Drop-off': '📥', Pickup: '📤', 'On-site': '🚗', 'Remote session': '🖥️', 'Phone call': '📞', Consultation: '💬' }[t] || '📅');
+function vCalendar() {
+  const td = today(), list = DB.appts.filter(a => ui.aPast ? true : a.date >= td || (!a.done && a.date < td)).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+  if (ui.aPast) list.reverse();
+  const days = {}; for (const a of list) (days[a.date] = days[a.date] || []).push(a);
+  const week = [...Array(7)].map((_, i) => addDays(td, i));
+  return `<div class="toolbar"><button class="btn pri" onclick="editAppt()">+ New appointment</button><label class="row small"><input type="checkbox" ${ui.aPast ? 'checked' : ''} onchange="ui.aPast=this.checked;render()"> Show past</label></div>
+   <div class="grid" style="grid-template-columns:repeat(7,1fr);margin-bottom:14px">${week.map(d => { const n = DB.appts.filter(a => a.date === d && !a.done); return `<div class="kpi" onclick="editAppt(null,{date:'${d}'})" title="Add on this day"><div class="l">${d === td ? 'Today' : parseYMD(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div><div class="v" style="font-size:20px">${n.length || '·'}</div><div class="s">${n.slice(0, 2).map(a => fmtT(a.time) + ' ' + esc(a.type)).join('<br>')}</div></div>`; }).join('')}</div>
+   ${Object.keys(days).length ? Object.entries(days).map(([d, as]) => `<div class="sec-h">${d === td ? 'Today — ' : d < td ? '<span class="down">Missed / past</span> — ' : ''}${parseYMD(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+     <div class="card" style="padding:4px 14px">${as.map(a => `<div class="li ${a.done ? 'done' : ''}"><input type="checkbox" ${a.done ? 'checked' : ''} onchange="apptDone('${a.id}')" title="Done" style="margin-top:4px"><div class="ic">${apptIcon(a.type)}</div>
+       <div class="tx"><b>${fmtT(a.time) || 'Any time'}</b> · ${esc(a.type)} · ${esc(a.name || '')} ${a.phone ? `· <a href="tel:${digits(a.phone)}">${esc(fmtPhone(a.phone))}</a>` : ''}
+       <div class="s">${a.addr ? `<a target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(a.addr)}">📍 ${esc(a.addr)}</a> · ` : ''}${esc(a.notes || '')}${a.ticketId ? ' · ' + ticketRef(a.ticketId) : ''}</div></div>
+       <div class="ac">${a.ticketId ? `<button class="btn sm" onclick="editTicket('${a.ticketId}')">Ticket</button>` : ''}<button class="btn sm" onclick="editAppt('${a.id}')">Edit</button></div></div>`).join('')}</div>`).join('') : '<div class="card empty">No appointments. Add drop-offs, pickups, on-site visits and remote sessions here.</div>'}`;
+}
+function editAppt(id, pre) {
+  const a = id ? DB.appts.find(x => x.id === id) : { id: uid(), date: today(), time: '', type: 'Drop-off', ...(pre || {}) };
+  if (!leaveModal()) return;
+  modal(id ? 'Edit appointment' : 'New appointment', `<form id="af" class="f" onsubmit="return false">
+    <label>Date<input type="date" name="date" value="${esc(a.date)}"></label><label>Time<input type="time" name="time" value="${esc(a.time || '')}"></label>
+    <label>Type<select name="type">${APPT_TYPES.map(t => `<option ${t === a.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <label>Ticket<select name="ticketId"><option value="">—</option>${DB.tickets.filter(t => OPEN.includes(t.status) || t.id === a.ticketId).sort((x, y) => y.no - x.no).map(t => `<option value="${t.id}" ${t.id === a.ticketId ? 'selected' : ''}>#${t.no} ${esc(t.name)} — ${esc(devName(t))}</option>`).join('')}</select></label>
+    <label>Customer<input name="name" list="custList" value="${esc(a.name || '')}"></label><label>Phone<input name="phone" value="${esc(a.phone || '')}"></label>
+    <label class="full">Address (on-site)<select class="inp" onchange="if(this.value)this.form.addr.value=this.value" style="margin-bottom:4px"><option value="">Pick a shop address or type below…</option>${ADDRS.map(x => `<option>${x}</option>`).join('')}</select><input name="addr" value="${esc(a.addr || '')}"></label>
+    <label class="full">Notes<textarea name="notes">${esc(a.notes || '')}</textarea></label></form>`,
+    `<button class="btn pri" onclick="saveAppt('${a.id}')">Save</button>${id ? `<span class="grow"></span><button class="btn danger" onclick="if(confirm('Delete this appointment?')){removeRec('appts','${a.id}');closeModal(true);render()}">Delete</button>` : ''}`);
+}
+function saveAppt(id) {
+  const d = formData($('#af')); if (!d.date) return toast('Pick a date.', 'err');
+  if (d.ticketId && !d.name) { const t = DB.tickets.find(x => x.id === d.ticketId); d.name = t.name; d.phone = d.phone || t.phone; }
+  const a = DB.appts.find(x => x.id === id) || { id, done: false };
+  upsert('appts', Object.assign(a, d, { phone: fmtPhone(d.phone) })); closeModal(true); render(); toast('Appointment saved');
+}
+function apptDone(id) { const a = DB.appts.find(x => x.id === id); a.done = !a.done; upsert('appts', a); render(); }
+
+/* ============ INVENTORY ============ */
+function vInventory() {
+  const ps = DB.parts, low = ps.filter(p => num(p.qty) <= num(p.min));
+  const cats = [...new Set(ps.map(p => p.cat).filter(Boolean))].sort();
+  return `<div class="grid kpis">${kpi('Items', ps.length, cats.length + ' categories', '')}${kpi('Units in stock', sum(ps, p => Math.max(0, num(p.qty))), '', '')}
+    ${kpi('Stock value (cost)', money0(sum(ps, p => Math.max(0, num(p.qty)) * num(p.cost))), 'retail ' + money0(sum(ps, p => Math.max(0, num(p.qty)) * num(p.price))), '')}${kpi('Low / out of stock', low.length, low.length ? 'click to show' : 'all stocked', "ui.pLow=!ui.pLow;render()", low.length ? 'alert' : 'good')}</div>
+   <div class="toolbar"><button class="btn pri" onclick="editPart()">+ Add part</button><input type="search" placeholder="Search parts, SKU, supplier…" value="${esc(ui.pq)}" oninput="ui.pq=this.value;$('#plist').innerHTML=partsBody()">
+    <label class="row small"><input type="checkbox" ${ui.pLow ? 'checked' : ''} onchange="ui.pLow=this.checked;$('#plist').innerHTML=partsBody()"> Low stock only</label></div><div id="plist">${partsBody()}</div>`;
+}
+function partsBody() {
+  const q = ui.pq.trim().toLowerCase();
+  const list = DB.parts.filter(p => (!ui.pLow || num(p.qty) <= num(p.min)) && (!q || [p.name, p.sku, p.cat, p.supplier, p.loc].join(' ').toLowerCase().includes(q))).sort((a, b) => (a.cat || '').localeCompare(b.cat || '') || a.name.localeCompare(b.name));
+  if (!list.length) return `<div class="card empty">${DB.parts.length ? 'No parts match.' : 'No parts yet. Add the SSDs, RAM, batteries, chargers and screens you keep on the shelf, with a minimum so you get a low-stock alert.'}</div>`;
+  return `<div class="tablewrap"><table class="t"><tr><th>Part</th><th>Category</th><th>SKU</th><th>Location</th><th>Supplier</th><th class="num">Cost</th><th class="num">Price</th><th class="num">Margin</th><th style="text-align:center">In stock</th><th></th></tr>
+   ${list.map(p => { const lowp = num(p.qty) <= num(p.min); const mg = num(p.price) ? Math.round((num(p.price) - num(p.cost)) / num(p.price) * 100) : 0; return `<tr><td><b>${esc(p.name)}</b>${p.notes ? `<div class="muted small">${esc(p.notes)}</div>` : ''}</td><td>${esc(p.cat || '')}</td><td class="small">${esc(p.sku || '')}</td><td class="small">${esc(p.loc || '')}</td><td class="small">${p.url ? `<a target="_blank" href="${esc(p.url)}">${esc(p.supplier || 'link')}</a>` : esc(p.supplier || '')}</td>
+   <td class="num">${money(num(p.cost))}</td><td class="num">${money(num(p.price))}</td><td class="num">${num(p.price) ? mg + '%' : ''}</td>
+   <td style="text-align:center;white-space:nowrap"><button class="btn sm" onclick="adjQty('${p.id}',-1)">−</button> <b class="${lowp ? 'down' : ''}" style="display:inline-block;min-width:28px">${num(p.qty)}</b> <button class="btn sm" onclick="adjQty('${p.id}',1)">+</button>${lowp ? `<div class="small down">min ${num(p.min)}</div>` : ''}</td>
+   <td style="white-space:nowrap"><button class="btn sm" onclick="editPart('${p.id}')">Edit</button> <button class="btn sm" onclick="editOrder(null,{invId:'${p.id}',part:${js(p.name)},supplier:${js(p.supplier || '')},cost:${js(p.cost || '')},addToStock:true})">Order</button> <button class="btn sm" title="Find on eBay" onclick="ebaySearch(${js(partWords(p.name) + (p.sku ? ' ' + p.sku : ''))})">🛒 eBay</button></td></tr>`; }).join('')}</table></div>`;
+}
+function adjQty(id, d) { const p = DB.parts.find(x => x.id === id); p.qty = num(p.qty) + d; upsert('parts', p); $('#plist').innerHTML = partsBody(); $('#nav').innerHTML = navHTML(); }
+function editPart(id) {
+  const p = id ? DB.parts.find(x => x.id === id) : { id: uid(), qty: 0, min: 1 };
+  const cats = [...new Set(['SSD / Storage', 'RAM', 'Battery', 'Charger / Power', 'Screen', 'Keyboard', 'Fan / Cooling', 'Cables / Adapters', 'Networking', 'Software / License', 'PC Build parts', ...DB.parts.map(x => x.cat).filter(Boolean)])];
+  modal(id ? 'Edit part' : 'Add part', `<form id="pf" class="f" onsubmit="return false"><label class="full">Part name *<input name="name" value="${esc(p.name || '')}" placeholder="e.g. Samsung 870 EVO 500GB SSD"></label>
+   <label>Category<input name="cat" list="pcats" value="${esc(p.cat || '')}"><datalist id="pcats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist></label><label>SKU / part #<input name="sku" value="${esc(p.sku || '')}"></label>
+   <label>Qty in stock<input name="qty" type="number" value="${esc(p.qty ?? 0)}"></label><label>Low-stock alert at<input name="min" type="number" value="${esc(p.min ?? 1)}"></label>
+   <label>Cost $<input name="cost" inputmode="decimal" value="${esc(p.cost || '')}"></label><label>Price to customer $<input name="price" inputmode="decimal" value="${esc(p.price || '')}"></label>
+   <label>Supplier<input name="supplier" value="${esc(p.supplier || '')}" list="suppliers"></label><label>Shelf / bin<input name="loc" value="${esc(p.loc || '')}"></label>
+   <label class="full">Reorder link<input name="url" value="${esc(p.url || '')}" placeholder="https://…"></label><label class="full">Notes<input name="notes" value="${esc(p.notes || '')}"></label></form>
+   <datalist id="suppliers">${suppliers().map(s => `<option value="${esc(s)}">`).join('')}</datalist>`,
+   `<button class="btn pri" onclick="savePart('${p.id}')">Save</button>${id ? `<span class="grow"></span><button class="btn danger" onclick="if(confirm('Delete this part?')){removeRec('parts','${p.id}');closeModal(true);render()}">Delete</button>` : ''}`);
+}
+/* ---- eBay (for buying parts): search links only; eBay has no Claude connector and its API needs a server ---- */
+const EBAY_FILTERS = '&LH_BIN=1&LH_PrefLoc=1';            // Buy It Now, US sellers
+const EBAY_ORDERS = 'https://www.ebay.com/mye/myebay/purchase';
+function partWords(s) { return String(s || '').replace(/^\s*(part|parts)\s*[–—-]\s*/i, '').replace(/\s+/g, ' ').trim(); }
+function ebayQuery(part, t) {   // part name, plus the device's make/model when it isn't already in it
+  part = partWords(part); const dev = t ? [t.make, t.model].filter(Boolean).join(' ').trim() : '';
+  return dev && !part.toLowerCase().includes(String(t.model || t.make || '').toLowerCase()) ? `${dev} ${part}`.trim() : part;
+}
+function ebaySearch(q) {
+  q = String(q || '').trim(); if (!q) return toast('Type the part to look for first.', 'err');
+  window.open('https://www.ebay.com/sch/i.html?_nkw=' + encodeURIComponent(q) + EBAY_FILTERS, '_blank');
+}
+const isEbay = s => /ebay/i.test(s || '');
+const suppliers =() => [...new Set(['Amazon', 'Newegg', 'eBay', 'iFixit', 'Micro Center', 'Best Buy', 'Laptop Screen.com', ...DB.parts.map(p => p.supplier), ...DB.orders.map(o => o.supplier)].filter(Boolean))];
+function savePart(id) { const d = formData($('#pf')); if (!d.name) return toast('Enter a part name.', 'err'); const p = DB.parts.find(x => x.id === id) || { id }; upsert('parts', Object.assign(p, d, { qty: num(d.qty), min: num(d.min) })); closeModal(true); render(); toast('Part saved'); }
+
+/* ============ PARTS ORDERS ============ */
+const ORD = { ordered: ['Ordered', ''], shipped: ['Shipped', 'blue'], received: ['Received', 'green'], cancelled: ['Cancelled', 'red'], backorder: ['Backordered', 'amber'] };
+function vOrders() {
+  const list = DB.orders.filter(o => ui.oAll || !['received', 'cancelled'].includes(o.status)).sort((a, b) => (a.eta || '9').localeCompare(b.eta || '9'));
+  const openO = DB.orders.filter(o => !['received', 'cancelled'].includes(o.status));
+  return `<div class="grid kpis">${kpi('Open orders', openO.length, money0(sum(openO, o => num(o.cost) * (num(o.qty) || 1))) + ' on order', '')}${kpi('Late', openO.filter(o => o.eta && o.eta < today()).length, 'past ETA', '', openO.some(o => o.eta && o.eta < today()) ? 'alert' : '')}
+    ${kpi('Arriving today', openO.filter(o => o.eta === today()).length, '', '')}${kpi('Tickets waiting on parts', DB.tickets.filter(t => t.status === 'parts').length, '', "ui.tMode='list';ui.tFilter='parts';go('tickets')")}</div>
+   <div class="toolbar"><button class="btn pri" onclick="editOrder()">+ New order</button><a class="btn" target="_blank" href="${EBAY_ORDERS}">🛒 My eBay purchases ↗</a><label class="row small"><input type="checkbox" ${ui.oAll ? 'checked' : ''} onchange="ui.oAll=this.checked;render()"> Show received / cancelled</label></div>
+   ${list.length ? `<div class="tablewrap"><table class="t"><tr><th>Part</th><th>Supplier</th><th>For</th><th>Ordered</th><th>ETA</th><th>Tracking</th><th class="num">Cost</th><th>Status</th><th></th></tr>
+   ${list.map(o => `<tr><td><b>${esc(o.part)}</b>${num(o.qty) > 1 ? ` ×${num(o.qty)}` : ''}${o.notes ? `<div class="muted small">${esc(o.notes)}</div>` : ''}</td><td>${o.url ? `<a target="_blank" href="${esc(o.url)}">${esc(o.supplier || 'link')}</a>` : isEbay(o.supplier) ? `<a target="_blank" href="${EBAY_ORDERS}" title="Opens your eBay purchase history">${esc(o.supplier)} ↗</a>` : esc(o.supplier || '')}${o.orderNo ?`<div class="muted small">Order ${esc(o.orderNo)}</div>` : ''}</td>
+    <td class="small">${o.ticketId ? `<a href="#" onclick="editTicket('${o.ticketId}');return false">${ticketRef(o.ticketId)}</a>` : o.addToStock ? 'Stock' : ''}</td><td class="small">${fmtDs(o.ordered)}</td>
+    <td>${o.eta ? (o.eta < today() && !['received', 'cancelled'].includes(o.status) ? `<span class="tag red">${fmtDs(o.eta)} late</span>` : o.eta === today() ? '<span class="tag amber">Today</span>' : fmtDs(o.eta)) : ''}</td>
+    <td class="small">${trackLink(o.tracking)}</td><td class="num">${o.cost ? money(num(o.cost) * (num(o.qty) || 1)) : ''}</td>
+    <td><select class="inp" style="padding:3px 6px;width:auto" onchange="orderStatus('${o.id}',this.value)">${Object.entries(ORD).map(([k, [l]]) => `<option value="${k}" ${o.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
+    <td style="white-space:nowrap"><button class="btn sm" onclick="editOrder('${o.id}')">Edit</button> <button class="btn sm" title="Find this part on eBay" onclick="ebaySearch(${js(ebayQuery(o.part, o.ticketId && DB.tickets.find(x => x.id === o.ticketId)))})">🛒</button></td></tr>`).join('')}</table></div>` : '<div class="card empty">No open parts orders. Track parts you ordered for customers or for stock here.</div>'}`;
+}
+function trackLink(t) {
+  if (!t) return ''; t = t.trim(); let url = '';
+  if (/^https?:/i.test(t)) url = t; else if (/^1Z/i.test(t)) url = 'https://www.ups.com/track?tracknum=' + t; else if (/^(94|93|92|95)\d{18,}$/.test(t)) url = 'https://tools.usps.com/go/TrackConfirmAction?tLabels=' + t;
+  else if (/^\d{12}$|^\d{15}$/.test(t)) url = 'https://www.fedex.com/fedextrack/?trknbr=' + t; else if (/^TBA/i.test(t)) url = 'https://www.amazon.com/progress-tracker/package/';
+  return url ? `<a target="_blank" href="${esc(url)}">${esc(t.length > 24 ? 'Track' : t)}</a>` : esc(t);
+}
+function editOrder(id, pre) {
+  const o = id ? DB.orders.find(x => x.id === id) : { id: uid(), status: 'ordered', ordered: today(), qty: 1, ...(pre || {}) };
+  if (!id && o.ticketId && !o.part) { const t = DB.tickets.find(x => x.id === o.ticketId); if (t) o.notes = `For ${t.name}'s ${devName(t)}`; }
+  if (!leaveModal()) return;
+  modal(id ? 'Edit parts order' : 'New parts order', `<form id="of" class="f" onsubmit="return false"><label class="full">Part *<input name="part" list="partList" value="${esc(o.part || '')}"></label>
+   <div class="full row" style="margin-top:-4px"><button type="button" class="btn sm" onclick="const f=$('#of');ebaySearch(ebayQuery(f.part.value, DB.tickets.find(x => x.id === f.ticketId.value)))">🛒 Find on eBay</button>
+     <span class="small muted">Bought it on eBay? Set Supplier to eBay and paste the eBay order # and item link below.</span></div>
+   <label>Supplier<input name="supplier" list="suppliers" value="${esc(o.supplier || '')}"><datalist id="suppliers">${suppliers().map(s => `<option value="${esc(s)}">`).join('')}</datalist></label><label>Supplier order #<input name="orderNo" value="${esc(o.orderNo || '')}"></label>
+   <label>Qty<input name="qty" type="number" min="1" value="${esc(o.qty || 1)}"></label><label>Cost each $<input name="cost" inputmode="decimal" value="${esc(o.cost || '')}"></label>
+   <label>Ordered on<input type="date" name="ordered" value="${esc(o.ordered || '')}"></label><label>Expected (ETA)<input type="date" name="eta" value="${esc(o.eta || '')}"></label>
+   <label>Tracking # or link<input name="tracking" value="${esc(o.tracking || '')}"></label><label>Status<select name="status">${Object.entries(ORD).map(([k, [l]]) => `<option value="${k}" ${o.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+   <label class="full">For ticket<select name="ticketId"><option value="">— stock / none —</option>${DB.tickets.filter(t => OPEN.includes(t.status) || t.id === o.ticketId).sort((a, b) => b.no - a.no).map(t => `<option value="${t.id}" ${t.id === o.ticketId ? 'selected' : ''}>#${t.no} ${esc(t.name)} — ${esc(devName(t))}</option>`).join('')}</select></label>
+   <label class="full">Order link<input name="url" value="${esc(o.url || '')}" placeholder="https://…"></label><label class="full">Notes<input name="notes" value="${esc(o.notes || '')}"></label>
+   <div class="full chk"><label><input type="checkbox" id="oStock" ${o.addToStock ? 'checked' : ''}> Add to inventory when received</label><label><input type="checkbox" id="oWait" ${!id && o.ticketId ? 'checked' : ''}> Set the ticket to "Waiting on Parts"</label></div></form>`,
+   `<button class="btn pri" onclick="saveOrder('${o.id}',${js(o.invId || '')})">Save</button>${id ? `<span class="grow"></span><button class="btn danger" onclick="if(confirm('Delete this order?')){removeRec('orders','${o.id}');closeModal(true);render()}">Delete</button>` : ''}`);
+}
+function saveOrder(id, invId) {
+  const d = formData($('#of')); if (!d.part) return toast('Enter the part.', 'err');
+  const o = DB.orders.find(x => x.id === id), was = o?.status;
+  const rec = Object.assign(o || { id }, d, { addToStock: $('#oStock').checked, invId: invId || o?.invId || '' });
+  if ($('#oWait').checked && d.ticketId) setStatus(d.ticketId, 'parts', true);
+  upsert('orders', rec); closeModal(true);
+  if (was !== 'received' && rec.status === 'received') { rec.status = was || 'ordered'; orderStatus(id, 'received'); } else { render(); toast('Order saved'); }
+}
+function orderStatus(id, st) {
+  const o = DB.orders.find(x => x.id === id); if (!o) return; const was = o.status; o.status = st;
+  if (st === 'received' && was !== 'received') {
+    o.receivedOn = today();
+    if (o.addToStock) { let p = DB.parts.find(x => x.id === o.invId) || DB.parts.find(x => x.name.toLowerCase() === o.part.toLowerCase());
+      if (!p) p = { id: uid(), name: o.part, qty: 0, min: 1, cost: o.cost, supplier: o.supplier };
+      p.qty = num(p.qty) + (num(o.qty) || 1); upsert('parts', p); toast(`${o.part}: stock is now ${p.qty}`); }
+    const t = o.ticketId && DB.tickets.find(x => x.id === o.ticketId);
+    if (t) { (t.notes = t.notes || []).push({ t: nowISO(), x: `Part received: ${o.part}` }); upsert('tickets', t);
+      if (t.status === 'parts') { upsert('orders', o); toast(`Part for #${t.no} (${t.name}) arrived.`, '', [['Move to In Repair', () => setStatus(t.id, 'repair')]]); render(); return; } }
+  }
+  upsert('orders', o); render();
+}
+
+/* ============ TECH TOOLS ============ */
+const VENDORS = [
+  [/dell|alienware|inspiron|latitude|xps|optiplex|vostro|precision/i, 'Dell', s => `https://www.dell.com/support/home/en-us/product-support/servicetag/${encodeURIComponent(s)}/overview`, s => `https://www.dell.com/support/home/en-us/product-support/servicetag/${encodeURIComponent(s)}/drivers`],
+  [/\bhp\b|hewlett|compaq|omen|pavilion|elitebook|probook|envy|spectre|victus/i, 'HP', () => 'https://support.hp.com/us-en/check-warranty', () => 'https://support.hp.com/us-en/drivers'],
+  [/lenovo|thinkpad|ideapad|legion|yoga|thinkcentre/i, 'Lenovo', () => 'https://pcsupport.lenovo.com/us/en/warrantylookup', () => 'https://pcsupport.lenovo.com/us/en/'],
+  [/apple|mac|imac/i, 'Apple', () => 'https://checkcoverage.apple.com/', null],
+  [/asus|\brog\b|zenbook|vivobook|tuf/i, 'ASUS', () => 'https://www.asus.com/support/warranty-status-inquiry/', () => 'https://www.asus.com/support/download-center/'],
+  [/acer|predator|aspire|nitro|swift/i, 'Acer', () => 'https://www.acer.com/us-en/support', () => 'https://www.acer.com/us-en/support'],
+  [/\bmsi\b/i, 'MSI', () => 'https://www.msi.com/support', () => 'https://www.msi.com/support'],
+  [/microsoft|surface/i, 'Microsoft', () => 'https://support.microsoft.com/devices', () => 'https://support.microsoft.com/surface'],
+  [/samsung|galaxy book/i, 'Samsung', () => 'https://www.samsung.com/us/support/', () => 'https://www.samsung.com/us/support/'],
+  [/gigabyte|aorus/i, 'Gigabyte', () => 'https://www.gigabyte.com/Support', () => 'https://www.gigabyte.com/Support'],
+  [/razer|blade/i, 'Razer', () => 'https://mysupport.razer.com/', () => 'https://mysupport.razer.com/'],
+  [/toshiba|dynabook/i, 'Dynabook', () => 'https://support.dynabook.com/', () => 'https://support.dynabook.com/'] ];
+function warrantyLinks(make, model, serial) {
+  const txt = (make || '') + ' ' + (model || ''), v = VENDORS.find(([re]) => re.test(txt)), q = encodeURIComponent(txt.trim());
+  if (!txt.trim()) return '';
+  const cp = serial ? ` onclick="copyText(${js(serial)},'Serial')"` : '';
+  const out = [];
+  if (v) {
+    const direct = v[1] === 'Dell' && serial;
+    out.push(`<a target="_blank" href="${esc(v[2](serial))}"${direct ? '' : cp}>🛡 ${v[1]} warranty${!direct && serial ? ' (copies serial)' : ''}</a>`);
+    if (v[3]) out.push(`<a target="_blank" href="${esc(v[3](serial))}"${direct ? '' : cp}>⬇ Drivers</a>`);
+  }
+  out.push(`<a target="_blank" href="https://www.google.com/search?q=${q}+drivers">🔎 Drivers search</a>`, `<a target="_blank" href="https://www.google.com/search?q=${q}+service+manual">📘 Service manual</a>`,
+    `<a target="_blank" href="https://www.ifixit.com/Search?query=${q}">🔧 iFixit guides</a>`, `<a target="_blank" href="https://www.ebay.com/sch/i.html?_nkw=${q}${EBAY_FILTERS}">🛒 eBay parts</a>`, `<a target="_blank" href="https://www.google.com/search?q=${q}+replacement+parts&tbm=shop">🔎 Other parts</a>`);
+  return out.join(' · ');
+}
+const BOOT_KEYS = [
+  ['Dell / Alienware', 'F2', 'F12', 'F12 → Diagnostics (ePSA)'], ['HP', 'F10 (Esc = menu)', 'F9', 'F2 = HP hardware diagnostics'],
+  ['Lenovo ThinkPad', 'F1 (Enter = menu)', 'F12', ''], ['Lenovo IdeaPad / Legion', 'F2 or Novo button', 'F12', 'Novo = pinhole next to power or charger'],
+  ['ASUS laptop', 'F2', 'Esc', 'F9 = recovery on many'], ['ASUS desktop board', 'Del or F2', 'F8', ''],
+  ['Acer', 'F2', 'F12 (turn it on in BIOS)', 'Alt+F10 = recovery'], ['MSI', 'Del', 'F11', ''], ['Gigabyte', 'Del', 'F12', ''], ['ASRock', 'F2 or Del', 'F11', ''],
+  ['Microsoft Surface', 'Hold Vol Up + Power', 'Hold Vol Down + Power', 'USB boot with Vol Down'], ['Samsung', 'F2', 'Esc or F10', ''],
+  ['Toshiba / Dynabook', 'F2', 'F12', ''], ['Razer', 'F2', 'F12', ''],
+  ['Mac (Intel)', '—', 'Hold Option', 'Cmd+R recovery · D diagnostics · Opt+Cmd+P+R NVRAM · Shift safe mode'],
+  ['Mac (Apple silicon)', '—', 'Hold Power → Options', 'At startup options: Cmd+D = diagnostics'] ];
+const CMDS = [
+  ['Windows', [
+    ['Repair system files', 'sfc /scannow', 'Admin Command Prompt'], ['Repair the Windows image', 'DISM /Online /Cleanup-Image /RestoreHealth', 'Run this first if sfc fails'],
+    ['Check & fix the disk', 'chkdsk C: /f /r', 'Runs at the next restart'], ['Battery health report', 'powercfg /batteryreport /output C:\\battery-report.html', 'Design vs. full charge capacity'],
+    ['Serial number', 'Get-CimInstance Win32_BIOS | Select-Object SerialNumber', 'PowerShell'], ['Original product key', '(Get-CimInstance SoftwareLicensingService).OA3xOriginalProductKey', 'PowerShell · key stored in BIOS'],
+    ['Drive health', 'Get-PhysicalDisk | Select-Object FriendlyName, MediaType, HealthStatus, Size', 'PowerShell'], ['BitLocker status', 'manage-bde -status', 'Get the recovery key BEFORE BIOS / drive work'],
+    ['Reset network stack', 'netsh winsock reset & netsh int ip reset & ipconfig /flushdns', 'Admin · restart after'], ['Reboot to Advanced Startup', 'shutdown /r /o /t 0', 'Safe mode, recovery, UEFI'],
+    ['Update all apps', 'winget upgrade --all', ''], ['Memory test', 'mdsched', 'Windows Memory Diagnostic'], ['Activation status', 'slmgr /xpr', ''],
+    ['Startup apps', 'Get-CimInstance Win32_StartupCommand | Select-Object Name, Command', 'PowerShell'], ['Recent crashes (BSOD)', 'Get-WinEvent -FilterHashtable @{LogName=\'System\';Id=41,1001} -MaxEvents 10', 'PowerShell'] ]],
+  ['Mac', [
+    ['Battery cycles & condition', 'system_profiler SPPowerDataType | grep -iE "cycle count|condition|maximum capacity"', 'Terminal'], ['Serial number', 'system_profiler SPHardwareDataType | grep Serial', 'Terminal'],
+    ['List disks', 'diskutil list', ''], ['Verify startup disk', 'diskutil verifyVolume /', ''], ['Available updates', 'softwareupdate --list', ''], ['FileVault status', 'fdesetup status', ''] ]] ];
+const SPEEDS = [['USB 2.0', 30], ['USB 3.0 to a hard drive', 100], ['USB 3.0 to an SSD', 350], ['SATA SSD to SATA SSD', 450], ['NVMe to NVMe', 1500], ['Thunderbolt / USB4', 1000], ['Gigabit Ethernet', 100], ['Wi-Fi 5', 40], ['Wi-Fi 6', 80], ['Cloud upload (50 Mbps)', 6]];
+function vTools() {
+  return `<div class="grid tools">
+  <div class="card wide"><h3>🖥️ Device tests <span class="r small muted">run them on the customer's computer</span></h3>
+    <div class="row" style="margin-bottom:10px"><button class="btn pri" onclick="screenTest()">Screen / dead-pixel test</button><button class="btn" onclick="tone(-1)">🔈 Left</button><button class="btn" onclick="tone(1)">Right 🔈</button><button class="btn" onclick="tone(0)">Both</button><button class="btn" onclick="sweep()">Sweep (rattles)</button></div>
+    <div class="small muted" style="margin-bottom:6px">Keyboard tester: click the box, then press every key. Keys turn green once they work. <a href="#" onclick="kbReset();return false">Reset</a> · <span id="kbcount"></span></div>
+    <div id="kbt" class="kb" tabindex="0" onkeydown="kbKey(event,true)" onkeyup="kbKey(event,false)"></div></div>
+  <div class="card"><h3>🛡 Warranty & driver lookup</h3>
+    <div class="f"><label>Brand / model<input id="wlMake" list="makes2" placeholder="Dell Inspiron 15" oninput="$('#wlOut').innerHTML=warrantyLinks(this.value,'',$('#wlSerial').value)"></label>
+    <label>Serial / service tag<input id="wlSerial" oninput="$('#wlOut').innerHTML=warrantyLinks($('#wlMake').value,'',this.value)"></label></div>
+    <datalist id="makes2">${VENDORS.map(v => `<option value="${v[1]}">`).join('')}</datalist>
+    <div id="wlOut" class="small" style="margin-top:8px;line-height:1.9"></div>
+    <div class="small muted">Dell opens straight to the service tag. For other brands the serial is copied so you can paste it on their page.</div></div>
+  ${CMDS.map(([os, list], i) => `<div class="card wide"><h3>${os === 'Mac' ? '🍎' : '💻'} ${os} commands <span class="r small muted">click Copy, paste in an admin terminal</span></h3>
+    ${list.map((c, j) => `<div class="cmd"><div class="d">${c[0]}<small>${esc(c[2])}</small></div><code>${esc(c[1])}</code><button class="btn sm" onclick="copyText(CMDS[${i}][1][${j}][1],'Command')">Copy</button></div>`).join('')}</div>`).join('')}
+  <div class="card"><h3>⏱ Data transfer time</h3>
+    <div class="f"><label>How much data (GB)<input id="xGB" type="number" value="256" oninput="xfer()"></label>
+    <label>Connection<select id="xSp" onchange="xfer()">${SPEEDS.map(([l, v]) => `<option value="${v}">${l} (~${v} MB/s)</option>`).join('')}</select></label></div>
+    <div id="xOut" class="out"></div><div class="small muted">Real-world speeds; lots of small files (photos, email) can take 2–3× longer.</div></div>
+  <div class="card"><h3>🌐 Subnet calculator</h3>
+    <label class="fl">IP address with /prefix or mask<input id="snIn" class="inp" value="192.168.1.10/24" oninput="snCalc()"></label><div id="snOut" class="out"></div></div>
+  <div class="card"><h3>🔑 Password generator</h3>
+    <div class="row"><label class="row small">Length <input id="pwLen" type="range" min="8" max="32" value="14" oninput="pwGen()"> <b id="pwLenV"></b></label>
+    <label class="row small"><input type="checkbox" id="pwSym" checked onchange="pwGen()"> Symbols</label><label class="row small"><input type="checkbox" id="pwWords" onchange="pwGen()"> Easy to say</label></div>
+    <div class="row" style="margin-top:8px"><div id="pwOut" class="out" style="flex:1;margin:0;font-size:16px"></div><button class="btn" onclick="pwGen()">↻</button><button class="btn pri" onclick="copyText($('#pwOut').textContent,'Password')">Copy</button></div>
+    <div class="small muted">Made on this computer only — nothing is saved or sent. Look-alike characters (O/0, l/1) are left out.</div></div>
+  <div class="card"><h3>⌨️ BIOS & boot menu keys</h3><table class="t small"><tr><th>Brand</th><th>BIOS / UEFI</th><th>Boot menu</th><th>Other</th></tr>
+    ${BOOT_KEYS.map(r => `<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td><td class="muted">${r[3]}</td></tr>`).join('')}</table>
+    <div class="small muted" style="margin-top:6px">Tap the key repeatedly right after pressing power. Windows Fast Startup can skip it: hold Shift while clicking Restart instead.</div></div>
+  </div>`;
+}
+function toolsInit() { kbDraw(); xfer(); snCalc(); pwGen(); }
+/* screen test */
+function screenTest() {
+  const colors = [['#000', 'Black — look for bright (stuck) pixels'], ['#fff', 'White — look for dark (dead) pixels and backlight spots'], ['#f00', 'Red'], ['#0f0', 'Green'], ['#00f', 'Blue'], ['#808080', 'Gray — look for banding and uneven backlight'], ['linear-gradient(90deg,#000,#fff)', 'Gradient — should be smooth with no steps']];
+  let i = 0; const el = document.createElement('div'); el.id = 'screentest';
+  const show = () => { el.style.background = colors[i][0]; el.innerHTML = `<span>${i + 1}/${colors.length} · ${colors[i][1]} · click or → for next · Esc to exit</span>`; };
+  const end = () => { document.removeEventListener('keydown', key, true); el.remove(); if (document.fullscreenElement) document.exitFullscreen(); };
+  const key = e => { e.preventDefault(); e.stopPropagation(); if (e.key === 'Escape') end(); else if (e.key === 'ArrowLeft') { i = (i + colors.length - 1) % colors.length; show(); } else { i = (i + 1) % colors.length; show(); } };
+  el.onclick = () => { i = (i + 1) % colors.length; show(); };
+  document.addEventListener('keydown', key, true);
+  document.addEventListener('fullscreenchange', function f() { if (!document.fullscreenElement && el.isConnected) { document.removeEventListener('fullscreenchange', f); end(); } });
+  show(); document.body.appendChild(el); el.requestFullscreen?.().catch(() => {});
+}
+/* speaker test */
+let actx;
+function tone(pan, freq = 440, dur = 1.2) {
+  actx = actx || new AudioContext(); const t = actx.currentTime;
+  const o = actx.createOscillator(), g = actx.createGain(), p = actx.createStereoPanner();
+  o.frequency.value = freq; p.pan.value = pan;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(p).connect(actx.destination); o.start(t); o.stop(t + dur + 0.05);
+  return o;
+}
+function sweep() { const o = tone(0, 60, 6); o.frequency.exponentialRampToValueAtTime(12000, actx.currentTime + 6); toast('Sweeping 60 Hz → 12 kHz. Listen for rattles or buzzing.'); }
+/* keyboard tester */
+const KB = [['Escape', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', 'Delete'],
+  ['Backquote', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0', 'Minus', 'Equal', 'Backspace'],
+  ['Tab', 'KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyT', 'KeyY', 'KeyU', 'KeyI', 'KeyO', 'KeyP', 'BracketLeft', 'BracketRight', 'Backslash'],
+  ['CapsLock', 'KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon', 'Quote', 'Enter'],
+  ['ShiftLeft', 'KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB', 'KeyN', 'KeyM', 'Comma', 'Period', 'Slash', 'ShiftRight', 'ArrowUp'],
+  ['ControlLeft', 'MetaLeft', 'AltLeft', 'Space', 'AltRight', 'ControlRight', 'ArrowLeft', 'ArrowDown', 'ArrowRight']];
+const KBL = { Escape: 'Esc', Backquote: '`', Minus: '-', Equal: '=', Backspace: '⌫', Tab: 'Tab', BracketLeft: '[', BracketRight: ']', Backslash: '\\', CapsLock: 'Caps', Semicolon: ';', Quote: "'", Enter: 'Enter',
+  ShiftLeft: 'Shift', ShiftRight: 'Shift', Comma: ',', Period: '.', Slash: '/', ControlLeft: 'Ctrl', ControlRight: 'Ctrl', MetaLeft: 'Win', AltLeft: 'Alt', AltRight: 'Alt', Space: 'Space', Delete: 'Del',
+  ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' };
+const KBW = { Backspace: 68, Tab: 52, Backslash: 50, CapsLock: 62, Enter: 76, ShiftLeft: 80, ShiftRight: 60, Space: 220, ControlLeft: 44, ControlRight: 44 };
+let kbHit = new Set();
+function kbDraw() {
+  const el = $('#kbt'); if (!el) return;
+  el.innerHTML = KB.map(r => `<div class="kr">${r.map(c => `<div class="k ${kbHit.has(c) ? 'hit' : ''}" data-c="${c}" style="${KBW[c] ? 'width:' + KBW[c] + 'px' : ''}">${esc(KBL[c] || c.replace(/^Key|^Digit/, ''))}</div>`).join('')}</div>`).join('');
+  kbCount();
+}
+function kbCount() { const total = KB.flat().length, n = KB.flat().filter(c => kbHit.has(c)).length; const el = $('#kbcount'); if (el) el.textContent = `${n} of ${total} keys tested${n === total ? ' ✅ all good!' : ''}`; }
+function kbKey(e, down) {
+  e.preventDefault(); e.stopPropagation();
+  const k = $(`#kbt .k[data-c="${e.code}"]`);
+  if (k) { k.classList.toggle('kd', down); if (down) { kbHit.add(e.code); k.classList.add('hit'); kbCount(); } }
+}
+function kbReset() { kbHit = new Set(); kbDraw(); $('#kbt').focus(); }
+/* transfer time */
+function xfer() {
+  const gb = num($('#xGB')?.value), sp = num($('#xSp')?.value); if (!$('#xOut')) return;
+  const s = gb * 1000 / (sp || 1), h = Math.floor(s / 3600), m = Math.round(s % 3600 / 60);
+  $('#xOut').textContent = gb ? `About ${h ? h + ' h ' : ''}${m} min` + (s > 3600 * 2 ? `  —  start it before lunch 🥪` : '') : 'Enter a size';
+}
+/* subnet */
+const ip2n = s => s.split('.').reduce((a, o) => a * 256 + Number(o), 0);
+const n2ip = n => [24, 16, 8, 0].map(b => (n >>> b) & 255).join('.');
+function snCalc() {
+  const el = $('#snOut'); if (!el) return;
+  const m = $('#snIn').value.trim().match(/^(\d{1,3}(?:\.\d{1,3}){3})\s*(?:\/\s*(\d{1,2})|\s+(\d{1,3}(?:\.\d{1,3}){3}))?$/);
+  if (!m || m[1].split('.').some(o => +o > 255)) { el.textContent = 'Type an address like 192.168.1.10/24 or 10.0.0.5 255.255.0.0'; return; }
+  let cidr = m[2] != null ? +m[2] : 24;
+  if (m[3]) { const mk = ip2n(m[3]), inv = (~mk >>> 0) + 1; cidr = 32 - Math.log2(inv); if (!Number.isInteger(cidr)) { el.textContent = 'That subnet mask is not valid.'; return; } }
+  if (cidr > 32) { el.textContent = 'Prefix must be 0–32.'; return; }
+  const ip = ip2n(m[1]), mask = cidr ? (0xFFFFFFFF << (32 - cidr)) >>> 0 : 0, net = (ip & mask) >>> 0, bc = (net | (~mask >>> 0)) >>> 0;
+  const hosts = cidr === 32 ? 1 : cidr === 31 ? 2 : bc - net - 1;
+  const o = m[1].split('.').map(Number);
+  const kind = o[0] === 10 || (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || (o[0] === 192 && o[1] === 168) ? 'Private (LAN)' : o[0] === 169 && o[1] === 254 ? '⚠ APIPA 169.254 — no DHCP answer, check the cable / router' : o[0] === 127 ? 'Loopback' : (o[0] === 100 && o[1] >= 64 && o[1] <= 127) ? 'Carrier-grade NAT (ISP)' : 'Public';
+  el.textContent = `Network    ${n2ip(net)}/${cidr}\nMask       ${n2ip(mask)}\nHosts      ${cidr >= 31 ? n2ip(net) : n2ip(net + 1)} – ${cidr >= 31 ? n2ip(bc) : n2ip(bc - 1)}\nBroadcast  ${n2ip(bc)}\nUsable     ${hosts.toLocaleString()} addresses\nType       ${kind}`;
+}
+/* passwords */
+const rnd = n => { const a = new Uint32Array(1), lim = Math.floor(0x100000000 / n) * n; do crypto.getRandomValues(a); while (a[0] >= lim); return a[0] % n; };
+const WORDS = 'apple river tiger cloud piano maple rocket lemon silver forest candle orbit pepper falcon harbor meadow copper velvet cactus thunder anchor breeze canyon dragon ember glacier jasper lantern marble nectar oasis pixel quartz raven summit tulip violet walnut zephyr bison cobalt'.split(' ');
+function pwGen() {
+  const out = $('#pwOut'); if (!out) return; const len = +$('#pwLen').value; $('#pwLenV').textContent = len;
+  if ($('#pwWords').checked) { const w = [...Array(3)].map(() => WORDS[rnd(WORDS.length)]); out.textContent = w.map(x => x[0].toUpperCase() + x.slice(1)).join('-') + '-' + (10 + rnd(90)) + ($('#pwSym').checked ? '!' : ''); return; }
+  const sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', ...($('#pwSym').checked ? ['!@#$%&*?-_=+'] : [])];
+  const all = sets.join(''); const p = sets.map(s => s[rnd(s.length)]);
+  while (p.length < len) p.push(all[rnd(all.length)]);
+  for (let i = p.length - 1; i > 0; i--) { const j = rnd(i + 1); [p[i], p[j]] = [p[j], p[i]]; }
+  out.textContent = p.join('');
+}
+
+/* ============ themes & fun ============ */
+function setTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; localStorage.setItem('rcr-theme', t || ''); const s = $('#theme'); if (s) s.value = t || ''; }
+const TIPS = [
+  'Have you tried turning it off and on again? (It works 80% of the time, every time.)', 'Always grab the BitLocker recovery key before touching BIOS settings or swapping a drive.',
+  'Fast Startup can hide hardware problems — do a full restart (Shift + Restart) when diagnosing.', 'A swollen battery is a fire risk — never charge it, and store it in a fireproof bin.',
+  'Photograph every screw layout before you take a laptop apart. Future you says thanks.', 'SMART says "OK" until it doesn\'t. Check reallocated sectors, not just the status.',
+  'Static kills quietly — touch the chassis or use a wrist strap before handling RAM.', 'Clone the customer\'s drive before a reinstall. Data is the one thing you can\'t order on Amazon.',
+  '169.254.x.x means the computer never heard back from DHCP — check cable, router, or adapter.', 'Most "slow computer" fixes: SSD + 16 GB RAM + removing 14 browser toolbars.',
+  'Liquid damage? Power off, battery out, isopropyl, and dry time. Rice is for dinner.', 'Label every drive with the ticket number the moment it leaves the computer.',
+  'It\'s always DNS. Except when it\'s the cable. Then it\'s still kind of DNS.', 'Check the power brick wattage — the wrong charger causes "won\'t charge" tickets.',
+  'Thermal paste every few years keeps gaming laptops from sounding like jet engines.', 'Ask "When did it start, and what changed?" before opening anything.',
+  'Test the customer\'s device in front of them at pickup — it saves come-backs.', 'Keep a known-good USB installer for Windows 11 and macOS on the bench.',
+  'There\'s no place like 127.0.0.1.', 'Update the BIOS before blaming the RAM — and never during a thunderstorm.',
+  'A Google review takes 30 seconds and helps a small shop a lot. Ask at pickup!', 'If the fan is loud, the heatsink is dusty. If it\'s silent and hot, the fan is dead.',
+  'Scam pop-up victims: change their email password from a clean device first.', 'Write down the Wi-Fi password before resetting the router. Ask me how I know.' ];
+const tipOfDay = () => { const d = new Date(), n = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5); return TIPS[n % TIPS.length]; };
+function drawUptime() {
+  const el = $('#uptime'); if (!el) return; const t0 = INV.length ? Math.min(...INV.map(e => e.t).filter(Boolean)) : 0;
+  if (!t0) { el.innerHTML = ''; return; }
+  const d = Math.floor((Date.now() - t0) / 864e5), y = Math.floor(d / 365), m = Math.floor(d % 365 / 30.4);
+  el.innerHTML = `<span title="Days since the oldest invoice in the log">⚡ Uptime: ${y ? y + 'y ' : ''}${m}m ${Math.round(d % 365 % 30.4)}d</span><br>${INV.length.toLocaleString()} invoices served · 0 BSODs today<br><br>`;
+}
+const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a']; let kPos = 0;
+function konami(e) {
+  kPos = e.key === KONAMI[kPos] ? kPos + 1 : (e.key === KONAMI[0] ? 1 : 0);
+  if (kPos === KONAMI.length) { kPos = 0; const on = document.documentElement.dataset.theme !== 'terminal'; setTheme(on ? 'terminal' : ''); toast(on ? '> CHEAT CODE ACCEPTED. +30 lives. Terminal mode enabled.' : 'Back to normal. Your secret is safe with us.'); }
+}
+
+/* ============ SETTINGS ============ */
+function vSettings() {
+  const s = S();
+  const u = HOSTED && RCRDrive.user();
+  return `<div class="grid c2e">
+  ${HOSTED ? `<div class="card"><h3>🔐 Google account</h3>
+    <p class="small">${folderOK ? `Signed in as <b>${esc(u ? u.email : '')}</b> <span class="tag green">OK</span> — saving to <b>My Drive › Documents › RCR</b>` : '<span class="tag amber">Not signed in</span> — changes are kept on this device until you sign in.'}</p>
+    <p class="small muted">The web app reads and saves the same files as the office computer: the invoice log in <b>RCR/${esc(s.logPaths[0] || '')}</b> and the dashboard data in <b>RCR/${esc(s.dataPath)}/${DATA_FILE}</b>. Google sign-ins last an hour; the app renews it by itself.</p>
+    <div class="row">${folderOK ? `<button class="btn" onclick="loadInvoices(true).then(()=>toast('Invoices reloaded'))">Reload invoices</button>` : '<button class="btn pri" onclick="driveConnect()">Sign in with Google</button>'}<button class="btn" onclick="if(confirm('Sign out of Google on this device?'))RCRDrive.signOut()">Sign out</button><a class="btn" href="${RCRDrive.base}">🏠 Home</a></div></div>` : ''}
+  <div class="card"><h3>📁 ${HOSTED ? 'Folders inside RCR' : 'Google Drive folder'}</h3>
+    <p class="small" ${HOSTED ? 'hidden' : ''}>${folder ? `Connected to <b>${esc(folder.name)}</b> ${folderOK ? '<span class="tag green">OK</span>' : '<span class="tag amber">needs reconnect</span>'}` : '<span class="tag amber">Not connected</span> — data is only saved in this browser.'}</p>
+    <p class="small muted" ${HOSTED ? 'hidden' : ''}>Pick <b>My Drive › Documents › RCR</b>. The dashboard reads your invoice log (it never changes it) and saves its own data to <b>RCR/${esc(s.dataPath)}/${DATA_FILE}</b>, with a weekly backup in <b>${esc(s.dataPath)}/Backups</b> (8 kept). Every computer that connects to the same folder sees the same tickets.</p>
+    <div class="row" ${HOSTED ? 'hidden' : ''}><button class="btn pri" onclick="connectFolder()">${folder ? 'Change folder' : 'Connect folder'}</button>${folder && !folderOK ? '<button class="btn" onclick="reconnect()">Reconnect</button>' : ''}${folder && folderOK ? '<button class="btn" onclick="loadInvoices(true).then(()=>toast(\'Invoices reloaded\'))">Reload invoices</button>' : ''}</div>
+    <form class="f" style="margin-top:12px" onsubmit="return false" onchange="saveSettings({logPaths:this.logPaths.value.split(/\\n/).map(x=>x.trim()).filter(Boolean),dataPath:this.dataPath.value.trim()||'Dashboard'});invMod={};loadInvoices(true)">
+      <label class="full">Invoice log folders (inside the RCR folder, one per line — add "Invoice/2027 Invoices" next year)<textarea name="logPaths" rows="2">${esc(s.logPaths.join('\n'))}</textarea></label>
+      <label>Dashboard data folder<input name="dataPath" value="${esc(s.dataPath)}"></label></form>
+    <p class="small muted">${invInfo.files.length ? 'Loaded: ' + esc(invInfo.files.join(', ')) + ' · ' + INV.length + ' invoices' + (invInfo.loadedAt ? ' · ' + fmtTs(invInfo.loadedAt) : '') : ''}${invInfo.errors.length ? '<br><span class="down">' + esc(invInfo.errors.join(' · ')) + '</span>' : ''}</p></div>
+  <div class="card"><h3>🏪 Shop</h3><form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')">
+    <label class="full">Address on printed tickets<select name="shopAddr">${ADDRS.map(a => `<option ${a === s.shopAddr ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
+    <label>Phone<input name="shopPhone" value="${esc(s.shopPhone)}"></label><label>Email<input name="shopEmail" value="${esc(s.shopEmail)}"></label>
+    <label>Website<input name="shopWeb" value="${esc(s.shopWeb)}"></label><label>Monthly sales goal $<input name="goal" inputmode="decimal" value="${esc(s.goal || '')}" placeholder="optional"></label>
+    <label class="full">Google review link<input name="reviewLink" value="${esc(s.reviewLink)}" placeholder="https://g.page/r/…/review"></label></form>
+    <form class="f" style="margin-top:10px" onsubmit="return false" onchange="saveSettings({techs:this.techs.value.split(',').map(x=>x.trim()).filter(Boolean),devTypes:this.devTypes.value.split(',').map(x=>x.trim()).filter(Boolean),staleDays:num(this.staleDays.value)||7,nextTicket:Math.max(1,num(this.nextTicket.value))});toast('Saved')">
+    <label class="full">Technicians (comma-separated)<input name="techs" value="${esc(s.techs.join(', '))}"></label>
+    <label class="full">Device types (comma-separated)<input name="devTypes" value="${esc(s.devTypes.join(', '))}"></label>
+    <label>Next ticket number<input name="nextTicket" type="number" value="${esc(s.nextTicket)}"></label><label>Pickup reminder after (days)<input name="staleDays" type="number" value="${esc(s.staleDays)}"></label></form></div>
+  <div class="card"><h3>💬 Message templates</h3><p class="small muted">Used by the "Copy … text" buttons. Fill-ins: {first} {name} {device} {no} {estimate} {total} {diag} {review} {shopPhone}</p>
+    <form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')">
+    ${[['msgReady', 'Ready for pickup'], ['msgApproval', 'Ask for approval'], ['msgReminder', 'Pickup reminder'], ['msgReview', 'Review request']].map(([k, l]) => `<label class="full">${l}<textarea name="${k}" rows="2">${esc(s[k])}</textarea></label>`).join('')}</form></div>
+  <div class="card"><h3>🧾 Printed check-in ticket terms</h3><p class="small muted">Printed on every repair ticket. These are a starting point — not reviewed by a lawyer.</p>
+    <form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')"><label class="full"><textarea name="terms" rows="8">${esc(s.terms)}</textarea></label></form></div>
+  <div class="card"><h3>💾 Backup</h3><p class="small muted">${DB.tickets.length} tickets · ${DB.parts.length} parts · ${DB.orders.length} orders · ${DB.appts.length} appointments · ${DB.tasks.length} tasks${DB.savedAt ? ' · last change ' + fmtTs(DB.savedAt) : ''}</p>
+    <div class="row"><button class="btn" onclick="exportData()">Download a backup (.json)</button><label class="btn">Restore from backup…<input type="file" accept=".json" hidden onchange="importData(this.files[0])"></label></div></div>
+  <div class="card"><h3>⌨️ Shortcuts</h3><div class="small"><kbd>N</kbd> new ticket · <kbd>I</kbd> open Invoice Form · <kbd>/</kbd> search · <kbd>1</kbd>–<kbd>0</kbd> switch page · <kbd>Esc</kbd> close window<br>Drag ticket cards between columns to change status.</div></div>
+  </div>`;
+}
+function exportData() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(DB, null, 1)], { type: 'application/json' })); a.download = `RCR Dashboard Backup ${today()}.json`; a.click(); }
+async function importData(file) {
+  if (!file) return; try { const d = normalize(parseJSON(await file.text()));
+    if (!confirm(`Restore this backup?\n\n${d.tickets.length} tickets, ${d.parts.length} parts, ${d.orders.length} orders, ${d.appts.length} appointments.\n\nThis replaces the dashboard data on every computer.`)) return;
+    const stamp = nowISO(); COLLS.forEach(c => d[c].forEach(r => r.upd = stamp)); d.settingsUpd = stamp;
+    for (const c of COLLS) for (const r of DB[c]) if (!d[c].some(x => x.id === r.id)) d.deleted[r.id] = stamp;
+    DB = d; commit(); render(); toast('Backup restored');
+  } catch (e) { toast('Could not read that file: ' + e.message, 'err'); }
+}
+
+/* ============ global search ============ */
+let gsel = 0;
+function gsearch(q) {
+  const box = $('#gres'); q = q.trim().toLowerCase(); const qd = digits(q);
+  if (q.length < 2) { box.hidden = true; return; }
+  const tk = DB.tickets.filter(t => [t.no, t.name, t.email, t.make, t.model, t.serial, t.issue, t.invno].join(' ').toLowerCase().includes(q.replace(/^#/, '')) || (qd.length >= 3 && digits(t.phone).includes(qd))).slice(0, 6);
+  const cs = customers().filter(c => c.name.toLowerCase().includes(q) || (qd.length >= 3 && digits(c.phone).includes(qd))).sort((a, b) => b.last - a.last).slice(0, 6);
+  const iv = INV.filter(e => String(e.invno) === q || (q.length >= 3 && [e.invno, nameFor(e), e.job, e.model].join(' ').toLowerCase().includes(q))).slice(0, 6);
+  const pt = DB.parts.filter(p => [p.name, p.sku].join(' ').toLowerCase().includes(q)).slice(0, 4);
+  let h = '';
+  if (tk.length) h += '<div class="h">Tickets</div>' + tk.map(t => `<div class="it" onmousedown="editTicket('${t.id}')"><b>#${t.no}</b> ${esc(t.name)} — ${esc(devName(t))} ${badge(t.status)}</div>`).join('');
+  if (cs.length) h += '<div class="h">Customers</div>' + cs.map(c => `<div class="it" onmousedown="custModal(${js(c.key)})">${esc(c.name)} <small>${esc(c.phone)} · ${plural(c.visits, 'visit')}</small></div>`).join('');
+  if (iv.length) h += '<div class="h">Invoices</div>' + iv.map(e => `<div class="it" onmousedown="invModal(${js(e.id)})"><b>${esc(e.invno || '—')}</b> ${esc(nameFor(e))} <small>${esc(e.date)} · ${esc(e.job)} · ${money(e.total)}</small></div>`).join('');
+  if (pt.length) h += '<div class="h">Parts</div>' + pt.map(p => `<div class="it" onmousedown="editPart('${p.id}')">${esc(p.name)} <small>${num(p.qty)} in stock</small></div>`).join('');
+  box.innerHTML = h || '<div class="it muted">No matches</div>'; box.hidden = false; gsel = 0; markSel();
+}
+function markSel() { $$('#gres .it').forEach((el, i) => el.classList.toggle('sel', i === gsel)); }
+function gkey(e) {
+  const items = $$('#gres .it'); if ($('#gres').hidden || !items.length) return;
+  if (e.key === 'ArrowDown') { gsel = Math.min(items.length - 1, gsel + 1); markSel(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp') { gsel = Math.max(0, gsel - 1); markSel(); e.preventDefault(); }
+  else if (e.key === 'Enter') { items[gsel].dispatchEvent(new MouseEvent('mousedown')); $('#gres').hidden = true; e.target.blur(); }
+}
+
+/* ============ keyboard + startup ============ */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { $('#gres').hidden = true; if (!$('#modal').hidden) closeModal(); return; }
+  const tag = document.activeElement?.tagName || '';
+  if (/INPUT|TEXTAREA|SELECT/.test(tag) || e.ctrlKey || e.metaKey || e.altKey || !$('#modal').hidden) return;
+  konami(e); if (kPos > 0 && !/^[nNiI/0-9]$/.test(e.key)) return;
+  if (e.key === 'n' || e.key === 'N') { e.preventDefault(); editTicket(); }
+  else if (e.key === 'i' || e.key === 'I') { e.preventDefault(); openInvoice(); }
+  else if (e.key === '/') { e.preventDefault(); $('#gq').focus(); }
+  else if (/^[0-9]$/.test(e.key)) go(Object.keys(VIEWS)[(+e.key || 10) - 1]);
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  // web app reopened after the 1-hour Google sign-in ran out: renew it quietly (not while a ticket/window is open)
+  if (HOSTED && !RCRDrive.signedIn() && RCRDrive.wasSignedIn()) { if ($('#modal').hidden) RCRDrive.signIn({ silent: true }); return; }
+  if (folderOK && !pending) pullFromFolder();
+});
+window.addEventListener('beforeunload', e => { if (HOSTED && !RCRDrive.signedIn()) return; if (pending && folderOK) { flush(); e.preventDefault(); e.returnValue = ''; } });
+setInterval(() => { if (document.visibilityState === 'visible' && folderOK && !pending) pullFromFolder(); }, 120000);
+
+window.addEventListener('DOMContentLoaded', async function start() {
+  $('#logo').src = LOGO; $('#favicon').href = LOGO; setTheme(localStorage.getItem('rcr-theme') || '');
+  setSync('local'); render();
+  try {
+    const cached = await idb.get('inv'); if (cached && cached.INV) { INV = cached.INV; invInfo = cached.invInfo || invInfo; custCache = null; render(); }
+    if (HOSTED) return void await driveConnect(true);
+    const h = await idb.get('folder');
+    if (h) { folder = h; if (await h.queryPermission({ mode: 'readwrite' }) === 'granted') { folderOK = true; await pullFromFolder(); await loadInvoices(true); } else setSync('reconnect'); render(); }
+  } catch (e) { console.error(e); }
+});
+</script>
+<script>
+const LOGO = 'data:image/png;base64,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';
+</script>
+</body>
+</html>
