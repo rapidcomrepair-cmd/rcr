@@ -365,7 +365,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-150057">
+<meta name="rcr-build" content="20261119-151805">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -456,7 +456,7 @@ const DEF = {
   techs: ['Owner'], nextTicket: 1001, logPaths: ['Invoice/2026 Invoices'], dataPath: 'Dashboard', staleDays: 7,
   devTypes: ['Laptop', 'Desktop', 'All-in-One', 'Custom PC Build', 'MacBook', 'iMac / Mac', 'Tablet', 'Phone', 'Printer', 'Network / Router', 'Game Console', 'Other'],
   shopPhone: '(682) 308-6824', shopEmail: 'rapidcomrepair@gmail.com', shopWeb: 'rapidcomrepair.com', shopAddr: ADDRS[0],
-  reviewLink: '', goal: 0,
+  reviewLink: '', goal: 0, ledgerPath: 'Ledger/2026_RCR_Ledger Rebuilt.xlsx',
   terms: '• The estimate may change once the device is opened. We will contact you for approval before doing any work beyond the approved amount.\n' +
          '• Please back up your data. Rapid Computer Repair is not responsible for loss of data, software or settings.\n' +
          '• We are not responsible for pre-existing damage or for problems not listed on this ticket.\n' +
@@ -727,7 +727,7 @@ const formData = f => { const o = {}; for (const el of f.elements) if (el.name &
 /* ============ navigation ============ */
 const VIEWS = {
   home: ['📊', 'Dashboard', vHome], tickets: ['🛠️', 'Repair Tickets', vTickets], customers: ['👥', 'Customers', vCustomers], leads: ['🎯', 'Leads', vLeads],
-  money: ['💵', 'Sales & Invoices', vMoney], close: ['🧾', 'Daily Close', vClose], follow: ['🔔', 'Follow-ups', vFollow], calendar: ['📅', 'Appointments', vCalendar],
+  money: ['💵', 'Sales & Invoices', vMoney], profit: ['📈', 'Profit', vProfit], close: ['🧾', 'Daily Close', vClose], follow: ['🔔', 'Follow-ups', vFollow], calendar: ['📅', 'Appointments', vCalendar],
   inventory: ['📦', 'Inventory', vInventory], orders: ['🚚', 'Parts Orders', vOrders], tools: ['🧰', 'Tech Tools', vTools], settings: ['⚙️', 'Settings', vSettings] };
 let view = 'home';
 const ui = { tMode: 'board', tFilter: 'open', tTech: '', tq: '', cq: '', cSort: 'last', cLimit: 100, period: 'month', iq: '', iStatus: '', iLimit: 100,
@@ -746,7 +746,7 @@ function navHTML() {
 const TOUCH = () => matchMedia('(pointer:coarse)').matches || matchMedia('(max-width:760px)').matches;
 // Phone: tab bar along the bottom (the ☰ menu still has every page)
 // The 4 outer buttons are chosen per device (localStorage "rcr-tabs"); ＋ Check in always sits in the middle.
-const TAB_LABEL = { home: 'Home', tickets: 'Tickets', customers: 'Customers', leads: 'Leads', money: 'Sales', close: 'Close', follow: 'Follow-ups', calendar: 'Appts', inventory: 'Inventory', orders: 'Orders', tools: 'Tools', settings: 'Settings', menu: 'More' };
+const TAB_LABEL = { home: 'Home', tickets: 'Tickets', customers: 'Customers', leads: 'Leads', money: 'Sales', profit: 'Profit', close: 'Close', follow: 'Follow-ups', calendar: 'Appts', inventory: 'Inventory', orders: 'Orders', tools: 'Tools', settings: 'Settings', menu: 'More' };
 const TAB_DEFAULT = ['home', 'tickets', 'customers', 'menu'];
 const tabIcon = k => k === 'menu' ? '☰' : VIEWS[k][0];
 function tabSlots() {
@@ -1950,6 +1950,156 @@ function closeText() {          // plain-text version for texting / notes
     `Open tickets: ${open.length} (${open.filter(t => t.status === 'ready').length} ready for pickup)`].join('\n');
 }
 
+/* ============ PROFIT: read straight from the ledger workbook (RCR/Ledger/…xlsx); never written to ============ */
+// Minimal .xlsx reader: ZIP (stored / deflate via DecompressionStream) + the sheet XML. Uses the cached formula values Excel saves.
+async function unzipText(buf, want) {
+  const dv = new DataView(buf), u8 = new Uint8Array(buf), dec = new TextDecoder(), out = {};
+  let eocd = -1; for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 66000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error('That file is not an Excel (.xlsx) workbook.');
+  let p = dv.getUint32(eocd + 16, true);
+  for (let i = 0, n = dv.getUint16(eocd + 10, true); i < n; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    const name = dec.decode(u8.subarray(p + 46, p + 46 + nlen)); p += 46 + nlen + xlen + clen;
+    if (!want(name)) continue;
+    const start = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true), data = u8.subarray(start, start + csize);
+    const bytes = method === 0 ? data : method === 8 ? new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer()) : null;
+    if (!bytes) throw new Error('Unsupported compression in the workbook.');
+    out[name] = dec.decode(bytes);
+  }
+  return out;
+}
+const colIdx = s => [...s].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+async function readXlsx(buf, only) {
+  const files = await unzipText(buf, n => /^xl\/(workbook\.xml|_rels\/workbook\.xml\.rels|sharedStrings\.xml|worksheets\/[^/]+\.xml)$/.test(n));
+  const X = s => new DOMParser().parseFromString(s, 'application/xml');
+  const ss = files['xl/sharedStrings.xml'] ? [...X(files['xl/sharedStrings.xml']).getElementsByTagName('si')].map(si => [...si.getElementsByTagName('t')].map(t => t.textContent).join('')) : [];
+  const rel = {}; for (const r of X(files['xl/_rels/workbook.xml.rels']).getElementsByTagName('Relationship')) rel[r.getAttribute('Id')] = r.getAttribute('Target');
+  const sheets = {};
+  for (const s of X(files['xl/workbook.xml']).getElementsByTagName('sheet')) {
+    const name = s.getAttribute('name'); if (only && !only.includes(name)) continue;
+    const doc = files['xl/' + String(rel[s.getAttribute('r:id')] || '').replace(/^\/?xl\//, '')]; if (!doc) continue;
+    const rows = [];
+    for (const row of X(doc).getElementsByTagName('row')) {
+      const r = [];
+      for (const c of row.getElementsByTagName('c')) {
+        const t = c.getAttribute('t'), v = c.getElementsByTagName('v')[0]; let val = v ? v.textContent : '';
+        if (t === 's') val = ss[+val] ?? ''; else if (t === 'inlineStr') val = [...c.getElementsByTagName('t')].map(x => x.textContent).join('');
+        else if (t === 'b') val = val === '1'; else if (t !== 'str' && t !== 'e' && val !== '') val = +val;
+        r[colIdx(c.getAttribute('r').replace(/\d+/g, ''))] = val;
+      }
+      rows[+row.getAttribute('r') - 1] = r;
+    }
+    sheets[name] = rows;
+  }
+  return sheets;
+}
+const xlDate = v => typeof v === 'number' ? new Date(Math.round((v - 25569) * 864e5)) : null;   // Excel serial → date (UTC midnight)
+const mLabel = (d, long) => d.toLocaleDateString('en-US', { month: long ? 'long' : 'short', timeZone: 'UTC' });
+function sheetRows(rows, first) {             // rows under the header row whose first cell is `first`, as objects keyed by header
+  const hi = (rows || []).findIndex(r => r && String(r[0] ?? '').trim() === first); if (hi < 0) return [];
+  const h = rows[hi].map(x => String(x ?? '').trim());
+  return rows.slice(hi + 1).filter(Boolean).map(r => Object.fromEntries(h.map((k, i) => [k, r[i]]).filter(([k]) => k)));
+}
+function buildLedger(S) {
+  const n = v => typeof v === 'number' ? v : (parseFloat(v) || 0);
+  const months = sheetRows(S.Summary, 'Month').filter(m => typeof m.Month === 'number').map(m => ({ d: xlDate(m.Month), jobs: n(m.Jobs), labor: n(m.Labor), parts: n(m['Parts Sold']), income: n(m['Total Income']), partCost: n(m['Part Costs']), gross: n(m['Gross Profit']), exp: n(m.Expenses), net: n(m['Net Profit']), lyIncome: n(m['2025 Income']), dep: n(m['Bank Deposits']) }));
+  const jobs = sheetRows(S.Jobs, 'Date').filter(j => typeof j.Date === 'number').map(j => ({ d: xlDate(j.Date), inv: String(j['Invoice #'] ?? ''), cust: String(j.Customer || ''), job: String(j.Job || ''), type: String(j.Type || ''), desc: String(j.Description || ''), charged: n(j.Charged), cost: j['Part Cost'] === '' || j['Part Cost'] == null ? null : n(j['Part Cost']) }));
+  const exps = sheetRows(S.Expenses, 'Date').filter(e => typeof e.Date === 'number').map(e => ({ d: xlDate(e.Date), cat: String(e.Category || 'Other'), vendor: String(e.Vendor || ''), amt: n(e.Amount), yes: /^y/i.test(String(e['Counts as Expense?'] || '')) }));
+  const ly = sheetRows(S['2025'], 'Month').filter(m => typeof m.Month === 'number').map(m => ({ d: xlDate(m.Month), exp: n(m.Expenses), income: n(m.Income), net: n(m['Take Home']) }));
+  const review = sheetRows(S['Needs Review'], 'Issue').filter(x => x.Issue && !/^y/i.test(String(x['Fixed?'] || '')));
+  const last = a => a.reduce((m, x) => (x.d && x.d > m ? x.d : m), new Date(0));
+  return { months, jobs, exps, ly, review, jobsThrough: last(jobs), expThrough: last(exps) };
+}
+let LEDGER = null, ledgerErr = '', ledgerBusy = false;
+async function loadLedger(force) {
+  if (!folder || !folderOK) { ledgerErr = HOSTED ? 'Sign in with Google first.' : 'Connect your RCR folder first.'; if (view === 'profit') softRender(); return; }
+  if (ledgerBusy) return; ledgerBusy = true;
+  try {
+    const parts = String(S().ledgerPath || DEF.ledgerPath).split(/[\\/]/).filter(Boolean), name = parts.pop();
+    const f = await (await (await getDir(folder, parts.join('/'), false)).getFileHandle(name)).getFile();
+    if (!force && LEDGER && LEDGER.mod === f.lastModified) { LEDGER.checked = Date.now(); return; }
+    const L = buildLedger(await readXlsx(await f.arrayBuffer(), ['Summary', 'Jobs', 'Expenses', '2025', 'Needs Review']));
+    if (!L.months.length && !L.jobs.length) throw new Error(`"${name}" doesn't look like the rebuilt ledger (no Summary or Jobs tab).`);
+    LEDGER = Object.assign(L, { mod: f.lastModified, file: name, checked: Date.now() }); ledgerErr = '';
+    if (force) toast('Ledger reloaded');
+  } catch (e) { console.error(e); ledgerErr = e.name === 'NotFoundError' || e.name === 'TypeMismatchError' ? `Couldn't find "${S().ledgerPath}" in the RCR folder. Check the file name in Settings.` : e.name === 'AuthError' ? 'Google sign-in has expired — sign in again.' : e.message; }
+  finally { ledgerBusy = false; if (view === 'profit') softRender(); }
+}
+function profitChart(ms, ly) {               // income bars, net-profit bars and last year's take-home dots, per month
+  const W = 720, H = 210, pad = 30, bw = (W - pad) / 12, max = Math.max(1, ...ms.map(m => m.income), ...ly.map(m => m.net));
+  const y = v => H - 20 - (v / max) * (H - 40);
+  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">`;
+  for (let i = 0; i < 12; i++) {
+    const m = ms.find(x => x.d.getUTCMonth() === i), l = ly.find(x => x.d.getUTCMonth() === i), x = pad + i * bw;
+    if (m && (m.income || m.net)) {
+      s += `<rect x="${x + bw * .12}" y="${y(m.income)}" width="${bw * .36}" height="${H - 20 - y(m.income)}" rx="3" fill="#93b4ec"><title>${mLabel(m.d, 1)} income ${money0(m.income)}</title></rect>`;
+      s += `<rect x="${x + bw * .5}" y="${y(Math.max(0, m.net))}" width="${bw * .36}" height="${H - 20 - y(Math.max(0, m.net))}" rx="3" fill="#16a34a"><title>${mLabel(m.d, 1)} net profit ${money0(m.net)}</title></rect>`;
+      s += `<text x="${x + bw * .68}" y="${y(Math.max(0, m.net)) - 4}" font-size="10" text-anchor="middle" fill="currentColor">${m.net >= 1000 ? (m.net / 1000).toFixed(1) + 'k' : Math.round(m.net)}</text>`;
+    }
+    if (l) s += `<circle cx="${x + bw * .5}" cy="${y(l.net)}" r="4" fill="#f59e0b"><title>${mLabel(l.d, 1)} 2025 take-home ${money0(l.net)}</title></circle>`;
+    s += `<text x="${x + bw * .5}" y="${H - 5}" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">${'JFMAMJJASOND'[i]}</text>`;
+  }
+  return s + `</svg><div class="small muted"><span style="color:#93b4ec">■</span> income &nbsp; <span style="color:#16a34a">■</span> net profit &nbsp; <span style="color:#f59e0b">●</span> 2025 take-home</div>`;
+}
+function vProfit() {
+  if (!LEDGER) { if (!ledgerBusy && !ledgerErr) loadLedger(); return `<div class="card empty">${ledgerErr ? '⚠ ' + esc(ledgerErr) + `<div style="margin-top:10px"><button class="btn" onclick="ledgerErr='';loadLedger(true)">Try again</button></div>` : 'Reading your ledger…'}<div class="small muted" style="margin-top:8px">Ledger file: RCR/${esc(S().ledgerPath)} · change it in Settings</div></div>`; }
+  if (Date.now() - (LEDGER.checked || 0) > 60000 && !ledgerBusy) loadLedger();     // picks up changes to the workbook
+  const L = LEDGER, ms = L.months.filter(m => m.income || m.exp || m.partCost), tot = k => sum(ms, m => m[k]);
+  const inc = tot('income'), net = tot('net'), pc = tot('partCost'), ex = tot('exp');
+  const lySame = L.ly.filter(l => ms.some(m => m.d.getUTCMonth() === l.d.getUTCMonth())), lyNet = sum(lySame, l => l.net), lyInc = sum(lySame, l => l.income);
+  const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—', fmtD2 = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const after = INV.filter(e => isRev(e) && e.t > L.jobsThrough.getTime() + 864e5), afterSum = sum(after, e => e.total);
+  // expenses by category and parts by vendor (only rows that count)
+  const grp = (arr, key) => Object.entries(arr.reduce((m, x) => (m[key(x)] = (m[key(x)] || 0) + x.amt, m), {})).sort((a, b) => b[1] - a[1]);
+  const expCats = grp(L.exps.filter(e => e.yes && !/^parts/i.test(e.cat)), e => e.cat), partVend = grp(L.exps.filter(e => e.yes && /^parts/i.test(e.cat)), e => e.vendor || 'Other');
+  // job types: per invoice, only where every part line has a cost recorded
+  const invs = {}; for (const j of L.jobs) { const k = j.inv || j.job + '|' + j.d; (invs[k] = invs[k] || { job: j.job, desc: '', rows: [] }).rows.push(j); invs[k].desc += ' ' + j.desc; }
+  const types = {}; let costed = 0, uncosted = 0, quick = 0;
+  for (const v of Object.values(invs)) {
+    if (v.rows.every(r => /quick fix/i.test(r.type))) { quick += sum(v.rows, r => r.charged); continue; }   // monthly lump of small no-invoice jobs: not a job type
+    const partRows = v.rows.filter(r => /^part/i.test(r.type)), known = partRows.every(r => r.cost !== null);
+    if (!known) { uncosted++; continue; } costed++;
+    // sort by the job name ("LCD Repair - HP"); only if that says nothing, by the line descriptions (minus the routine Diagnostic / Labor lines)
+    const byName = catOf(v.job), t = v.rows.every(r => /quick fix/i.test(r.type)) ? 'Quick fixes (no invoice)'   // the ledger's monthly lump of small Zelle jobs
+      : byName !== 'Other' ? byName : catOf(v.rows.filter(r => !/^(diagnostic|labor)$/i.test(r.desc.trim())).map(r => r.desc).join(' '));
+    const ch = sum(v.rows, r => r.charged), co = sum(partRows, r => r.cost || 0);
+    (types[t] = types[t] || { n: 0, ch: 0, co: 0 }); types[t].n++; types[t].ch += ch; types[t].co += co;
+  }
+  const missing = L.jobs.filter(j => /^part/i.test(j.type) && j.cost === null && j.charged > 0);
+  return `<div class="banner" style="background:var(--accent2);border-color:var(--line);color:inherit">📒 From <b>${esc(L.file)}</b> · jobs through <b>${fmtD2(L.jobsThrough)}</b> · expenses through <b>${fmtD2(L.expThrough)}</b>
+      <span class="grow"></span><button class="btn sm" onclick="loadLedger(true)">⟳ Reload</button></div>
+    ${after.length ? `<div class="banner">🧾 ${plural(after.length, 'invoice')} since then (${money0(afterSum)}) aren't in the ledger yet, so their costs aren't counted.</div>` : ''}
+    <div class="grid kpis">
+      ${kpi('Net profit this year', money0(net), lyNet ? `${net >= lyNet ? '▲' : '▼'} ${pct(Math.abs(net - lyNet), lyNet)} vs ${money0(lyNet)} in 2025` : '', '', net >= 0 ? 'good' : 'alert')}
+      ${kpi('Income', money0(inc), lyInc ? `${inc >= lyInc ? '▲' : '▼'} ${pct(Math.abs(inc - lyInc), lyInc)} vs same months of 2025` : '', '')}
+      ${kpi('Profit margin', pct(net, inc), 'of every dollar in, kept', '')}
+      ${kpi('Part costs', money0(pc), pct(pc, inc) + ' of income', '')}
+      ${kpi('Other expenses', money0(ex), pct(ex, inc) + ' of income', '')}
+      ${kpi('Avg net / month', money0(ms.length ? net / ms.length : 0), plural(ms.length, 'month'), '')}
+    </div>
+    <div class="card" style="margin-bottom:14px"><h3>Income & net profit by month <span class="r small muted">2026 vs 2025 take-home</span></h3>${profitChart(ms, L.ly)}</div>
+    <div class="tablewrap" style="margin-bottom:14px"><table class="t"><tr><th>Month</th><th class="num">Jobs</th><th class="num">Income</th><th class="num">Part costs</th><th class="num">Expenses</th><th class="num">Net profit</th><th class="num">Margin</th><th class="num">2025 take-home</th></tr>
+      ${ms.map(m => { const l = L.ly.find(x => x.d.getUTCMonth() === m.d.getUTCMonth()); return `<tr><td><b>${mLabel(m.d, 1)}</b></td><td class="num" data-l="jobs">${m.jobs}</td><td class="num" data-l="in">${money0(m.income)}</td><td class="num" data-l="parts">${money0(m.partCost)}</td><td class="num" data-l="expenses">${money0(m.exp)}</td><td class="num" data-l="net"><b class="${m.net >= 0 ? 'up' : 'down'}">${money0(m.net)}</b></td><td class="num" data-l="margin">${pct(m.net, m.income)}</td><td class="num" data-l="2025">${l ? money0(l.net) : '—'}</td></tr>`; }).join('')}
+      <tr><td><b>Total</b></td><td class="num">${tot('jobs')}</td><td class="num"><b>${money0(inc)}</b></td><td class="num">${money0(pc)}</td><td class="num">${money0(ex)}</td><td class="num"><b>${money0(net)}</b></td><td class="num">${pct(net, inc)}</td><td class="num">${money0(lyNet)}</td></tr></table></div>
+    <div class="grid c3" style="margin-bottom:14px">
+      <div class="card"><h3>Where the expenses go <span class="r small muted">not counting parts</span></h3>${hbars(expCats.slice(0, 10).map(([l, v]) => ({ l, v })), money0, () => '#d97706')}</div>
+      <div class="card"><h3>Parts bought from</h3>${hbars(partVend.slice(0, 8).map(([l, v]) => ({ l, v })), money0, () => '#9333ea')}
+        <div class="small muted" style="margin-top:6px">Part purchases from card statements (April on). January–March part costs are per job.</div></div>
+      <div class="card"><h3>Profit by job type <span class="r small muted">${plural(costed, 'job')} with known costs</span></h3>
+        ${hbars(Object.entries(types).sort((a, b) => (b[1].ch - b[1].co) - (a[1].ch - a[1].co)).slice(0, 10).map(([t, o]) => ({ l: `${t} (${o.n}) · ${pct(o.ch - o.co, o.ch)} margin`, v: Math.round(o.ch - o.co) })), money0, () => '#16a34a')}
+        <div class="small muted" style="margin-top:6px">Profit = charged − part cost, before shop expenses. ${uncosted ? `${plural(uncosted, 'job')} left out (part cost not filled in).` : ''}${quick ? ` Not shown: ${money0(quick)} of quick fixes paid without an invoice.` : ''}</div></div>
+    </div>
+    <div class="grid c2">
+      <div class="card"><h3>🧩 Part costs still blank <span class="r muted small">${missing.length}</span></h3>
+        ${missing.length ? `<div class="small" style="margin-bottom:6px">${plural(missing.length, 'part line')} (${money0(sum(missing, j => j.charged))} charged) have no part cost on the Jobs tab. If the purchase is on the Expenses tab it's already counted; otherwise fill in the cost in the ledger for exact per-job profit.</div>
+          ${missing.slice(-8).reverse().map(j => `<div class="li"><div class="tx"><b>#${esc(j.inv)}</b> ${esc(j.desc || j.job)}<div class="s">${fmtD2(j.d)} · ${esc(j.cust)}</div></div><div>${money(j.charged)}</div></div>`).join('')}` : '<div class="empty">Every part has a cost 🎉</div>'}</div>
+      <div class="card"><h3>📝 Ledger "Needs Review" <span class="r muted small">${L.review.length}</span></h3>
+        ${L.review.length ? L.review.slice(0, 10).map(r => `<div class="li"><div class="tx"><b>${esc(r.Issue)}</b>${r['Invoice #'] ? ' · #' + esc(r['Invoice #']) : ''}<div class="s">${esc(String(r.Details || ''))}</div></div></div>`).join('') + (L.review.length > 10 ? `<div class="small muted">…and ${L.review.length - 10} more on the Needs Review tab.</div>` : '') : '<div class="empty">Nothing waiting 🎉</div>'}
+        <div class="small muted" style="margin-top:6px">Mark an item fixed by typing "Yes" in its "Fixed?" column in the ledger.</div></div>
+    </div>`;
+}
+
 /* ============ FOLLOW-UPS ============ */
 function vFollow() {
   const items = followItems(), groups = {};
@@ -2339,6 +2489,8 @@ function vSettings() {
     <form class="f" style="margin-top:12px" onsubmit="return false" onchange="saveSettings({logPaths:this.logPaths.value.split(/\\n/).map(x=>x.trim()).filter(Boolean),dataPath:this.dataPath.value.trim()||'Dashboard'});invMod={};loadInvoices(true)">
       <label class="full">Invoice log folders (inside the RCR folder, one per line — add "Invoice/2027 Invoices" next year)<textarea name="logPaths" rows="2">${esc(s.logPaths.join('\n'))}</textarea></label>
       <label>Dashboard data folder<input name="dataPath" value="${esc(s.dataPath)}"></label></form>
+    <form class="f" style="margin-top:10px" onsubmit="return false" onchange="saveSettings({ledgerPath:this.ledgerPath.value.trim()||DEF.ledgerPath});LEDGER=null;ledgerErr='';toast('Saved')">
+      <label class="full">Ledger workbook for the Profit page (inside the RCR folder — change it next year)<input name="ledgerPath" value="${esc(s.ledgerPath)}"></label></form>
     <p class="small muted">${invInfo.files.length ? 'Loaded: ' + esc(invInfo.files.join(', ')) + ' · ' + INV.length + ' invoices' + (invInfo.loadedAt ? ' · ' + fmtTs(invInfo.loadedAt) : '') : ''}${invInfo.errors.length ? '<br><span class="down">' + esc(invInfo.errors.join(' · ')) + '</span>' : ''}</p></div>
   <div class="card"><h3>🏪 Shop</h3><form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')">
     <label class="full">Address on printed tickets<select name="shopAddr">${ADDRS.map(a => `<option ${a === s.shopAddr ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
