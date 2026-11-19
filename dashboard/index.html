@@ -355,7 +355,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-114009">
+<meta name="rcr-build" content="20261119-114657">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -817,6 +817,8 @@ function customers() {
   for (const c of map.values()) {
     c.inv.sort((a, b) => b.t - a.t); c.visits = c.inv.length + c.tix.filter(t => !t.invno || !c.inv.some(e => e.invno === t.invno)).length;
     const o = DB.custNotes[c.key]; c.origName = c.name; if (o && o.name) c.name = o.name;   // name added in the dashboard wins
+    if (o && o.email && !c.email) c.email = o.email;                    // email / phone saved with the customer (e.g. from Wix contacts)
+    if (o && o.phone && !c.phone) c.phone = fmtPhone(o.phone);
   }
   custCache = [...map.values()]; custCacheKey = key; return custCache;
 }
