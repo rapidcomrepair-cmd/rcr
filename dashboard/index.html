@@ -248,7 +248,18 @@
     .kpis { grid-template-columns:repeat(2, 1fr); gap:8px; }
     .board { grid-template-columns:repeat(6, 84vw); scroll-snap-type:x mandatory; }
     .board .col { scroll-snap-align:start; min-height:200px; }
-    .tablewrap { overflow-x:auto; }
+    /* lists: each table row becomes a compact card (no header row, no sideways scrolling) */
+    .tablewrap { overflow:visible; background:transparent; border:0; border-radius:0; }
+    .tablewrap > table.t, .tablewrap > table.t > tbody { display:block; background:transparent; }
+    .tablewrap > table.t tr { display:flex; flex-wrap:wrap; align-items:baseline; gap:3px 12px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+    .tablewrap > table.t tr:has(> th) { display:none; }
+    .tablewrap > table.t td { display:block; border:0 !important; padding:0 !important; max-width:none !important; background:transparent !important; }
+    .tablewrap > table.t td:first-child { flex-basis:100%; font-size:15px; }
+    .tablewrap > table.t td:empty { display:none; }
+    .tablewrap > table.t td.num { text-align:left; }
+    .tablewrap > table.t td[data-l]::after { content:' ' attr(data-l); color:var(--mut); font-size:12px; }
+    .tablewrap > table.t td .muted.small { display:inline; margin-left:4px; }
+    .top .btn.pri { display:none; }                      /* the tab bar has ＋ Check in */
     #modal { padding:0; }
     .mbox, .mbox.wide { width:100%; min-height:100%; border-radius:0; }
     .mbox > header { position:sticky; top:0; z-index:2; background:var(--card); padding-top:calc(14px + env(safe-area-inset-top)); }
@@ -332,7 +343,7 @@
   </main>
 </div>
 <div id="scrim" onclick="document.body.classList.remove('navopen')"></div>
-<nav id="tabbar"></nav>
+<div id="tabbar"></div>
 <div id="modal" hidden></div>
 <div id="toasts"></div>
 <div id="print"></div>
@@ -649,6 +660,7 @@ function navHTML() {
   return Object.entries(VIEWS).map(([k, [ic, l]], i) => (k === 'follow' || k === 'tools' ? '<div class="sep"></div>' : '') +
     `<a class="${k === view ? 'on' : ''}" onclick="go('${k}')" title="Shortcut: ${(i + 1) % 10}">${ic} ${l}${ct[k] ? `<span class="ct ${hot[k] ? 'hot' : ''}">${ct[k]}</span>` : ''}</a>`).join('');
 }
+const TOUCH = () => matchMedia('(pointer:coarse)').matches || matchMedia('(max-width:760px)').matches;
 // Phone: tab bar along the bottom (the ☰ menu still has every page)
 function tabbarHTML() {
   const open = DB.tickets.filter(t => OPEN.includes(t.status)).length;
@@ -892,8 +904,8 @@ function ticketsBody() {
     const done = list.filter(t => !OPEN.includes(t.status)).length;
     return `<div class="board">${OPEN.map(k => { const col = list.filter(t => t.status === k).sort(prioSort);
       return `<div class="col" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="dropOn(event,'${k}')">
-        <header><span class="dot" style="background:${ST[k].c}"></span>${ST[k].l}<span class="n">${col.length}</span></header>${col.map(tCard).join('') || '<div class="empty small">Drag tickets here</div>'}</div>`; }).join('')}</div>
-      <p class="muted small">${done ? `${plural(done, 'closed ticket')} not shown on the board — <a href="#" onclick="ui.tMode='list';ui.tFilter='all';render();return false">see all in the list</a>.` : ''} Drag a card to change its status.</p>`;
+        <header><span class="dot" style="background:${ST[k].c}"></span>${ST[k].l}<span class="n">${col.length}</span></header>${col.map(tCard).join('') || `<div class="empty small">${TOUCH() ? 'No tickets' : 'Drag tickets here'}</div>`}</div>`; }).join('')}</div>
+      <p class="muted small">${done ? `${plural(done, 'closed ticket')} not shown on the board — <a href="#" onclick="ui.tMode='list';ui.tFilter='all';render();return false">see all in the list</a>.` : ''} ${TOUCH() ? 'Swipe sideways for more columns · tap ⋯ on a card to move it.' : 'Drag a card to change its status.'}</p>`;
   }
   const rows = list.filter(t => ui.tFilter === 'all' ? true : ui.tFilter === 'open' ? OPEN.includes(t.status) : t.status === ui.tFilter);
   if (!rows.length) return `<div class="card empty">${DB.tickets.length ? 'No tickets match.' : 'No repair tickets yet. Click <b>+ New Ticket</b> (or press N) when a device comes in.'}</div>`;
@@ -1371,8 +1383,8 @@ function custBody() {
   list.sort(sorters[ui.cSort]);
   if (!list.length) return `<div class="card empty">${customers().length ? 'No customers match.' : 'Customers appear here from your invoices and tickets.'}</div>`;
   return `<div class="tablewrap"><table class="t"><tr><th>Customer</th><th>Phone</th><th class="num">Visits</th><th class="num">Total spent</th><th>Last visit</th><th>Last job</th><th></th></tr>
-   ${list.slice(0, ui.cLimit).map(c => `<tr class="click" onclick="custModal(${js(c.key)})"><td style="white-space:nowrap">${nameCell(c)}</td><td style="white-space:nowrap">${esc(c.phone)}</td><td class="num">${c.visits}</td><td class="num">${money0(c.spent)}</td>
-   <td>${c.last ? new Date(c.last).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</td><td class="small">${esc(c.inv[0]?.job || (c.tix[0] ? devName(c.tix[0]) : ''))}</td>
+   ${list.slice(0, ui.cLimit).map(c => `<tr class="click" onclick="custModal(${js(c.key)})"><td style="white-space:nowrap">${nameCell(c)}</td><td style="white-space:nowrap">${esc(c.phone)}</td><td class="num" data-l="visits">${c.visits}</td><td class="num" data-l="spent">${money0(c.spent)}</td>
+   <td data-l="last">${c.last ? new Date(c.last).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</td><td class="small">${esc(c.inv[0]?.job || (c.tix[0] ? devName(c.tix[0]) : ''))}</td>
    <td>${warranty(c)} ${c.unpaid ? `<span class="tag red">Owes ${money0(c.unpaid)}</span>` : ''} ${c.tix.some(t => OPEN.includes(t.status)) ? '<span class="tag blue">Open ticket</span>' : ''}</td></tr>`).join('')}</table></div>
    ${list.length > ui.cLimit ? `<p><button class="btn" onclick="ui.cLimit+=200;$('#clist').innerHTML=custBody()">Show more (${list.length - ui.cLimit} left)</button></p>` : ''}`;
 }
@@ -1944,6 +1956,7 @@ setInterval(() => { if (document.visibilityState === 'visible' && folderOK && !p
 
 window.addEventListener('DOMContentLoaded', async function start() {
   $('#logo').src = LOGO; $('#favicon').href = LOGO; setTheme(localStorage.getItem('rcr-theme') || '');
+  if (TOUCH()) $('#gq').placeholder = 'Search tickets, customers, invoices…';   // no "( / )" keyboard hint on phones
   setSync('local'); render();
   try {
     const cached = await idb.get('inv'); if (cached && cached.INV) { INV = cached.INV; invInfo = cached.invInfo || invInfo; custCache = null; render(); }
