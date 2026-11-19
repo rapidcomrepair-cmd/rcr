@@ -355,7 +355,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-113230">
+<meta name="rcr-build" content="20261119-114009">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -580,7 +580,7 @@ function slim(e) {
     name: noPhone(e.name || d.custname || String(e.customer || '').split('\n')[0] || ''), phone: e.phone || d.custphone || '',
     job: e.job || d.job || '', make: e.make || d.make || '', model: e.model || d.model || '',
     total: num(e.total), sub: num(e.subtotal), status: e.status ?? d.status ?? '', kind: e.kind || '',
-    paidDate: e.paidDate || '', paidMethod: e.paidMethod || '', flags: e.flags || [], file: e.file || '', addr: d.addr || '',
+    paidDate: e.paidDate || '', paidMethod: e.paidMethod || '', flags: e.ok ? [] : (e.flags || []).filter(Boolean), note: e.reviewNote || '', file: e.file || '', addr: d.addr || '',
     desc: d.desc || '', res: d.res || '', ticketNo: String(e.ticketNo || d.ticketNo || ''),
     lines: (d.lines || []).filter(l => l && (l.desc || l.price)).map(l => ({ q: num(l.qty) || 1, d: l.desc || '', p: num(l.price) })) };
 }
@@ -1651,7 +1651,7 @@ function saveCustNote(key, v) { DB.custNotes[key] = { ...(DB.custNotes[key] || {
 function invDetail(e) {
   return `<div class="small" style="margin-top:6px">${e.make || e.model ? `<div><b>Device:</b> ${esc(e.make)} ${esc(e.model)}</div>` : ''}${e.desc ? `<div><b>Problem:</b> ${esc(e.desc)}</div>` : ''}${e.res ? `<div><b>Resolution:</b> ${esc(e.res)}</div>` : ''}
    ${e.lines.length ? `<table class="t" style="margin-top:6px">${e.lines.map(l => `<tr><td>${l.q}</td><td>${esc(l.d)}</td><td class="num">${money(l.p * l.q)}</td></tr>`).join('')}<tr><td></td><td><b>Total</b></td><td class="num"><b>${money(e.total)}</b></td></tr></table>` : ''}
-   ${e.status === 'paid' ? `<div class="up">Paid ${esc(e.paidDate)} ${esc(e.paidMethod)}</div>` : ''}${e.flags.length ? `<div class="down">⚠ ${esc(e.flags.join(' · '))}</div>` : ''}${e.file ? `<div class="muted">File: ${esc(e.file)}</div>` : ''}</div>`;
+   ${e.status === 'paid' ? `<div class="up">Paid ${esc(e.paidDate)} ${esc(e.paidMethod)}</div>` : ''}${e.flags.length ? `<div class="down">⚠ ${esc(e.flags.join(' · '))}</div>` : ''}${e.note ? `<div class="muted">✓ ${esc(e.note)}</div>` : ''}${e.file ? `<div class="muted">File: ${esc(e.file)}</div>` : ''}</div>`;
 }
 function invModal(id) {
   const e = INV.find(x => x.id === id); if (!e) return;
