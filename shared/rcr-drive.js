@@ -171,5 +171,30 @@
     return new DriveFolder(id, 'RCR');
   }
 
+  // Update check: each published build carries <meta name="rcr-build">. When the app is opened or brought back
+  // (an iPhone home-screen app has no refresh button), compare with the live copy and offer to reload.
+  if (hosted) {
+    const cur = () => (document.querySelector('meta[name="rcr-build"]') || {}).content;
+    let shown = false;
+    const checkUpdate = async () => {
+      if (shown || !cur() || document.visibilityState !== 'visible' || !navigator.onLine) return;
+      try {
+        const t = await (await fetch(location.pathname + '?update-check=' + Date.now(), { cache: 'no-store' })).text();
+        const m = t.match(/<meta name="rcr-build" content="([^"]+)"/);
+        if (m && m[1] !== cur()) { shown = true; showUpdate(); }
+      } catch { }
+    };
+    const showUpdate = () => {
+      const b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top));z-index:90;background:#1d5fd1;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;display:flex;gap:12px;align-items:center;font:600 14px/1.3 Segoe UI,system-ui,-apple-system,Arial,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.35);width:max-content;max-width:94vw';
+      b.innerHTML = '<span>🔄 A new version of RCR Shop is ready</span><button style="font:inherit;border:0;border-radius:8px;padding:8px 14px;background:#fff;color:#1d5fd1;cursor:pointer">Update now</button>';
+      b.querySelector('button').onclick = () => location.reload();
+      document.body.appendChild(b);
+    };
+    document.addEventListener('visibilitychange', checkUpdate);
+    window.addEventListener('load', () => setTimeout(checkUpdate, 3000));
+    setInterval(checkUpdate, 10 * 60e3);
+  }
+
   window.RCRDrive = { hosted, base, root, signIn, signOut, user, wasSignedIn, signedIn: () => !!token(), minutesLeft, AuthError };
 })();
