@@ -359,7 +359,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-144325">
+<meta name="rcr-build" content="20261119-145157">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -518,11 +518,27 @@ function merge(a, b) {          // combine two copies of the data (e.g. office P
   m.settings = { ...(useA ? a.settings : b.settings) }; m.settingsUpd = useA ? a.settingsUpd : b.settingsUpd;
   m.settings.nextTicket = Math.max(a.settings.nextTicket || 0, b.settings.nextTicket || 0, ...m.tickets.map(t => (t.no || 0) + 1));
   m.savedAt = (a.savedAt || '') > (b.savedAt || '') ? a.savedAt : b.savedAt;
+  // keep anything this version doesn't know about (added by a newer version) instead of dropping it
+  for (const src of [a, b]) for (const k of Object.keys(src || {})) if (!(k in m)) m[k] = src[k];
   return normalize(m);
+}
+// The main data file never carries the leads: they live in their own file (_leads.json), which older app versions never open.
+const LEADS_FILE = '_leads.json';
+const mainJSON = o => { const c = { ...o }; delete c.leads; return JSON.stringify(c); };
+let leadsDirty = false;
+async function syncLeads(d, force) {
+  if (!leadsDirty && !force) return;
+  const t = await readText(d, LEADS_FILE), remote = t ? parseJSON(t) : { leads: [] }, map = new Map();
+  for (const r of [...(remote.leads || []), ...(DB.leads || [])]) { const o = map.get(r.id); if (!o || (r.upd || '') >= (o.upd || '')) map.set(r.id, r); }
+  const merged = [...map.values()], changed = !t || JSON.stringify(merged) !== JSON.stringify(remote.leads || []);
+  const before = JSON.stringify(DB.leads || []);
+  DB.leads = merged; persistLocal(); leadsDirty = false;
+  if (changed) await writeText(d, LEADS_FILE, JSON.stringify({ v: 1, leads: merged, savedAt: nowISO() }));
+  return JSON.stringify(merged) !== before;          // true when another device added or changed leads
 }
 function persistLocal() { try { localStorage.setItem(LS, JSON.stringify(DB)); } catch (e) { toast('Could not save in the browser: ' + e.message, 'err'); } }
 function commit() { DB.savedAt = nowISO(); persistLocal(); pending = true; setSync('saving'); clearTimeout(wt); wt = setTimeout(flush, 700); }
-function upsert(coll, rec) { rec.upd = nowISO(); const a = DB[coll], i = a.findIndex(x => x.id === rec.id); if (i < 0) a.push(rec); else a[i] = rec; commit(); }
+function upsert(coll, rec) { rec.upd = nowISO(); if (coll === 'leads') leadsDirty = true; const a = DB[coll], i = a.findIndex(x => x.id === rec.id); if (i < 0) a.push(rec); else a[i] = rec; commit(); }
 function removeRec(coll, id) { DB[coll] = DB[coll].filter(x => x.id !== id); DB.deleted[id] = nowISO(); commit(); }
 function saveSettings(patch) { Object.assign(DB.settings, patch); DB.settingsUpd = nowISO(); commit(); }
 
@@ -541,7 +557,8 @@ async function flush() {
     const before = JSON.stringify(DB);
     if (t) DB = merge(DB, normalize(parseJSON(t)));
     persistLocal();
-    await writeText(d, DATA_FILE, JSON.stringify(DB));
+    await writeText(d, DATA_FILE, mainJSON(DB));
+    await syncLeads(d);
     pending = false;
     await weeklyBackup(d);
     setSync('saved');
@@ -557,9 +574,10 @@ async function pullFromFolder() {           // read the Drive copy and merge it 
     const t = await readText(d, DATA_FILE);
     const before = JSON.stringify(DB);
     let needWrite = !t;
-    if (t) { const remote = normalize(parseJSON(t)); DB = merge(DB, remote); needWrite = JSON.stringify(DB) !== JSON.stringify(remote); }
+    if (t) { const remote = normalize(parseJSON(t)); DB = merge(DB, remote); needWrite = mainJSON(DB) !== mainJSON(remote); }
     persistLocal();
-    if (needWrite) await writeText(d, DATA_FILE, JSON.stringify(DB));
+    if (needWrite) await writeText(d, DATA_FILE, mainJSON(DB));
+    await syncLeads(d, true);
     await weeklyBackup(d);
     setSync('saved');
     if (JSON.stringify(DB) !== before) softRender();
@@ -1724,7 +1742,7 @@ async function leadImport(input) {
     const l = { id: uid(), name, email, phone: phone.length === 10 ? phone : '', created, status: LEAD_SPAM.test(email + ' ' + name) ? 'spam' : 'new', notes: '', src: 'Wix CSV ' + today(), upd: nowISO() };
     DB.leads.push(l); if (l.phone) have.add('p' + l.phone); if (email) have.add('e' + email); added++;
   }
-  commit(); render();
+  leadsDirty = true; commit(); render();
   toast(`Imported ${plural(added, 'new lead')}${dup ? ` · ${dup} already listed` : ''}${old ? ` · ${old} older than 2 years skipped` : ''}.`);
 }
 
