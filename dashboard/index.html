@@ -206,6 +206,32 @@
   [data-theme=terminal] .btn.pri, [data-theme=terminal] nav a.on, [data-theme=terminal] .seg button.on { color:#000; text-shadow:none; }
   [data-theme=terminal] aside, [data-theme=terminal] nav a { color:#39ff88; }
   [data-theme=terminal] .badge { color:#000; text-shadow:none; }
+  /* phone pages: date / status chips, agenda cards, ticket cards */
+  .dstrip { display:flex; gap:8px; overflow-x:auto; margin:0 -10px 8px; padding:2px 10px 8px; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .dstrip::-webkit-scrollbar { display:none; }
+  .dchip { flex:0 0 auto; width:56px; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:14px; padding:7px 0 5px; display:flex; flex-direction:column; align-items:center; gap:1px; cursor:pointer; scroll-snap-align:start; font:inherit; }
+  .dchip span { font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.03em; }
+  .dchip b { font-size:20px; line-height:1.15; }
+  .dchip i { font-style:normal; font-size:8px; color:var(--accent); letter-spacing:1px; height:10px; line-height:10px; }
+  .dchip.today { border-color:var(--accent); }
+  .dchip.on { background:var(--accent); border-color:var(--accent); color:#fff; } .dchip.on span, .dchip.on i { color:#fff; }
+  .chipbtn { flex:0 0 auto; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:18px; padding:7px 13px; font:inherit; font-size:13.5px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
+  .chipbtn b { font-weight:600; color:var(--mut); }
+  .chipbtn.on { background:var(--accent); border-color:var(--accent); color:#fff; } .chipbtn.on b { color:rgba(255,255,255,.85); }
+  .chipbtn .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .ag { display:grid; grid-template-columns:58px 1fr 34px; gap:8px 10px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+  .ag .tm { text-align:center; border-right:1px solid var(--line); padding-right:8px; cursor:pointer; align-self:start; }
+  .ag .tm b { display:block; font-size:19px; line-height:1.1; } .ag .tm span { font-size:11px; color:var(--mut); font-weight:600; }
+  .ag .bd { min-width:0; cursor:pointer; }
+  .ag .ty { font-size:12px; color:var(--mut); font-weight:600; }
+  .ag .nm { font-size:16px; font-weight:700; margin:1px 0 3px; }
+  .ag .ad, .ag .nt { font-size:13px; color:var(--mut); overflow-wrap:anywhere; margin-top:2px; }
+  .ag .ok { width:30px; height:30px; border-radius:50%; border:2px solid #c9d1df; background:var(--card); color:#fff; font-size:15px; font-weight:700; cursor:pointer; padding:0; }
+  .ag.done .ok { background:var(--good); border-color:var(--good); }
+  .ag.done .nm { text-decoration:line-through; color:var(--mut); }
+  .ag .acts { grid-column:2 / 4; display:flex; gap:6px; flex-wrap:wrap; } .ag .acts:empty { display:none; }
+  .tphone .tc { margin-bottom:10px; padding:11px 12px; border-radius:12px; }
+  .tphone .tc .nm { font-size:15.5px; } .tphone .tc .no .badge { font-size:10.5px; }
   /* phone */
   .btn.menu, #scrim, #tabbar { display:none; }
   .tc .mv { display:none; margin-left:4px; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:6px; padding:0 9px; font-size:15px; line-height:22px; cursor:pointer; }
@@ -281,6 +307,10 @@
     .content { padding-bottom:calc(86px + env(safe-area-inset-bottom)); }
     #toasts { bottom:calc(72px + env(safe-area-inset-bottom)); }
     .sigs { grid-template-columns:1fr; }
+    body[data-view=tickets] .top .search { display:none; }   /* the tickets page has its own search box */
+    .li { flex-wrap:wrap; }                                /* buttons go under the text instead of squeezing it */
+    .li .ac { flex-basis:100%; justify-content:flex-start; padding-left:36px; }
+    .li .ac:has(> :only-child) { flex-basis:auto; padding-left:0; }   /* a single Edit / × stays on the right */
   }
   /* print */
   #print { display:none; }
@@ -305,7 +335,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-110921">
+<meta name="rcr-build" content="20261119-111638">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -671,13 +701,14 @@ function tabbarHTML() {
 }
 function render() {
   view = location.hash.slice(1); if (!VIEWS[view]) view = 'home';
-  document.body.classList.remove('navopen');
+  document.body.classList.remove('navopen'); document.body.dataset.view = view;
   $('#nav').innerHTML = navHTML(); $('#title').textContent = VIEWS[view][1]; $('#tabbar').innerHTML = tabbarHTML();
   document.title = 'RCR Dashboard · ' + VIEWS[view][1];
   const sy = window.scrollY; $('#main').innerHTML = banner() + VIEWS[view][2](); window.scrollTo(0, sy);
   fillDatalists(); drawUptime();
   document.documentElement.style.setProperty('--toph', $('.top').offsetHeight + 'px');
   if (view === 'tools') toolsInit();
+  $$('.dstrip .on').forEach(el => el.scrollIntoView({ inline: 'center', block: 'nearest' }));   // keep the picked chip in sight
 }
 function softRender() {              // re-render unless the user is typing on the page
   const a = document.activeElement;
@@ -883,7 +914,24 @@ let dragId = null;
 function dragStart(e, id) { dragId = id; e.dataTransfer.effectAllowed = 'move'; }
 function dropOn(e, k) { e.preventDefault(); e.currentTarget.classList.remove('over'); if (dragId) setStatus(dragId, k); dragId = null; }
 
+/* ---- Repair tickets on a phone: search + status chips + one column of cards ---- */
+function vTicketsPhone() {
+  const techs = S().techs, n = k => DB.tickets.filter(t => (k === 'open' ? OPEN.includes(t.status) : k === 'all' ? true : t.status === k) && (!ui.tTech || t.tech === ui.tTech)).length;
+  const chips = [['open', 'Open'], ...OPEN.map(k => [k, ST[k].l.replace('Awaiting ', '').replace('Waiting on ', '').replace(' for Pickup', '')]), ['done', 'Picked up'], ['all', 'All']];
+  return `<input type="search" class="inp" style="margin-bottom:8px" placeholder="Search name, phone, device, serial, #…" value="${esc(ui.tq)}" oninput="ui.tq=this.value;$('#tlist').innerHTML=ticketsBodyPhone()">
+    <div class="dstrip chips-row">${chips.map(([k, l]) => `<button class="chipbtn ${ui.tFilter === k ? 'on' : ''}" onclick="ui.tFilter='${k}';render()">${k !== 'open' && k !== 'all' && k !== 'done' ? `<span class="dot" style="background:${ST[k].c}"></span>` : ''}${l} <b>${n(k)}</b></button>`).join('')}</div>
+    ${techs.length > 1 ? `<select class="inp" style="margin-bottom:8px" onchange="ui.tTech=this.value;render()"><option value="">All techs</option>${techs.map(x => `<option ${ui.tTech === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''}
+    <div id="tlist">${ticketsBodyPhone()}</div>`;
+}
+function ticketsBodyPhone() {
+  const f = ui.tFilter || 'open', order = Object.fromEntries(STATUSES.map((s, i) => [s.k, i]));
+  const list = DB.tickets.filter(ticketMatches).filter(t => f === 'all' ? true : f === 'open' ? OPEN.includes(t.status) : t.status === f)
+    .sort((a, b) => f === 'open' ? (order[a.status] - order[b.status]) || prioSort(a, b) : (b.no || 0) - (a.no || 0));
+  if (!list.length) return `<div class="card empty">${ui.tq ? 'No tickets match your search.' : 'No tickets here.'}<div style="margin-top:10px"><button class="btn pri" onclick="editTicket()">＋ Check in a device</button></div></div>`;
+  return `<div class="tphone">${list.slice(0, 150).map(t => tCard(t, true)).join('')}</div>${list.length > 150 ? `<p class="muted small">Showing the newest 150 — search to find older ones.</p>` : ''}`;
+}
 function vTickets() {
+  if (PHONE_W.matches) return vTicketsPhone();
   const techs = S().techs;
   return `<div class="toolbar">
     <div class="seg"><button class="${ui.tMode === 'board' ? 'on' : ''}" onclick="ui.tMode='board';render()">Board</button><button class="${ui.tMode === 'list' ? 'on' : ''}" onclick="ui.tMode='list';render()">List</button></div>
@@ -924,8 +972,12 @@ function dueTag(t) {
   const d = dayDiff(today(), t.due);
   return d < 0 ? `<span class="tag red">${fmtDs(t.due)} · late</span>` : d === 0 ? '<span class="tag amber">Due today</span>' : d === 1 ? '<span class="tag amber">Tomorrow</span>' : `<span class="tag">${fmtDs(t.due)}</span>`;
 }
-function tCard(t) {
+function tCard(t, withStatus) {
   const age = daysSince(t.status === 'ready' ? readySince(t) : t.created);
+  if (withStatus) return `<div class="tc" onclick="editTicket('${t.id}')" style="border-left:4px solid ${(ST[t.status] || ST.checkin).c}">
+    <div class="no">#${t.no} ${badge(t.status)} ${prioTag(t)}${(t.photos || []).length ? '<span>📷</span>' : ''}<span style="margin-left:auto">${t.tech ? esc(t.tech) : ''}</span><button class="mv" title="Move to another status" onclick="event.stopPropagation();statusSheet('${t.id}')">⋯</button></div>
+    <div class="nm">${esc(t.name)}</div><div class="dv">${esc(devName(t))}</div><div class="is">${esc(t.issue || '')}</div>
+    <div class="ft">${OPEN.includes(t.status) ? dueTag(t) : ''}${OPEN.includes(t.status) ? `<span class="tag ${age >= (t.status === 'ready' ? S().staleDays : 5) ? 'amber' : ''}">${age}d${t.status === 'ready' ? ' waiting' : ''}</span>` : `<span class="tag">${new Date(t.pickedUp || t.updated || t.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`}${invTag(t)}</div></div>`;
   return `<div class="tc" draggable="true" ondragstart="dragStart(event,'${t.id}')" onclick="editTicket('${t.id}')">
     <div class="no">#${t.no} ${prioTag(t)} ${t.warrantyReturn ? '<span class="tag amber">Warranty</span>' : ''}${(t.photos || []).length ? `<span title="${plural(t.photos.length, 'photo')}">📷</span>` : ''}<span style="margin-left:auto">${t.tech ? esc(t.tech) : ''}</span><button class="mv" title="Move to another status" onclick="event.stopPropagation();statusSheet('${t.id}')">⋯</button></div>
     <div class="nm">${esc(t.name)}</div><div class="dv">${esc(devName(t))}</div><div class="is">${esc(t.issue || '')}</div>
@@ -1569,7 +1621,33 @@ function vFollow() {
 
 /* ============ APPOINTMENTS ============ */
 const apptIcon = t => ({ 'Drop-off': '📥', Pickup: '📤', 'On-site': '🚗', 'Remote session': '🖥️', 'Phone call': '📞', Consultation: '💬' }[t] || '📅');
+/* ---- Appointments on a phone: date chips + agenda cards with call / text / directions ---- */
+function vCalendarPhone() {
+  const td = today(), days14 = [...Array(14)].map((_, i) => addDays(td, i));
+  let list = DB.appts.filter(a => ui.aPast ? true : a.date >= td || (!a.done && a.date < td));
+  if (ui.aDay) list = list.filter(a => a.date === ui.aDay);
+  list.sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))); if (ui.aPast && !ui.aDay) list.reverse();
+  const byDay = {}; for (const a of list) (byDay[a.date] = byDay[a.date] || []).push(a);
+  const dayName = d => d === td ? 'Today' : d === addDays(td, 1) ? 'Tomorrow' : d < td ? 'Missed · ' + parseYMD(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : parseYMD(d).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const chip = d => { const n = DB.appts.filter(a => a.date === d && !a.done).length, dt = parseYMD(d);
+    return `<button class="dchip ${ui.aDay === d ? 'on' : ''} ${d === td ? 'today' : ''}" onclick="ui.aDay=ui.aDay==='${d}'?'':'${d}';render()"><span>${d === td ? 'Today' : dt.toLocaleDateString('en-US', { weekday: 'short' })}</span><b>${dt.getDate()}</b><i>${n ? '●'.repeat(Math.min(n, 3)) : '&nbsp;'}</i></button>`; };
+  const card = a => { const t = a.ticketId && DB.tickets.find(x => x.id === a.ticketId), p = digits(a.phone);
+    return `<div class="ag ${a.done ? 'done' : ''}">
+      <div class="tm" onclick="editAppt('${a.id}')">${a.time ? `<b>${fmtT(a.time).replace(/\s?[AP]M$/i, '')}</b><span>${(fmtT(a.time).match(/[AP]M$/i) || [''])[0]}</span>` : '<b style="font-size:13px">Any</b><span>time</span>'}</div>
+      <div class="bd" onclick="editAppt('${a.id}')"><div class="ty">${apptIcon(a.type)} ${esc(a.type)}${t ? ` · <span class="muted">#${t.no}</span>` : ''}</div>
+        <div class="nm">${esc(a.name || 'No name')}</div>
+        ${a.addr ? `<div class="ad">📍 ${esc(a.addr)}</div>` : ''}${a.notes ? `<div class="nt">${esc(a.notes)}</div>` : ''}</div>
+      <button class="ok" title="${a.done ? 'Mark not done' : 'Mark done'}" onclick="apptDone('${a.id}')">${a.done ? '✓' : ''}</button>
+      <div class="acts">${p.length >= 10 ? `<a class="btn sm" href="tel:${p}">📞 Call</a><a class="btn sm" href="sms:${p}">💬 Text</a>` : ''}${a.addr ? `<a class="btn sm" target="_blank" rel="noopener" href="https://maps.google.com/?q=${encodeURIComponent(a.addr)}">📍 Directions</a>` : ''}${t ? `<button class="btn sm" onclick="editTicket('${t.id}')">🛠️ Ticket</button>` : ''}</div></div>`; };
+  return `<div class="row" style="margin-bottom:10px"><button class="btn pri" onclick="editAppt(null${ui.aDay ? `,{date:'${ui.aDay}'}` : ''})">+ New appointment</button><span class="grow"></span>
+      <button class="chipbtn ${ui.aPast ? 'on' : ''}" onclick="ui.aPast=!ui.aPast;render()">${ui.aPast ? '✓ ' : ''}Show past</button></div>
+    <div class="dstrip">${days14.map(chip).join('')}</div>
+    ${ui.aDay ? `<div class="small muted" style="margin:-2px 2px 8px">Showing ${esc(dayName(ui.aDay))} only · <a href="#" onclick="ui.aDay='';render();return false">show all</a></div>` : ''}
+    ${Object.keys(byDay).length ? Object.entries(byDay).map(([d, as]) => `<div class="sec-h">${esc(dayName(d))}</div>${as.map(card).join('')}`).join('')
+      : `<div class="card empty">${ui.aDay ? `Nothing on ${esc(dayName(ui.aDay))}.<div style="margin-top:10px"><button class="btn pri" onclick="editAppt(null,{date:'${ui.aDay}'})">+ Add one</button></div>` : 'No appointments coming up. Tap <b>+ New appointment</b> to add a drop-off, pickup or on-site visit.'}</div>`}`;
+}
 function vCalendar() {
+  if (PHONE_W.matches) return vCalendarPhone();
   const td = today(), list = DB.appts.filter(a => ui.aPast ? true : a.date >= td || (!a.done && a.date < td)).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
   if (ui.aPast) list.reverse();
   const days = {}; for (const a of list) (days[a.date] = days[a.date] || []).push(a);
