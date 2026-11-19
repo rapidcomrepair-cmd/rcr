@@ -236,6 +236,15 @@
   .tabprev .pv.plus i { font-style:normal; background:var(--accent); color:#fff; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; font-size:22px; }
   .tabprev .pv.plus small { color:var(--accent); font-weight:700; }
   .phone-only { display:none; }
+  .pk { max-height:88vh; overflow:auto; }
+  .pk-step { border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px; }
+  .pk-step.ok { border-color:#9ad8ae; background:rgba(22,163,74,.06); }
+  .pk-h { font-weight:700; display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .pk-c { width:22px; height:22px; border-radius:50%; border:2px solid #c9d1df; display:inline-flex; align-items:center; justify-content:center; font-size:13px; color:#fff; flex:0 0 auto; }
+  .pk-step.ok .pk-c { background:var(--good); border-color:var(--good); }
+  .pk-b { padding-left:30px; }
+  .pk .paygrid { grid-template-columns:repeat(4, 1fr); }
+  .tag.timer { background:#fff1d6; color:#8a5300; }
   .tphone .tc { margin-bottom:10px; padding:11px 12px; border-radius:12px; }
   .tphone .tc .nm { font-size:15.5px; } .tphone .tc .no .badge { font-size:10.5px; }
   /* phone */
@@ -346,7 +355,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-112211">
+<meta name="rcr-build" content="20261119-113230">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -443,6 +452,8 @@ const DEF = {
          '• We are not responsible for pre-existing damage or for problems not listed on this ticket.\n' +
          '• Devices not picked up within 30 days of our ready-for-pickup notice may be charged a storage fee.\n' +
          '• Bring this ticket (or photo ID) when picking up your device.',
+  msgReceived: 'Hi {first}, this is Rapid Computer Repair. We have your {device} — ticket #{no}.{estimateLine} We\'ll text you as soon as we know more. Questions? Call {shopPhone}.',
+  msgFinal: 'Hi {first}, this is Rapid Computer Repair. Your {device} (ticket #{no}) has been ready for pickup since {readyDate} ({readyDays} days). Please pick it up or call {shopPhone} to make arrangements — storage fees may apply per our repair terms. Thank you!',
   msgReady: 'Hi {first}, this is Rapid Computer Repair. Your {device} (ticket #{no}) is ready for pickup.{total} Thank you!',
   msgApproval: 'Hi {first}, this is Rapid Computer Repair about your {device} (ticket #{no}). {diag} The estimate is {estimate}. Please reply or call {shopPhone} to approve the repair.',
   msgReminder: 'Hi {first}, a friendly reminder from Rapid Computer Repair: your {device} (ticket #{no}) is still ready for pickup. Call {shopPhone} with any questions.',
@@ -687,7 +698,7 @@ const formData = f => { const o = {}; for (const el of f.elements) if (el.name &
 /* ============ navigation ============ */
 const VIEWS = {
   home: ['📊', 'Dashboard', vHome], tickets: ['🛠️', 'Repair Tickets', vTickets], customers: ['👥', 'Customers', vCustomers],
-  money: ['💵', 'Sales & Invoices', vMoney], follow: ['🔔', 'Follow-ups', vFollow], calendar: ['📅', 'Appointments', vCalendar],
+  money: ['💵', 'Sales & Invoices', vMoney], close: ['🧾', 'Daily Close', vClose], follow: ['🔔', 'Follow-ups', vFollow], calendar: ['📅', 'Appointments', vCalendar],
   inventory: ['📦', 'Inventory', vInventory], orders: ['🚚', 'Parts Orders', vOrders], tools: ['🧰', 'Tech Tools', vTools], settings: ['⚙️', 'Settings', vSettings] };
 let view = 'home';
 const ui = { tMode: 'board', tFilter: 'open', tTech: '', tq: '', cq: '', cSort: 'last', cLimit: 100, period: 'month', iq: '', iStatus: '', iLimit: 100,
@@ -706,7 +717,7 @@ function navHTML() {
 const TOUCH = () => matchMedia('(pointer:coarse)').matches || matchMedia('(max-width:760px)').matches;
 // Phone: tab bar along the bottom (the ☰ menu still has every page)
 // The 4 outer buttons are chosen per device (localStorage "rcr-tabs"); ＋ Check in always sits in the middle.
-const TAB_LABEL = { home: 'Home', tickets: 'Tickets', customers: 'Customers', money: 'Sales', follow: 'Follow-ups', calendar: 'Appts', inventory: 'Inventory', orders: 'Orders', tools: 'Tools', settings: 'Settings', menu: 'More' };
+const TAB_LABEL = { home: 'Home', tickets: 'Tickets', customers: 'Customers', money: 'Sales', close: 'Close', follow: 'Follow-ups', calendar: 'Appts', inventory: 'Inventory', orders: 'Orders', tools: 'Tools', settings: 'Settings', menu: 'More' };
 const TAB_DEFAULT = ['home', 'tickets', 'customers', 'menu'];
 const tabIcon = k => k === 'menu' ? '☰' : VIEWS[k][0];
 function tabSlots() {
@@ -767,6 +778,7 @@ function softRender() {              // re-render unless the user is typing on t
   render();
 }
 function banner() {
+  if (!HOSTED && folder && folder.name !== 'RCR') return `<div class="banner" style="background:#fde8e8;border-color:#f5b5b5;color:#8a1c1c"><span>⚠ <b>This computer is saving to the wrong folder</b> ("${esc(folder.name)}"), so its tickets don't reach your phone or other computers. Click <b>Change folder</b> and pick <b>My Drive › Documents › RCR</b> — everything on this computer is merged in automatically.</span> <button class="btn pri sm" onclick="connectFolder()">Change folder</button></div>`;
   if (HOSTED && !folderOK) return `<div class="banner"><span>🔒 Sign in with your Google account to load your tickets and invoices from Google Drive.</span> <button class="btn pri sm" onclick="driveConnect()">Sign in with Google</button></div>`;
   if (folder && folderOK) return invInfo.errors.length ? `<div class="banner">⚠ Invoice log problem: ${esc(invInfo.errors.join(' · '))} <button class="btn pri sm" onclick="connectFolder()">Change folder</button></div>` : '';
   if (folder) return `<div class="banner">🔒 Chrome needs your OK to use the Drive folder again. <button class="btn pri sm" onclick="reconnect()">Reconnect folder</button></div>`;
@@ -887,7 +899,8 @@ function followItems() {
   const out = [], td = today();
   for (const t of DB.tickets) {
     const dev = devName(t);
-    if (t.status === 'ready') { const d = daysSince(readySince(t)); if (d >= 2) out.push({ sev: d >= S().staleDays ? 3 : 1, ic: '📦', grp: 'Ready but not picked up', tx: `#${t.no} ${t.name} — ${dev}`, s: `Ready for ${plural(d, 'day')}${t.lastReminder ? ' · last reminder ' + fmtTs(t.lastReminder) : ''}`, ac: `<button class="btn sm" onclick="msgOpen('${t.id}','msgReminder')">💬 Remind</button><button class="btn sm" onclick="remindedTicket('${t.id}')">Mark reminded</button><button class="btn sm" onclick="setStatus('${t.id}','done')">Picked up</button>` }); }
+    if (t.status === 'ready') { const d = daysSince(readySince(t)); if (d >= 30) { out.push({ sev: 4, ic: '📬', grp: 'Unclaimed 30+ days — final notice', tx: `#${t.no} ${t.name} — ${dev}`, s: `Ready for ${plural(d, 'day')}${t.finalNotice ? ' · final notice sent ' + fmtTs(t.finalNotice) : ' · no final notice yet'}${t.lastReminder ? ' · last contact ' + fmtTs(t.lastReminder) : ''}`, ac: `<button class="btn sm" onclick="msgOpen('${t.id}','msgFinal')">💬 Final notice</button><button class="btn sm" onclick="pickupFlow('${t.id}')">📦 Pickup</button>` }); continue; }
+      if (d >= 2) out.push({ sev: d >= S().staleDays ? 3 : 1, ic: '📦', grp: 'Ready but not picked up', tx: `#${t.no} ${t.name} — ${dev}`, s: `Ready for ${plural(d, 'day')}${t.lastReminder ? ' · last reminder ' + fmtTs(t.lastReminder) : ''}`, ac: `<button class="btn sm" onclick="msgOpen('${t.id}','msgReminder')">💬 Remind</button><button class="btn sm" onclick="remindedTicket('${t.id}')">Mark reminded</button><button class="btn sm" onclick="pickupFlow('${t.id}')">📦 Pickup</button>` }); }
     if (t.status === 'approval') { const d = daysSince((t.history || []).slice(-1)[0]?.t || t.created); if (d >= 1) out.push({ sev: 2, ic: '☎️', grp: 'Waiting on customer approval', tx: `#${t.no} ${t.name} — ${dev}`, s: `Waiting ${plural(d, 'day')} · estimate ${t.estimate ? money(t.estimate) : 'not set'} · ${esc(fmtPhone(t.phone))}`, ac: `<button class="btn sm" onclick="msgOpen('${t.id}','msgApproval')">💬 Ask approval</button><button class="btn sm" onclick="setStatus('${t.id}','repair')">Approved</button>` }); }
     if (OPEN.includes(t.status) && t.status !== 'ready' && t.due && t.due < td) out.push({ sev: 3, ic: '⏰', grp: 'Past promised date', tx: `#${t.no} ${t.name} — ${dev}`, s: `Promised ${fmtD(t.due)} (${plural(dayDiff(t.due, td), 'day')} late) · ${ST[t.status].l}`, ac: `<button class="btn sm" onclick="editTicket('${t.id}')">Open</button>` });
     if (t.status === 'done' && !t.invno && t.pickedUp && daysSince(t.pickedUp) <= 30) out.push({ sev: 2, ic: '🧾', grp: 'Picked up — no invoice yet', tx: `#${t.no} ${t.name} — ${dev}`, s: `Picked up ${fmtTs(t.pickedUp)}${t.estimate ? ' · estimate ' + money(t.estimate) : ''}`, ac: `<button class="btn sm" onclick="openInvoice('${t.id}')">🧾 Make invoice</button><button class="btn sm" onclick="editTicket('${t.id}')">Open</button>` });
@@ -906,12 +919,13 @@ const ticketRef = id => { const t = DB.tickets.find(x => x.id === id); return t 
 function fillMsg(tpl, t) {
   const total = num(t.estimate) - num(t.deposit);
   const map = { first: first(t.name), name: t.name, device: devName(t), no: t.no, estimate: t.estimate ? money(t.estimate) : 'to be determined',
-    total: t.estimate ? ` Your balance is ${money(total)}.` : '', diag: t.diag || '', review: S().reviewLink || '[Google review link — add it in Settings]', shopPhone: S().shopPhone, phone: fmtPhone(t.phone) };
+    total: t.estimate ? ` Your balance is ${money(total)}.` : '', diag: t.diag || '',
+    estimateLine: t.estimate ? ` Estimate: ${money(num(t.estimate))}.` : '', readyDate: t.status === 'ready' ? fmtD(readySince(t).slice(0, 10)) : '', readyDays: t.status === 'ready' ? daysSince(readySince(t)) : '', review: S().reviewLink || '[Google review link — add it in Settings]', shopPhone: S().shopPhone, phone: fmtPhone(t.phone) };
   return tpl.replace(/\{(\w+)\}/g, (m, k) => map[k] ?? m).replace(/\s+\./g, '.').replace(/ {2,}/g, ' ').trim();
 }
 /* ---- message panel: email / text / copy ---- */
-const MSG_TYPES = [['msgReady', 'Ready for pickup'], ['msgApproval', 'Ask for approval'], ['msgReminder', 'Pickup reminder'], ['msgReview', 'Review request']];
-const MSG_SUBJ = { msgReady: 'Your {device} is ready for pickup — Rapid Computer Repair', msgApproval: 'Repair estimate for your {device} (ticket #{no})',
+const MSG_TYPES = [['msgReceived', 'Check-in receipt'], ['msgReady', 'Ready for pickup'], ['msgApproval', 'Ask for approval'], ['msgReminder', 'Pickup reminder'], ['msgFinal', 'Final pickup notice'], ['msgReview', 'Review request']];
+const MSG_SUBJ = { msgReceived: 'We received your {device} — ticket #{no}', msgFinal: 'Final notice: please pick up your {device} (ticket #{no})', msgReady: 'Your {device} is ready for pickup — Rapid Computer Repair', msgApproval: 'Repair estimate for your {device} (ticket #{no})',
   msgReminder: 'Reminder: your {device} is ready for pickup', msgReview: 'Thank you from Rapid Computer Repair' };
 let msgKind = 'msgReady';
 const curTicket = () => { const f = $('#tf'); return f ? { ...tmp, ...formData(f) } : tmp; };   // includes edits not saved yet
@@ -919,7 +933,7 @@ const sig = () => `\n\nRapid Computer Repair\n${S().shopPhone}\n${S().shopWeb}`;
 function msgOpen(id, k) { editTicket(id); showMsg(k); }
 function showMsg(k) {
   const p = $('#msgpanel'); if (!p) return;
-  k = k || (tmp.status === 'approval' ? 'msgApproval' : tmp.status === 'done' ? 'msgReview' : tmp.status === 'ready' && daysSince(readySince(tmp)) >= 2 ? 'msgReminder' : 'msgReady');
+  k = k || (tmp.status === 'approval' ? 'msgApproval' : tmp.status === 'done' ? 'msgReview' : tmp.status === 'ready' ? (daysSince(readySince(tmp)) >= 30 ? 'msgFinal' : daysSince(readySince(tmp)) >= 2 ? 'msgReminder' : 'msgReady') : ['checkin', 'diag'].includes(tmp.status) ? 'msgReceived' : 'msgReady');
   msgKind = k; const t = curTicket(); p.hidden = false;
   $$('#msgseg button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
   $('#msgsubj').value = fillMsg(MSG_SUBJ[k], t); $('#msgbody').value = fillMsg(S()[k], t);
@@ -941,9 +955,10 @@ function sendMsg(how) {
 function msgSent(id, k, how) {
   const t = DB.tickets.find(x => x.id === id); if (!t) return;          // ticket not checked in yet: nothing to note
   if (k === 'msgReminder') t.lastReminder = nowISO(); if (k === 'msgReview') t.reviewAsked = nowISO();
+  if (k === 'msgFinal') t.lastReminder = t.finalNotice = nowISO(); if (k === 'msgReceived') t.receiptSent = nowISO();
   const note = { t: nowISO(), x: `"${MSG_TYPES.find(m => m[0] === k)[1]}" message ${how === 'email' ? 'emailed' : how === 'text' ? 'texted' : 'copied'}.` };
   (t.notes = t.notes || []).push(note);
-  if (tmp && tmp.id === id) { (tmp.notes = tmp.notes || []).push(note); tmp.lastReminder = t.lastReminder; tmp.reviewAsked = t.reviewAsked; if ($('#tnotes')) drawNotes(); }
+  if (tmp && tmp.id === id) { (tmp.notes = tmp.notes || []).push(note); tmp.lastReminder = t.lastReminder; tmp.reviewAsked = t.reviewAsked; tmp.finalNotice = t.finalNotice; tmp.receiptSent = t.receiptSent; if ($('#tnotes')) drawNotes(); }
   upsert('tickets', t);
   if (how !== 'copy') toast(how === 'email' ? 'Email opened — check it and click Send.' : 'Text opened in your messaging app.');
 }
@@ -1028,11 +1043,11 @@ function tCard(t, withStatus) {
   if (withStatus) return `<div class="tc" onclick="editTicket('${t.id}')" style="border-left:4px solid ${(ST[t.status] || ST.checkin).c}">
     <div class="no">#${t.no} ${badge(t.status)} ${prioTag(t)}${(t.photos || []).length ? '<span>📷</span>' : ''}<span style="margin-left:auto">${t.tech ? esc(t.tech) : ''}</span><button class="mv" title="Move to another status" onclick="event.stopPropagation();statusSheet('${t.id}')">⋯</button></div>
     <div class="nm">${esc(t.name)}</div><div class="dv">${esc(devName(t))}</div><div class="is">${esc(t.issue || '')}</div>
-    <div class="ft">${OPEN.includes(t.status) ? dueTag(t) : ''}${OPEN.includes(t.status) ? `<span class="tag ${age >= (t.status === 'ready' ? S().staleDays : 5) ? 'amber' : ''}">${age}d${t.status === 'ready' ? ' waiting' : ''}</span>` : `<span class="tag">${new Date(t.pickedUp || t.updated || t.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`}${invTag(t)}</div></div>`;
+    <div class="ft">${t.timerStart ? `<span class="tag timer">⏱ ${fmtMins(timeMins(t))}</span>` : ''}${OPEN.includes(t.status) ? dueTag(t) : ''}${OPEN.includes(t.status) ? `<span class="tag ${age >= (t.status === 'ready' ? S().staleDays : 5) ? 'amber' : ''}">${age}d${t.status === 'ready' ? ' waiting' : ''}</span>` : `<span class="tag">${new Date(t.pickedUp || t.updated || t.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`}${invTag(t)}</div></div>`;
   return `<div class="tc" draggable="true" ondragstart="dragStart(event,'${t.id}')" onclick="editTicket('${t.id}')">
     <div class="no">#${t.no} ${prioTag(t)} ${t.warrantyReturn ? '<span class="tag amber">Warranty</span>' : ''}${(t.photos || []).length ? `<span title="${plural(t.photos.length, 'photo')}">📷</span>` : ''}<span style="margin-left:auto">${t.tech ? esc(t.tech) : ''}</span><button class="mv" title="Move to another status" onclick="event.stopPropagation();statusSheet('${t.id}')">⋯</button></div>
     <div class="nm">${esc(t.name)}</div><div class="dv">${esc(devName(t))}</div><div class="is">${esc(t.issue || '')}</div>
-    <div class="ft">${dueTag(t)}<span class="tag ${age >= (t.status === 'ready' ? S().staleDays : 5) ? 'amber' : ''}">${age}d${t.status === 'ready' ? ' waiting' : ''}</span>${t.estimate && !t.invno ? `<span class="tag">${money0(t.estimate)}</span>` : ''}${invTag(t)}${t.backup ? '<span class="tag blue">Backup</span>' : ''}</div></div>`;
+    <div class="ft">${t.timerStart ? `<span class="tag timer">⏱ ${fmtMins(timeMins(t))}</span>` : ''}${dueTag(t)}<span class="tag ${age >= (t.status === 'ready' ? S().staleDays : 5) ? 'amber' : ''}">${age}d${t.status === 'ready' ? ' waiting' : ''}</span>${t.estimate && !t.invno ? `<span class="tag">${money0(t.estimate)}</span>` : ''}${invTag(t)}${t.backup ? '<span class="tag blue">Backup</span>' : ''}</div></div>`;
 }
 
 /* ---- ticket editor ---- */
@@ -1059,6 +1074,7 @@ function editTicket(id, pre) {
       <label>Condition on arrival<input name="condition" value="${esc(t.condition || '')}" placeholder="scratches, cracks, missing keys…"></label>
       <div class="full fl">Left with device<div class="chk">${ACCESSORIES.map(a => `<label><input type="checkbox" name="acc" value="${esc(a)}" ${(t.accessories || []).includes(a) ? 'checked' : ''}>${esc(a)}</label>`).join('')}
         <input name="accOther" class="inp" style="width:170px;padding:3px 7px" placeholder="Other…" value="${esc(accOther)}"></div></div></div>
+      <div id="shist" class="ret" hidden></div>
       <div id="wlinks" class="small" style="margin-top:8px;line-height:1.8"></div>
       <datalist id="makes">${['Dell', 'HP', 'Lenovo', 'Apple', 'ASUS', 'Acer', 'MSI', 'Microsoft', 'Samsung', 'Razer', 'Gigabyte', 'Toshiba', 'LG', 'Alienware', 'Custom'].map(x => `<option value="${x}">`).join('')}</datalist></div>
     <div class="box"><div class="bh">📷 Photos <span class="r muted small" id="phcount"></span></div>
@@ -1070,6 +1086,7 @@ function editTicket(id, pre) {
     <div class="box"><div class="bh">🛠️ Job</div>
       <div class="f"><label class="full">Problem (what the customer says) *<textarea name="issue">${esc(t.issue || '')}</textarea></label>
       <label class="full">Diagnosis / work done<textarea name="diag">${esc(t.diag || '')}</textarea></label></div>
+      <div id="ttimer" class="row" style="margin-top:10px;gap:8px"></div>
       <div class="f three" style="margin-top:10px"><label>Status<select name="status">${opt(STATUSES.map(s => [s.k, s.l]), t.status)}</select></label>
       <label>Priority<select name="priority">${opt([['normal', 'Normal'], ['high', 'High'], ['rush', 'Rush']], t.priority)}</select></label>
       <label>Technician<select name="tech">${opt(['', ...S().techs], t.tech)}</select></label>
@@ -1104,13 +1121,35 @@ function editTicket(id, pre) {
      <span class="small muted">Email opens a ready-to-send message in your email program. Each message is noted on the ticket.</span></div></div>`;
   const foot = `<button class="btn pri" onclick="saveTicket()">${id ? 'Save' : 'Check in'}</button>
     <button class="btn" onclick="saveTicket(true)">${id ? 'Save' : 'Check in'} & print ticket</button>
+    ${id && OPEN.includes(t.status) ? `<button class="btn ok" onclick="pickupFlow('${t.id}')">📦 Pickup</button>` : ''}
     ${id ? `<button class="btn" onclick="printClaim('${t.id}')">🖨 Print</button><button class="btn" onclick="showMsg()">💬 Message customer</button><button class="btn" onclick="openInvoice('${t.id}')" title="${t.invno ? 'Opens this ticket\'s invoice in the Invoice Form (to mark it paid, reprint…)' : 'Opens the Invoice Form with this ticket\'s customer, device, work and parts filled in'}">${invoiceBtnLabel(t)}</button>
     <button class="btn" onclick="editAppt(null,{ticketId:'${t.id}',name:${js(t.name || '')},phone:${js(t.phone || '')},type:'Pickup'})">📅 Schedule</button>
     <button class="btn" onclick="editOrder(null,{ticketId:'${t.id}'})">🚚 Order part</button>
     <span class="grow"></span><button class="btn danger" onclick="delTicket('${t.id}')">Delete</button>` : ''}`;
   modal(id ? `Ticket #${t.no} · ${badge(t.status)}` : 'New repair ticket — check in', body, foot, true);
-  drawParts(); drawNotes(); custLookup(); drawChecks(); wl(); cquick(); drawPhotos(); drawSigs();
+  drawParts(); drawNotes(); custLookup(); drawChecks(); wl(); cquick(); drawPhotos(); drawSigs(); drawTimer();
 }
+/* ---- ⏱ labor timer: t.timeLog = [{s, e}], t.timerStart while running; total goes to the invoice's Time field ---- */
+const timeMins = t => Math.round((t.timeLog || []).reduce((s, x) => s + (Date.parse(x.e) - Date.parse(x.s)), 0) / 6e4 + (t.timerStart ? (Date.now() - Date.parse(t.timerStart)) / 6e4 : 0));
+const fmtMins = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} hr${m >= 120 ? 's' : ''}${m % 60 ? ' ' + (m % 60) + ' min' : ''}`;
+function drawTimer() {
+  const el = $('#ttimer'); if (!el || !tmp) return; const m = timeMins(tmp), run = !!tmp.timerStart;
+  el.innerHTML = `<span>⏱ Labor time: <b>${m || run ? fmtMins(m) : 'not started'}</b>${run ? ' <span class="tag timer">running</span>' : ''}</span>
+    <button type="button" class="btn sm ${run ? '' : 'ok'}" onclick="timerToggle()">${run ? '⏸ Stop' : m ? '▶ Resume' : '▶ Start timer'}</button>${(tmp.timeLog || []).length && !run ? '<button type="button" class="btn sm" onclick="timerReset()">Reset</button>' : ''}`;
+}
+function timerSave() {           // the timer keeps going even if the ticket window is closed without saving
+  const d = DB.tickets.find(x => x.id === tmp.id);
+  if (d) { d.timeLog = JSON.parse(JSON.stringify(tmp.timeLog || [])); d.timerStart = tmp.timerStart || null; upsert('tickets', d); }
+  drawTimer();
+}
+function timerToggle() {
+  const now = nowISO();
+  if (tmp.timerStart) { (tmp.timeLog = tmp.timeLog || []).push({ s: tmp.timerStart, e: now }); tmp.timerStart = null; toast(`Timer stopped — ${fmtMins(timeMins(tmp))} total.`); }
+  else tmp.timerStart = now;
+  timerSave();
+}
+function timerReset() { if (!confirm('Reset the labor time on this ticket to zero?')) return; tmp.timeLog = []; tmp.timerStart = null; timerSave(); }
+setInterval(() => { if ($('#ttimer') && tmp && tmp.timerStart) drawTimer(); }, 30000);
 
 /* ---- phone helpers: call / text / map, photos, signatures, barcode scan, status sheet ---- */
 function cquick() {
@@ -1129,7 +1168,56 @@ function sheet(title, items) {       // bottom action sheet: items = [[label, fn
 }
 function statusSheet(id) {
   const t = DB.tickets.find(x => x.id === id); if (!t) return;
-  sheet(`Move #${t.no} ${esc(t.name)} to…`, STATUSES.map(s => [`<span class="dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.c};margin-right:8px"></span>${s.l}`, () => setStatus(id, s.k), s.k === t.status]));
+  sheet(`Move #${t.no} ${esc(t.name)} to…`, STATUSES.map(s => [`<span class="dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.c};margin-right:8px"></span>${s.l}${s.k === 'done' && t.status !== 'done' ? ' <span class="muted small">— pickup checklist</span>' : ''}`,
+    () => s.k === 'done' && t.status !== 'done' ? pickupFlow(id) : setStatus(id, s.k), s.k === t.status]));
+}
+
+/* ---- 📦 Pickup checklist: payment, accessories back, tested with the customer, pickup signature → Picked Up ---- */
+function pickupFlow(id) {
+  const t = DB.tickets.find(x => x.id === id); if (!t) return;
+  if (!$('#modal').hidden && tmp && tmp.id === id && modalDirty && !confirm('Save the changes on this ticket first?\n\nOK = save and continue · Cancel = go back')) return;
+  if (!$('#modal').hidden && tmp && tmp.id === id && modalDirty) saveTicket();
+  const st = { acc: {}, tested: false, sig: t.sigOut || null };
+  const ov = overlay('<div class="ob pk"></div>');
+  const draw = () => {
+    const e = invoiceFor(t), acc = t.accessories || [];
+    const pay = e ? (e.status === 'paid' ? `<span class="tag green">✓ Paid #${esc(e.invno)}</span> <span class="muted small">${esc(e.paidMethod || '')}</span>`
+        : e.status === 'unpaid' ? `<div><span class="tag red">Unpaid #${esc(e.invno)} · ${money(e.total)}</span></div><div class="small muted" style="margin:6px 0 4px">Paid now by:</div><div class="paygrid">${PAY_METHODS.map(m => `<button class="btn sm" data-pay="${esc(m)}">${esc(m)}</button>`).join('')}</div>`
+        : `<span class="tag">Invoice #${esc(e.invno)}</span>`)
+      : `<div class="small muted" style="margin-bottom:6px">No invoice yet${t.estimate ? ` · estimate ${money(num(t.estimate) - num(t.deposit))} due` : ''}.</div><button class="btn sm pri" data-a="inv">🧾 Make invoice</button>`;
+    const ok = { pay: !!e && e.status === 'paid', acc: acc.every(a => st.acc[a]), tested: st.tested, sig: !!st.sig };
+    const step = (done, title, body) => `<div class="pk-step ${done ? 'ok' : ''}"><div class="pk-h"><span class="pk-c">${done ? '✓' : ''}</span>${title}</div><div class="pk-b">${body}</div></div>`;
+    ov.querySelector('.pk').innerHTML = `<div style="font-weight:700;font-size:17px">📦 Pickup — #${t.no} ${esc(t.name)}</div><div class="small muted" style="margin:2px 0 12px">${esc(devName(t))}</div>
+      ${step(ok.pay, '1. Payment', pay)}
+      ${step(ok.acc, '2. Return what they left', acc.length ? `<div class="chk">${acc.map(a => `<label><input type="checkbox" data-acc="${esc(a)}" ${st.acc[a] ? 'checked' : ''}> ${esc(a)}</label>`).join('')}</div>` : '<span class="muted small">Nothing was left with the device.</span>')}
+      ${step(ok.tested, '3. Show it working', `<label class="row small" style="gap:8px"><input type="checkbox" data-a="tested" ${st.tested ? 'checked' : ''}> Customer saw the device working${t.backup ? ' and their data is there' : ''}</label>`)}
+      ${step(ok.sig, '4. Pickup signature', st.sig ? `<img src="${st.sig.d}" alt="" style="max-height:60px;background:#fff;border-radius:4px"> <button class="btn sm" data-a="sig">Sign again</button>` : '<button class="btn sm pri" data-a="sig">✍️ Customer signs</button>')}
+      <div class="row" style="margin-top:14px"><button class="btn" data-a="x">Cancel</button><span class="grow"></span><button class="btn pri" data-a="done">${Object.values(ok).every(Boolean) ? '✓ Complete pickup' : 'Complete pickup anyway'}</button></div>`;
+  };
+  draw();
+  ov.onchange = e => { const a = e.target.dataset.acc; if (a) st.acc[a] = e.target.checked; if (e.target.dataset.a === 'tested') st.tested = e.target.checked; draw(); };
+  ov.onclick = async e => {
+    const b = e.target.closest('[data-a],[data-pay]'); if (e.target === ov) return ov.remove(); if (!b) return;
+    if (b.dataset.pay) { const inv = invoiceFor(t); b.disabled = true;
+      try { await setInvoicePay(inv.id, { status: 'paid', paidDate: longDate(new Date()), paidMethod: b.dataset.pay, paidNote: '' }); toast(`Invoice ${inv.invno} marked paid (${b.dataset.pay}).`); }
+      catch (err) { toast('Could not mark it paid: ' + err.message, 'err'); }
+      return draw(); }
+    const a = b.dataset.a;
+    if (a === 'x') ov.remove();
+    if (a === 'inv') { ov.remove(); openInvoice(id); }
+    if (a === 'sig') sigPad('sigOut', { name: t.name, done: sg => { st.sig = sg; draw(); } });
+    if (a === 'done') {
+      const tt = DB.tickets.find(x => x.id === id);
+      if (st.sig) tt.sigOut = st.sig;
+      const missing = [(t.accessories || []).filter(x => !st.acc[x]).length ? 'not all items returned' : '', !st.tested ? 'not shown working' : ''].filter(Boolean);
+      const accs = tt.accessories || [], back = accs.filter(x => st.acc[x]);
+      const itemsNote = !accs.length ? '' : back.length === accs.length ? 'all items returned' : `items returned: ${back.join(', ') || 'none'}`;
+      (tt.notes = tt.notes || []).push({ t: nowISO(), x: 'Picked up — checklist: ' + [invoiceFor(tt)?.status === 'paid' ? 'paid' : 'NOT marked paid', itemsNote, st.tested ? 'shown working' : 'not shown working', st.sig ? 'signed' : 'not signed'].filter(Boolean).join(', ') + '.' });
+      ov.remove(); if (!$('#modal').hidden && tmp && tmp.id === id) closeModal(true);
+      setStatus(id, 'done', true);
+      toast(`#${t.no} picked up${missing.length ? ' (' + missing.join(', ') + ')' : ''}.`, '', [['⭐ Ask for a review', () => msgOpen(id, 'msgReview')]]);
+    }
+  };
 }
 
 // Photos: shrunk on the phone (max 1600 px JPEG), kept in this browser until the ticket is saved,
@@ -1208,8 +1296,9 @@ function drawSigs() {
   const one = (k, l) => { const s = tmp[k]; return `<div class="sig">${s ? `<img src="${s.d}" alt=""><div>${l} · ${fmtTs(s.t)}</div><button type="button" class="btn sm" onclick="sigPad('${k}')">Sign again</button>` : `<div>${l}</div><button type="button" class="btn sm pri" onclick="sigPad('${k}')">✍️ Sign</button>`}</div>`; };
   el.innerHTML = one('sigIn', 'Drop-off') + one('sigOut', 'Pickup');
 }
-function sigPad(kind) {
-  const ov = overlay(`<div class="ob"><div style="margin-bottom:6px"><b>${kind === 'sigIn' ? 'Drop-off' : 'Pickup'} signature</b> <span class="muted small">— ${esc(tmp.name || 'customer')}, please sign below${kind === 'sigIn' ? ' to agree to the repair terms' : ' to confirm you picked up your device'}</span></div>
+function sigPad(kind, opts) {        // opts.name / opts.done(sig) let the pickup checklist use it without the ticket window
+  opts = opts || {};
+  const ov = overlay(`<div class="ob"><div style="margin-bottom:6px"><b>${kind === 'sigIn' ? 'Drop-off' : 'Pickup'} signature</b> <span class="muted small">— ${esc(opts.name || (tmp && tmp.name) || 'customer')}, please sign below${kind === 'sigIn' ? ' to agree to the repair terms' : ' to confirm you picked up your device'}</span></div>
     <canvas id="sigcanvas"></canvas>
     <div class="row" style="margin-top:10px"><button class="btn" data-a="clear">Clear</button><span class="grow"></span><button class="btn" data-a="x">Cancel</button><button class="btn pri" data-a="ok">Save signature</button></div></div>`);
   const c = ov.querySelector('canvas'), r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
@@ -1231,7 +1320,9 @@ function sigPad(kind) {
       const px = og.getImageData(0, 0, o.width, o.height), a = px.data;    // pure black & white keeps the PNG tiny (it's synced with the tickets)
       for (let i = 0; i < a.length; i += 4) { const v = a[i] < 170 ? 0 : 255; a[i] = a[i + 1] = a[i + 2] = v; a[i + 3] = 255; }
       og.putImageData(px, 0, 0);
-      tmp[kind] = { d: o.toDataURL('image/png'), t: nowISO() }; modalDirty = true; ov.remove(); drawSigs();
+      const sg = { d: o.toDataURL('image/png'), t: nowISO() }; ov.remove();
+      if (opts.done) return opts.done(sg);
+      tmp[kind] = sg; modalDirty = true; drawSigs();
       toast('Signature added — tap Save to keep it.');
     }
   };
@@ -1266,7 +1357,18 @@ function drawChecks() {
   const v = Object.values(c), ok = v.filter(x => x === 'ok').length, bad = v.filter(x => x === 'bad').length;
   $('#chksum').innerHTML = ok || bad ? `${ok} ok${bad ? ` · <span class="down">${bad} problem${bad > 1 ? 's' : ''}</span>` : ''}` : '';
 }
-function wl() { const f = $('#tf'); if (f) $('#wlinks').innerHTML = warrantyLinks(f.make.value, f.model.value, f.serial.value); }
+function wl() { const f = $('#tf'); if (f) { $('#wlinks').innerHTML = warrantyLinks(f.make.value, f.model.value, f.serial.value); serialHist(); } }
+// 🔁 Same serial number seen before → show its past tickets (warranty comebacks, repeat devices)
+const serialKey = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+function serialHist() {
+  const f = $('#tf'), el = $('#shist'); if (!f || !el) return;
+  const k = serialKey(f.serial.value);
+  const past = k.length >= 5 ? DB.tickets.filter(x => x.id !== tmp.id && serialKey(x.serial) === k).sort((a, b) => b.no - a.no) : [];
+  el.hidden = !past.length; if (!past.length) return;
+  const last = past[0], since = last.pickedUp || last.updated || last.created, days = daysSince(since);
+  el.innerHTML = `<b>🔁 This device has been here before</b> — ${plural(past.length, 'ticket')}${days <= 90 && last.status === 'done' ? ` · <span class="tag amber">last repair ${days} days ago — check warranty</span>` : ''}
+    ${past.slice(0, 4).map(x => `<div class="small">• <a href="#" onclick="if(leaveModal())editTicket('${x.id}');return false">#${x.no}</a> ${new Date(x.created).toLocaleDateString()} — ${esc((x.issue || '').slice(0, 60))}${x.diag ? ' → ' + esc(x.diag.slice(0, 50)) : ''} ${invTag(x)}</div>`).join('')}`;
+}
 // Invoices made with "Make invoice" carry ticketNo; link the newest one to its ticket automatically.
 function linkInvoices() {
   const seen = new Set(), linked = [];
@@ -1343,7 +1445,7 @@ function saveTicket(andPrint) {
   for (const idv of oldInv) { const i = nowInv.indexOf(idv); if (i >= 0) nowInv.splice(i, 1); else { const ip = DB.parts.find(x => x.id === idv); if (ip) { ip.qty = num(ip.qty) + 1; upsert('parts', ip); } } }
   upsert('tickets', t); modalDirty = false; closeModal(true); render();
   if ((t.photos || []).some(p => p.pending)) setTimeout(uploadPhotos, 900);
-  toast(isNew ? `Ticket #${t.no} checked in for ${t.name}.` : `Ticket #${t.no} saved.`);
+  toast(isNew ? `Ticket #${t.no} checked in for ${t.name}.` : `Ticket #${t.no} saved.`, '', isNew && (digits(t.phone).length >= 10 || t.email) ? [['💬 Send receipt', () => msgOpen(t.id, 'msgReceived')]] : undefined);
   if (old && old.status !== t.status && t.status === 'ready') toast(`#${t.no} is ready.`, '', [['💬 Tell the customer', () => msgOpen(t.id, 'msgReady')]]);
   if (andPrint) setTimeout(() => printClaim(t.id), 150);
 }
@@ -1353,6 +1455,7 @@ function copyForInvoice(id, open) {
   const lines = [`Customer: ${t.name}  ${fmtPhone(t.phone)}`, `Job: ${devName(t)}`, `Make: ${t.make || ''}   Model: ${t.model || ''}`, `Problem: ${t.issue || ''}`, `Resolution: ${t.diag || ''}`,
     t.battHealth ? `Battery health: ${String(t.battHealth).replace(/%$/, '')}%` : '', t.driveHealth ? `Drive health: ${t.driveHealth}` : '',
     Object.entries(t.checks || {}).some(([, v]) => v === 'bad') ? `Problems found: ${CHECKS.filter(([k]) => (t.checks || {})[k] === 'bad').map(([, l]) => l).join(', ')}` : '',
+    timeMins(t) ? `Labor time: ${fmtMins(timeMins(t))}` : '',
     ...(t.parts || []).map(p => `  ${p.desc} — ${money(num(p.price))}`), t.deposit ? `Deposit paid: ${money(num(t.deposit))}` : '', `Ticket #${t.no}`].filter(Boolean);
   copyText(lines.join('\n'), 'Invoice details');
   if (open) openInvoice();
@@ -1364,7 +1467,7 @@ const PHONE = () => matchMedia('(max-width: 760px)').matches || matchMedia('(dis
 function invoicePayload(t) {
   const bad = CHECKS.filter(([k]) => (t.checks || {})[k] === 'bad').map(([, l]) => l);
   return { no: t.no, name: t.name, phone: t.phone, make: t.make || (t.devType === 'Custom PC Build' ? 'CB' : ''), model: t.model, issue: t.issue, diag: t.diag,
-    estimate: t.estimate, deposit: t.deposit, parts: (t.parts || []).map(p => ({ desc: p.desc, price: p.price })),
+    estimate: t.estimate, deposit: t.deposit, time: timeMins(t) ? fmtMins(timeMins(t)) : '', parts: (t.parts || []).map(p => ({ desc: p.desc, price: p.price })),
     extra: [t.battHealth ? `Battery health: ${String(t.battHealth).replace(/%$/, '')}%.` : '', t.driveHealth ? `Drive health: ${t.driveHealth}.` : '', bad.length ? `Problems found: ${bad.join(', ')}.` : ''].filter(Boolean) };
 }
 function openInvoice(ticketId) {
@@ -1657,6 +1760,54 @@ function invBody() {
     ${list.slice(0, ui.iLimit).map(e => `<tr class="click" onclick="invModal(${js(e.id)})"><td><b>${esc(e.invno || '—')}</b>${e.flags.length ? ' <span title="' + esc(e.flags.join('; ')) + '">⚠</span>' : ''}</td><td>${esc(e.date)}</td><td>${esc(nameFor(e))}<div class="muted small">${esc(fmtPhone(e.phone))}</div></td><td>${esc(e.job)}</td><td class="num">${money(e.total)}</td><td style="white-space:nowrap">${invStatus(e)} ${e.status === 'unpaid' ? payBtn(e) : ''}</td></tr>`).join('')}
     <tr><td colspan="4"><b>${plural(list.length, 'invoice')}</b>${q ? ' (all dates)' : ''}</td><td class="num"><b>${money(sum(list.filter(isRev), e => e.total))}</b></td><td></td></tr></table></div>
     ${list.length > ui.iLimit ? `<p><button class="btn" onclick="ui.iLimit+=200;$('#ilist').innerHTML=invBody()">Show more (${list.length - ui.iLimit} left)</button></p>` : ''}`;
+}
+
+/* ============ DAILY CLOSE: what came in, what went out, money collected (by method), tomorrow ============ */
+function vClose() {
+  const d = ui.closeDay || today(), day = parseYMD(d), dayA = day.getTime(), dayB = dayA + 864e5, long = longDate(day);
+  const within = iso => iso && Date.parse(iso) >= dayA && Date.parse(iso) < dayB;
+  const inT = DB.tickets.filter(t => within(t.created)), outT = DB.tickets.filter(t => within(t.pickedUp));
+  const paid = INV.filter(e => e.status === 'paid' && e.paidDate === long), byM = {};
+  for (const e of paid) byM[e.paidMethod || 'Other'] = (byM[e.paidMethod || 'Other'] || 0) + e.total;
+  const made = INV.filter(e => e.t >= dayA && e.t < dayB && isRev(e)), unpaidMade = made.filter(e => e.status === 'unpaid');
+  const tomorrow = addDays(d, 1), appts = DB.appts.filter(a => a.date === tomorrow && !a.done).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  const open = DB.tickets.filter(t => OPEN.includes(t.status)), ready = open.filter(t => t.status === 'ready');
+  const collected = sum(paid, e => e.total), isToday = d === today();
+  const tRow = t => `<div class="li" style="cursor:pointer" onclick="editTicket('${t.id}')"><div class="tx"><b>#${t.no} ${esc(t.name)}</b><div class="s">${esc(devName(t))}${t.issue ? ' · ' + esc(t.issue.slice(0, 50)) : ''}</div></div><div>${badge(t.status)}</div></div>`;
+  const iRow = e => `<div class="li" style="cursor:pointer" onclick="invModal(${js(e.id)})"><div class="tx"><b>${esc(e.invno)}</b> ${esc(nameFor(e))}<div class="s">${esc(e.job)}${e.status === 'paid' ? ' · ' + esc(e.paidMethod || '') : ''}</div></div><div style="text-align:right"><b>${money(e.total)}</b><br>${invStatus(e)}</div></div>`;
+  return `<div class="toolbar"><div class="seg"><button onclick="ui.closeDay=addDays('${d}',-1);render()">‹</button><button class="on" style="min-width:150px">${isToday ? 'Today' : esc(day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}</button><button onclick="ui.closeDay=addDays('${d}',1);render()" ${isToday ? 'disabled' : ''}>›</button></div>
+      ${isToday ? '' : `<button class="btn sm" onclick="ui.closeDay='';render()">Back to today</button>`}<span class="grow"></span><button class="btn" onclick="copyText(closeText(),'Daily summary')">📋 Copy summary</button></div>
+    <div class="grid kpis">
+      ${kpi('Checked in', inT.length, plural(inT.length, 'device') + ' came in', "go('tickets')")}
+      ${kpi('Picked up', outT.length, plural(outT.length, 'device') + ' went home', "go('tickets')")}
+      ${kpi('Collected', money0(collected), plural(paid.length, 'payment') + ' marked paid', '', collected ? 'good' : '')}
+      ${kpi('Cash to count', money0(byM.Cash || 0), 'should be in the drawer', '')}
+    </div>
+    <div class="grid c2" style="margin-bottom:14px">
+      <div class="card"><h3>💵 Payments by method</h3>${Object.keys(byM).length ? Object.entries(byM).sort((a, b) => b[1] - a[1]).map(([m, v]) => `<div class="li"><div class="tx"><b>${esc(m)}</b><div class="s">${plural(paid.filter(e => (e.paidMethod || 'Other') === m).length, 'payment')}</div></div><div><b>${money(v)}</b></div></div>`).join('') + `<div class="li"><div class="tx"><b>Total</b></div><div><b>${money(collected)}</b></div></div>` : '<div class="empty">No payments marked paid on this day.</div>'}
+        <div class="small muted" style="margin-top:6px">Counts invoices whose "Paid on" date is this day.</div></div>
+      <div class="card"><h3>🧾 Invoices dated this day <span class="r muted small">${money0(sum(made, e => e.total))}</span></h3>${made.map(iRow).join('') || '<div class="empty">No invoices dated this day.</div>'}
+        ${unpaidMade.length ? `<div class="banner" style="margin:8px 0 0">⚠ ${plural(unpaidMade.length, 'invoice')} from this day still unpaid (${money(sum(unpaidMade, e => e.total))}).</div>` : ''}</div>
+    </div>
+    <div class="grid c3">
+      <div class="card"><h3>📥 Checked in</h3>${inT.map(tRow).join('') || '<div class="empty">None.</div>'}</div>
+      <div class="card"><h3>📤 Picked up</h3>${outT.map(tRow).join('') || '<div class="empty">None.</div>'}</div>
+      <div class="card"><h3>📅 ${isToday ? 'Tomorrow' : 'Next day'}</h3>${appts.map(a => `<div class="li"><div class="ic">${apptIcon(a.type)}</div><div class="tx"><b>${fmtT(a.time) || 'Any time'}</b> · ${esc(a.type)}<div class="s">${esc(a.name || '')}</div></div></div>`).join('') || '<div class="empty">Nothing scheduled.</div>'}
+        <div class="small muted" style="margin-top:8px">Still open: <b>${open.length}</b> tickets · <b>${ready.length}</b> waiting for pickup</div></div>
+    </div>`;
+}
+function closeText() {          // plain-text version for texting / notes
+  const d = ui.closeDay || today(), day = parseYMD(d), dayA = day.getTime(), dayB = dayA + 864e5, long = longDate(day);
+  const within = iso => iso && Date.parse(iso) >= dayA && Date.parse(iso) < dayB;
+  const inT = DB.tickets.filter(t => within(t.created)), outT = DB.tickets.filter(t => within(t.pickedUp));
+  const paid = INV.filter(e => e.status === 'paid' && e.paidDate === long), byM = {};
+  for (const e of paid) byM[e.paidMethod || 'Other'] = (byM[e.paidMethod || 'Other'] || 0) + e.total;
+  const open = DB.tickets.filter(t => OPEN.includes(t.status));
+  return [`Rapid Computer Repair — daily close ${day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+    `Checked in: ${inT.length}${inT.length ? ' (' + inT.map(t => '#' + t.no + ' ' + t.name).join(', ') + ')' : ''}`,
+    `Picked up: ${outT.length}${outT.length ? ' (' + outT.map(t => '#' + t.no + ' ' + t.name).join(', ') + ')' : ''}`,
+    `Collected: ${money(sum(paid, e => e.total))}${Object.keys(byM).length ? ' — ' + Object.entries(byM).map(([m, v]) => `${m} ${money(v)}`).join(', ') : ''}`,
+    `Open tickets: ${open.length} (${open.filter(t => t.status === 'ready').length} ready for pickup)`].join('\n');
 }
 
 /* ============ FOLLOW-UPS ============ */
@@ -2058,9 +2209,9 @@ function vSettings() {
     <label class="full">Technicians (comma-separated)<input name="techs" value="${esc(s.techs.join(', '))}"></label>
     <label class="full">Device types (comma-separated)<input name="devTypes" value="${esc(s.devTypes.join(', '))}"></label>
     <label>Next ticket number<input name="nextTicket" type="number" value="${esc(s.nextTicket)}"></label><label>Pickup reminder after (days)<input name="staleDays" type="number" value="${esc(s.staleDays)}"></label></form></div>
-  <div class="card"><h3>💬 Message templates</h3><p class="small muted">Used by the "Copy … text" buttons. Fill-ins: {first} {name} {device} {no} {estimate} {total} {diag} {review} {shopPhone}</p>
+  <div class="card"><h3>💬 Message templates</h3><p class="small muted">Used by the "Copy … text" buttons. Fill-ins: {first} {name} {device} {no} {estimate} {estimateLine} {total} {diag} {review} {shopPhone} {readyDate} {readyDays}</p>
     <form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')">
-    ${[['msgReady', 'Ready for pickup'], ['msgApproval', 'Ask for approval'], ['msgReminder', 'Pickup reminder'], ['msgReview', 'Review request']].map(([k, l]) => `<label class="full">${l}<textarea name="${k}" rows="2">${esc(s[k])}</textarea></label>`).join('')}</form></div>
+    ${MSG_TYPES.map(([k, l]) => `<label class="full">${l}<textarea name="${k}" rows="2">${esc(s[k])}</textarea></label>`).join('')}</form></div>
   <div class="card"><h3>🧾 Printed check-in ticket terms</h3><p class="small muted">Printed on every repair ticket. These are a starting point — not reviewed by a lawyer.</p>
     <form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')"><label class="full"><textarea name="terms" rows="8">${esc(s.terms)}</textarea></label></form></div>
   <div class="card"><h3>💾 Backup</h3><p class="small muted">${DB.tickets.length} tickets · ${DB.parts.length} parts · ${DB.orders.length} orders · ${DB.appts.length} appointments · ${DB.tasks.length} tasks${DB.savedAt ? ' · last change ' + fmtTs(DB.savedAt) : ''}</p>

@@ -179,7 +179,7 @@
     table.items th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
-<meta name="rcr-build" content="20261119-112211">
+<meta name="rcr-build" content="20261119-113230">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -1347,6 +1347,7 @@ async function fromTicketHash() {
     make: brand, model: t.model || '', desc: t.issue || '', res: [t.diag, ...(t.extra || [])].filter(Boolean).join('\n'),
     ticketNo: String(t.no || ''),
   });
+  if (t.time) b.time = t.time;          // labor time from the dashboard's ticket timer
   const lines = (t.parts || []).filter(l => l.desc || l.price).map(l => ({ qty: 1, desc: /^(labor|parts?|fee|travel)\b/i.test(l.desc) ? l.desc : 'Part – ' + l.desc, price: p(l.price) }));
   if (!lines.some(l => /^labor/i.test(l.desc))) lines.unshift({ qty: 1, desc: 'Labor – Physical', price: lines.length ? '' : p(t.estimate) });
   if (p(t.deposit) && parseFloat(p(t.deposit)) > 0) lines.push({ qty: 1, desc: `Deposit paid (ticket #${t.no})`, price: '-' + p(t.deposit) });
