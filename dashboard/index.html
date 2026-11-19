@@ -230,6 +230,12 @@
   .ag.done .ok { background:var(--good); border-color:var(--good); }
   .ag.done .nm { text-decoration:line-through; color:var(--mut); }
   .ag .acts { grid-column:2 / 4; display:flex; gap:6px; flex-wrap:wrap; } .ag .acts:empty { display:none; }
+  .tabprev { display:flex; justify-content:space-around; align-items:flex-end; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:10px 4px 8px; margin-bottom:12px; }
+  .tabprev .pv { display:flex; flex-direction:column; align-items:center; font-size:22px; line-height:1.1; min-width:52px; }
+  .tabprev .pv small { font-size:11px; color:var(--mut); margin-top:3px; }
+  .tabprev .pv.plus i { font-style:normal; background:var(--accent); color:#fff; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; font-size:22px; }
+  .tabprev .pv.plus small { color:var(--accent); font-weight:700; }
+  .phone-only { display:none; }
   .tphone .tc { margin-bottom:10px; padding:11px 12px; border-radius:12px; }
   .tphone .tc .nm { font-size:15.5px; } .tphone .tc .no .badge { font-size:10.5px; }
   /* phone */
@@ -298,6 +304,8 @@
     .toast { max-width:none; }
     .row2 { grid-template-columns:1fr; }
     .btn { padding:8px 12px; } .btn.sm { padding:5px 9px; }
+    .phone-only { display:revert; }
+    #tabbar { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
     #tabbar { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:30; background:var(--card); border-top:1px solid var(--line); padding:6px 4px calc(6px + env(safe-area-inset-bottom)); box-shadow:0 -4px 16px rgba(0,0,0,.08); }
     #tabbar a { flex:1; min-height:62px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:12.5px; font-weight:500; color:var(--mut); text-decoration:none; cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent; border-radius:14px; }
     #tabbar a:active { background:var(--accent2); }
@@ -338,7 +346,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-112009">
+<meta name="rcr-build" content="20261119-112211">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -355,6 +363,7 @@
     <nav id="nav"></nav>
     <div class="side-foot">
       <a href="#" onclick="openInvoice();return false" style="color:#9fb7e8">🧾 Open Invoice Form ↗</a><br><br>
+      <span class="phone-only"><a href="#" onclick="tabSetup();return false" style="color:#9fb7e8">📱 Change bottom bar buttons</a><br><br></span>
       <span class="kbd-tip">Shortcuts: <kbd>N</kbd> new ticket · <kbd>I</kbd> invoice · <kbd>/</kbd> search · <kbd>1</kbd>–<kbd>0</kbd> pages<br><br></span>
       <div id="uptime"></div>
       Theme <select id="theme" onchange="setTheme(this.value)"><option value="">☀ Light</option><option value="dark">🌙 Dark</option><option value="terminal">💾 Terminal</option></select>
@@ -696,11 +705,50 @@ function navHTML() {
 }
 const TOUCH = () => matchMedia('(pointer:coarse)').matches || matchMedia('(max-width:760px)').matches;
 // Phone: tab bar along the bottom (the ☰ menu still has every page)
+// The 4 outer buttons are chosen per device (localStorage "rcr-tabs"); ＋ Check in always sits in the middle.
+const TAB_LABEL = { home: 'Home', tickets: 'Tickets', customers: 'Customers', money: 'Sales', follow: 'Follow-ups', calendar: 'Appts', inventory: 'Inventory', orders: 'Orders', tools: 'Tools', settings: 'Settings', menu: 'More' };
+const TAB_DEFAULT = ['home', 'tickets', 'customers', 'menu'];
+const tabIcon = k => k === 'menu' ? '☰' : VIEWS[k][0];
+function tabSlots() {
+  try { const s = JSON.parse(localStorage.getItem('rcr-tabs') || 'null'); if (Array.isArray(s) && s.length === 4 && s.every(k => TAB_LABEL[k])) return s; } catch { }
+  return TAB_DEFAULT;
+}
 function tabbarHTML() {
-  const open = DB.tickets.filter(t => OPEN.includes(t.status)).length;
-  const it = (k, ic, l, n) => `<a class="${view === k ? 'on' : ''}" onclick="go('${k}')"><span class="ti">${ic}${n ? `<b>${n}</b>` : ''}</span>${l}</a>`;
-  return it('home', '📊', 'Home') + it('tickets', '🛠️', 'Tickets', open) + `<a class="plus" onclick="editTicket()"><span class="ti">＋</span>Check in</a>` +
-    it('customers', '👥', 'Customers') + `<a onclick="document.body.classList.add('navopen')"><span class="ti">☰</span>More</a>`;
+  const ct = { tickets: DB.tickets.filter(t => OPEN.includes(t.status)).length, follow: followItems().length, calendar: DB.appts.filter(a => !a.done && a.date === today()).length,
+    inventory: DB.parts.filter(p => num(p.qty) <= num(p.min)).length, orders: DB.orders.filter(o => !['received', 'cancelled'].includes(o.status)).length };
+  const it = k => k === 'menu' ? `<a onclick="document.body.classList.add('navopen')"><span class="ti">☰</span>More</a>`
+    : `<a class="${view === k ? 'on' : ''}" onclick="go('${k}')"><span class="ti">${tabIcon(k)}${ct[k] ? `<b>${ct[k]}</b>` : ''}</span>${TAB_LABEL[k]}</a>`;
+  const s = tabSlots();
+  return it(s[0]) + it(s[1]) + `<a class="plus" onclick="editTicket()"><span class="ti">＋</span>Check in</a>` + it(s[2]) + it(s[3]);
+}
+function tabSetup() {
+  const s = tabSlots(), opts = v => Object.keys(TAB_LABEL).map(k => `<option value="${k}" ${k === v ? 'selected' : ''}>${tabIcon(k)}  ${k === 'menu' ? 'More (opens the full menu)' : VIEWS[k][1]}</option>`).join('');
+  document.body.classList.remove('navopen');
+  const ov = overlay(`<div class="ob"><div style="font-weight:700;font-size:17px">📱 Bottom bar buttons</div>
+    <div class="small muted" style="margin:4px 0 12px">Pick the 4 pages you use most on this phone. ＋ Check in always stays in the middle, and ☰ at the top always has every page.</div>
+    <div class="tabprev"></div>
+    ${[0, 1, 2, 3].map(i => `<label class="fl" style="margin-bottom:9px">${['1st (left)', '2nd', '4th', '5th (right)'][i]} button<select class="inp" data-i="${i}">${opts(s[i])}</select></label>`).join('')}
+    <div class="row" style="margin-top:12px"><button class="btn" data-a="reset">Reset</button><span class="grow"></span><button class="btn" data-a="x">Cancel</button><button class="btn pri" data-a="ok">Save</button></div></div>`);
+  const pick = () => [...ov.querySelectorAll('select')].map(x => x.value);
+  const prev = () => { ov.querySelector('.tabprev').innerHTML = pick().map((k, i) => (i === 2 ? '<span class="pv plus"><i>＋</i><small>Check in</small></span>' : '') + `<span class="pv">${tabIcon(k)}<small>${TAB_LABEL[k]}</small></span>`).join(''); };
+  ov.onchange = prev; prev();
+  ov.onclick = e => {
+    const a = e.target.dataset.a; if (e.target === ov || a === 'x') return ov.remove();
+    if (a === 'reset') { ov.querySelectorAll('select').forEach((x, i) => x.value = TAB_DEFAULT[i]); prev(); }
+    if (a === 'ok') {
+      const v = pick(); if (new Set(v).size < 4) return toast('Each button needs a different page.', 'err');
+      localStorage.setItem('rcr-tabs', JSON.stringify(v)); ov.remove(); render(); toast('Bottom bar saved');
+    }
+  };
+}
+// Hold a finger on the bottom bar for a moment to change its buttons.
+function tabHold() {
+  const bar = $('#tabbar'); let tm = 0, held = false;
+  const stop = () => clearTimeout(tm);
+  bar.addEventListener('pointerdown', () => { held = false; stop(); tm = setTimeout(() => { held = true; if (navigator.vibrate) navigator.vibrate(30); tabSetup(); }, 650); });
+  ['pointerup', 'pointercancel', 'pointerleave', 'pointermove'].forEach(ev => bar.addEventListener(ev, e => { if (ev !== 'pointermove' || Math.abs(e.movementX) + Math.abs(e.movementY) > 6) stop(); }));
+  bar.addEventListener('click', e => { if (held) { e.stopPropagation(); e.preventDefault(); held = false; } }, true);
+  bar.addEventListener('contextmenu', e => e.preventDefault());
 }
 function render() {
   view = location.hash.slice(1); if (!VIEWS[view]) view = 'home';
@@ -1987,6 +2035,8 @@ function vSettings() {
   const s = S();
   const u = HOSTED && RCRDrive.user();
   return `<div class="grid c2e">
+  ${PHONE_W.matches ? `<div class="card"><h3>📱 Bottom bar</h3><p class="small muted">Choose the 4 pages on the bar at the bottom of this phone (＋ Check in stays in the middle). Tip: you can also hold your finger on the bar.</p>
+    <div class="row"><b>${tabSlots().map(k => tabIcon(k) + ' ' + TAB_LABEL[k]).join(' · ')}</b></div><div class="row" style="margin-top:10px"><button class="btn pri" onclick="tabSetup()">Change buttons</button></div></div>` : ''}
   ${HOSTED ? `<div class="card"><h3>🔐 Google account</h3>
     <p class="small">${folderOK ? `Signed in as <b>${esc(u ? u.email : '')}</b> <span class="tag green">OK</span> — saving to <b>My Drive › Documents › RCR</b>` : '<span class="tag amber">Not signed in</span> — changes are kept on this device until you sign in.'}</p>
     <p class="small muted">The web app reads and saves the same files as the office computer: the invoice log in <b>RCR/${esc(s.logPaths[0] || '')}</b> and the dashboard data in <b>RCR/${esc(s.dataPath)}/${DATA_FILE}</b>. Google sign-ins last an hour; the app renews it by itself.</p>
@@ -2075,6 +2125,7 @@ setInterval(() => { if (document.visibilityState === 'visible' && folderOK && !p
 window.addEventListener('DOMContentLoaded', async function start() {
   $('#logo').src = LOGO; $('#favicon').href = LOGO; setTheme(localStorage.getItem('rcr-theme') || '');
   if (TOUCH()) $('#gq').placeholder = 'Search tickets, customers, invoices…';   // no "( / )" keyboard hint on phones
+  tabHold();
   setSync('local'); render();
   try {
     const cached = await idb.get('inv'); if (cached && cached.INV) { INV = cached.INV; invInfo = cached.invInfo || invInfo; custCache = null; render(); }
