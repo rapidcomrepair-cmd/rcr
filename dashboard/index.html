@@ -53,6 +53,9 @@
   .row2 input { padding:7px 9px; border:1px solid var(--line); border-radius:8px; font:inherit; color:var(--ink, inherit); background:var(--card, #fff); }
   .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .grow { flex:1; }
+  .qschips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; } #qsf .row2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); margin-bottom:8px; } #qsf label { min-width:0; } #qsf input, #qsf select { width:100%; min-width:0; box-sizing:border-box; } #qsf .fl { margin-bottom:6px; }
+  .qstot { text-align:right; font-size:18px; margin-top:12px; } .qstot b { font-size:22px; margin-left:6px; }
+  .qsrcpt { white-space:pre-wrap; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font:13px/1.45 ui-monospace, Consolas, monospace; margin:0; }
   .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
   .toolbar input[type=search], .toolbar select { padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
   .toolbar input[type=search] { min-width:240px; }
@@ -304,7 +307,8 @@
     .tablewrap > table.t td.num { text-align:left; }
     .tablewrap > table.t td[data-l]::after { content:' ' attr(data-l); color:var(--mut); font-size:12px; }
     .tablewrap > table.t td .muted.small { display:inline; margin-left:4px; }
-    .top .btn.pri { display:none; }                      /* the tab bar has ＋ Check in */
+    .top .btn.pri, .top .qsb { display:none; }           /* the tab bar's ＋ has Check in and Quick sale */
+    #qsf .row2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
     #modal { padding:0; }
     .mbox, .mbox.wide { width:100%; min-height:100%; border-radius:0; }
     .mbox > header { position:sticky; top:0; z-index:2; background:var(--card); padding-top:calc(14px + env(safe-area-inset-top)); }
@@ -365,7 +369,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-151805">
+<meta name="rcr-build" content="20261119-153129">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -399,6 +403,7 @@
       </div>
       <span id="sync" class="sync" onclick="syncClick()">…</span>
       <button class="btn" onclick="openInvoice()" title="Open the Invoice Form (shortcut: I)">🧾<span class="lbl"> New Invoice</span></button>
+      <button class="btn qsb" onclick="quickSale()" title="Quick sale — a paid invoice for a quick fix, no ticket (shortcut: Q)">⚡<span class="lbl"> Quick Sale</span></button>
       <button class="btn pri" onclick="editTicket()">+<span class="lbl"> New Ticket</span></button>
     </div>
     <div class="content" id="main"></div>
@@ -759,18 +764,18 @@ function tabbarHTML() {
   const it = k => k === 'menu' ? `<a onclick="document.body.classList.add('navopen')"><span class="ti">☰</span>More</a>`
     : `<a class="${view === k ? 'on' : ''}" onclick="go('${k}')"><span class="ti">${tabIcon(k)}${ct[k] ? `<b>${ct[k]}</b>` : ''}</span>${TAB_LABEL[k]}</a>`;
   const s = tabSlots();
-  return it(s[0]) + it(s[1]) + `<a class="plus" onclick="editTicket()"><span class="ti">＋</span>Check in</a>` + it(s[2]) + it(s[3]);
+  return it(s[0]) + it(s[1]) + `<a class="plus" onclick="plusSheet()"><span class="ti">＋</span>Add</a>` + it(s[2]) + it(s[3]);
 }
 function tabSetup() {
   const s = tabSlots(), opts = v => Object.keys(TAB_LABEL).map(k => `<option value="${k}" ${k === v ? 'selected' : ''}>${tabIcon(k)}  ${k === 'menu' ? 'More (opens the full menu)' : VIEWS[k][1]}</option>`).join('');
   document.body.classList.remove('navopen');
   const ov = overlay(`<div class="ob"><div style="font-weight:700;font-size:17px">📱 Bottom bar buttons</div>
-    <div class="small muted" style="margin:4px 0 12px">Pick the 4 pages you use most on this phone. ＋ Check in always stays in the middle, and ☰ at the top always has every page.</div>
+    <div class="small muted" style="margin:4px 0 12px">Pick the 4 pages you use most on this phone. ＋ Add (check in, quick sale, appointment) always stays in the middle, and ☰ at the top always has every page.</div>
     <div class="tabprev"></div>
     ${[0, 1, 2, 3].map(i => `<label class="fl" style="margin-bottom:9px">${['1st (left)', '2nd', '4th', '5th (right)'][i]} button<select class="inp" data-i="${i}">${opts(s[i])}</select></label>`).join('')}
     <div class="row" style="margin-top:12px"><button class="btn" data-a="reset">Reset</button><span class="grow"></span><button class="btn" data-a="x">Cancel</button><button class="btn pri" data-a="ok">Save</button></div></div>`);
   const pick = () => [...ov.querySelectorAll('select')].map(x => x.value);
-  const prev = () => { ov.querySelector('.tabprev').innerHTML = pick().map((k, i) => (i === 2 ? '<span class="pv plus"><i>＋</i><small>Check in</small></span>' : '') + `<span class="pv">${tabIcon(k)}<small>${TAB_LABEL[k]}</small></span>`).join(''); };
+  const prev = () => { ov.querySelector('.tabprev').innerHTML = pick().map((k, i) => (i === 2 ? '<span class="pv plus"><i>＋</i><small>Add</small></span>' : '') + `<span class="pv">${tabIcon(k)}<small>${TAB_LABEL[k]}</small></span>`).join(''); };
   ov.onchange = prev; prev();
   ov.onclick = e => {
     const a = e.target.dataset.a; if (e.target === ov || a === 'x') return ov.remove();
@@ -1574,7 +1579,7 @@ function vHomePhone() {
     ${queue.length > 10 ? `<div style="margin-top:8px"><button class="btn sm" onclick="ui.tMode='list';ui.tFilter='open';go('tickets')">All ${queue.length} in the queue →</button></div>` : ''}</div>
   ${ready.length ? `<div class="card" style="margin-bottom:12px"><h3>📦 Ready for pickup <span class="r muted small">oldest first</span></h3>${ready.slice(0, 8).map(row).join('')}</div>` : ''}
   <div class="card" style="margin-bottom:12px"><h3>Open tickets by status</h3>
-    ${open.length ? hbars(OPEN.map(k => ({ l: ST[k].l, v: cnt(k), k, click: `ui.tMode='list';ui.tFilter='${k}';go('tickets')` })), null, i => ST[i.k].c) : '<div class="empty">No open tickets. Tap ＋ Check in when a device comes in.</div>'}</div>
+    ${open.length ? hbars(OPEN.map(k => ({ l: ST[k].l, v: cnt(k), k, click: `ui.tMode='list';ui.tFilter='${k}';go('tickets')` })), null, i => ST[i.k].c) : '<div class="empty">No open tickets. Tap ＋ Add › Check in when a device comes in.</div>'}</div>
   <div class="card" style="margin-bottom:12px"><h3>🔔 Needs attention <span class="r"><button class="btn sm" onclick="go('follow')">All →</button></span></h3>
     ${fu.slice(0, 6).map(liHTML).join('') || '<div class="empty">All caught up 🎉</div>'}</div>
   <div class="card" style="margin-bottom:12px"><h3>📅 Next 7 days <span class="r"><button class="btn sm" onclick="editAppt()">+ Add</button></span></h3>
@@ -1785,6 +1790,7 @@ function custModal(key) {
    <div class="sec-h">Invoices (${c.inv.length})</div>
    ${c.inv.length ? c.inv.map(e => `<details class="inv card" style="padding:8px 12px;margin-bottom:6px"><summary><b>${esc(e.invno || '—')}</b> · ${esc(e.date)} · ${esc(e.job)} · <b>${money(e.total)}</b> ${invStatus(e)} ${e.status === 'unpaid' ? payBtn(e) : ''}</summary>${invDetail(e)}</details>`).join('') : '<div class="muted">No invoices in the log.</div>'}`;
   modal(esc(c.name || c.phone), body, `<button class="btn pri" onclick="closeModal();editTicket(null,{name:${js(c.name)},phone:${js(c.phone)},email:${js(c.email)},addr:${js(c.addr)}})">+ New ticket for ${esc(first(c.name))}</button>
+    <button class="btn" onclick="closeModal();quickSale({name:${js(c.name)},phone:${js(c.phone)}})">⚡ Quick sale</button>
     <button class="btn" onclick="closeModal();editAppt(null,{name:${js(c.name)},phone:${js(c.phone)},addr:${js(c.addr)}})">📅 Schedule</button>`, true);
 }
 function saveCustNote(key, v) { DB.custNotes[key] = { ...(DB.custNotes[key] || {}), text: v, upd: nowISO() }; commit(); toast('Note saved'); }
@@ -1848,6 +1854,127 @@ async function setInvoicePay(id, pay) {
     return before;
   }
   throw new Error('that invoice was not found in the invoice log');
+}
+
+/* ---- ⚡ Quick Sale: a paid invoice in seconds for quick fixes with no ticket (virus removal, password reset, remote help…).
+   Adds a normal numbered entry to the invoice log in the Invoice Form's own format, so the form can open, print or PDF it later. ---- */
+const QS_JOBS = [['Virus Removal'], ['Windows Updates'], ['Password Reset'], ['Data Transfer'], ['Printer Setup'], ['Software Install'], ['Email Setup'], ['Tune-Up'],
+  ['Remote Support', 'Labor – Remote'], ['Diagnostic', 'Labor – Diagnostic']];
+const QS_LABOR = ['Labor – Physical', 'Labor – Remote', 'Labor – Diagnostic'];
+const SHOP_ADDR = '9800 HILLWOOD PKWY SUITE 140 FORT WORTH TX 76177';     // first address in the Invoice Form's list
+const QS_REC = 'Remember to back everything up to an external drive or cloud service to prevent data loss. Keep Windows or Apple up to date with drivers and updates.';
+const isoDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Same rule as the Invoice Form: highest number of the last ~4 months + 1 (so an old typo can't push the count way up), skipping any number already used.
+function nextInvNo(log) {
+  const nums = log.map(e => ({ n: parseInt(e.invno, 10) || 0, t: Date.parse(e.date) || Date.parse(e.savedAt) || 0 })).filter(x => x.n);
+  const recent = nums.filter(x => x.t >= Date.now() - 120 * 864e5).map(x => x.n);
+  let n = Math.max(2110, ...(recent.length ? recent : nums.map(x => x.n))) + 1;
+  const used = new Set(log.map(e => String(e.invno)));
+  while (used.has(String(n))) n++;
+  return n;
+}
+function quickSale(pre) {
+  pre = pre || {};
+  if (!folder || !folderOK) return toast(HOSTED ? 'Sign in with Google first (top of the page) so the sale can be saved to your invoice log.' : 'Connect your RCR folder first (top of the page) so the sale can be saved to your invoice log.', 'err');
+  document.body.classList.remove('navopen');
+  const last = localStorage.getItem('rcr-paymethod') || 'Cash';
+  modal('⚡ Quick sale', `<form id="qsf" onsubmit="event.preventDefault();qsSave()" autocomplete="off">
+    <div class="row2"><label>Customer name<input id="qsname" list="custList" value="${esc(pre.name || '')}" placeholder="Name" onchange="qsFill()"></label>
+      <label>Phone<input id="qsphone" type="tel" inputmode="tel" value="${esc(pre.phone || '')}" placeholder="(817) 555-1234" onchange="qsFill()"></label></div>
+    <div id="qsret" class="small muted" style="margin:-2px 0 8px"></div>
+    <label class="fl">What did you do?<input id="qsjob" class="inp" value="${esc(pre.job || '')}" placeholder="e.g. Virus Removal"></label>
+    <div class="qschips">${QS_JOBS.map(([j, lab]) => `<button type="button" class="chipbtn" onclick="qsJob(${js(j)},${js(lab || 'Labor – Physical')})">${j}</button>`).join('')}</div>
+    <div class="row2"><label>Type<select id="qslab" class="inp">${QS_LABOR.map(l => `<option>${l}</option>`).join('')}</select></label>
+      <label>Amount<input id="qsamt" inputmode="decimal" placeholder="0.00" oninput="qsTot()"></label></div>
+    <div class="row2"><label>Part sold (optional)<input id="qspart" list="partList" placeholder="e.g. Charger, flash drive"></label>
+      <label>Part price<input id="qspp" inputmode="decimal" placeholder="0.00" oninput="qsTot()"></label></div>
+    <label class="fl">Notes for the invoice (optional)<textarea id="qsres" class="inp" rows="2" placeholder="What you did — prints under Resolution on the invoice"></textarea></label>
+    <div class="small muted" style="margin:10px 0 6px">How did they pay?</div>
+    <div class="paygrid" id="qspay">${PAY_METHODS.map(m => `<button type="button" class="btn ${m === last ? 'ok' : ''}" data-m="${m}" onclick="$$('#qspay .btn').forEach(b=>b.classList.toggle('ok',b===this))">${m}</button>`).join('')}</div>
+    <div class="row2" style="margin-top:10px"><label>Date<input id="qsdate" type="date" value="${isoDay()}"></label><label>Payment note (optional)<input id="qsnote" placeholder="e.g. last 4 of card"></label></div>
+    <div class="qstot">Total <b id="qstot">$0.00</b></div></form>`,
+    `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn pri" id="qsgo" onclick="qsSave()">⚡ Save paid invoice</button>`);
+  if (pre.name || pre.phone) qsFill();
+}
+function qsJob(j, lab) { $('#qsjob').value = j; $('#qslab').value = lab; $('#qsamt').focus(); }
+function qsTot() { $('#qstot').textContent = money(num($('#qsamt').value) + num($('#qspp').value)); }
+function qsFill() {
+  const n = $('#qsname'), p = $('#qsphone'), c = findCust(n.value, p.value);
+  if (c && !p.value && c.phone) p.value = c.phone;
+  if (c && !n.value && c.name) n.value = c.name;
+  $('#qsret').innerHTML = c && c.inv.length ? `Returning customer · ${plural(c.inv.length, 'invoice')} · last ${esc(c.inv[0].job || '')} ${c.last ? new Date(c.last).toLocaleDateString() : ''} ${warranty(c)}` : '';
+}
+async function qsSave() {
+  const v = id => ($('#' + id).value || '').trim();
+  const name = v('qsname'), phone = fmtPhone(v('qsphone')), job = v('qsjob'), amt = num(v('qsamt')), part = v('qspart'), pp = num(v('qspp'));
+  const m = $('#qspay .btn.ok'), method = m ? m.dataset.m : '';
+  if (!name && !phone) { toast('Add a name or a phone number.', 'err'); return $('#qsname').focus(); }
+  if (!job) { toast('Type what you did (or tap one of the buttons).', 'err'); return $('#qsjob').focus(); }
+  if (amt + pp <= 0) { toast('Enter the amount.', 'err'); return $('#qsamt').focus(); }
+  if (!method) return toast('Tap how they paid.', 'err');
+  const dv = v('qsdate'), date = longDate(dv ? new Date(dv + 'T12:00') : new Date()), now = new Date();
+  const lines = [{ qty: '1', desc: $('#qslab').value, price: amt.toFixed(2) }];
+  if (part || pp) lines.push({ qty: '1', desc: !part ? 'Part' : /^part\b/i.test(part) ? part : 'Part – ' + part, price: pp.toFixed(2) });
+  const total = (amt + pp).toFixed(2), id = uid(), to = [name, phone].filter(Boolean).join('\n');
+  $('#qsgo').disabled = true;
+  try {
+    const r = await findLog(folder, S().logPaths[0]); if (!r) throw new Error(`couldn't find the invoice log (${S().logPaths[0]})`);
+    const log = parseJSON(await (await r.fh.getFile()).text()); if (!Array.isArray(log)) throw new Error('the invoice log could not be read');
+    const invno = String(Math.max(nextInvNo(log), (parseInt(localStorage.getItem('rcr-last-invoice-no'), 10) || 0) + 1));
+    const pay = { status: 'paid', paidDate: date, paidMethod: method, paidNote: v('qsnote') };
+    const data = { addr: SHOP_ADDR, date, custname: name, custphone: phone, shipto: 'Same as recipient', ...pay, ticketNo: '', make: '', model: '',
+      desc: `Customer requested: ${job}.`, res: v('qsres'), time: '', rec: QS_REC, mobo: '', cpu: '', ram: '', gpu: '',
+      adj1lbl: 'Discount', adj1: '00.00', adj2lbl: 'Taxes', adj2: '00.00', lines, id, invno, job, to };
+    const p2 = n => String(n).padStart(2, '0');
+    const entry = { id, invno, date, customer: to, name, phone, job, make: '', model: '', ...pay, subtotal: total, adj1lbl: 'Discount', adj1: '00.00', adj2lbl: 'Taxes', adj2: '00.00', total,
+      file: `${p2(now.getMonth() + 1)}-${p2(now.getDate())}-${String(now.getFullYear()).slice(2)} - ${job} - Invoice ${invno}`, kind: 'Quick Sale', savedAt: now.toISOString(), data };
+    const before = log.length; log.push(entry);
+    const text = JSON.stringify(log, null, 1), chk = JSON.parse(text);
+    if (!Array.isArray(chk) || chk.length !== before + 1) throw new Error('safety check failed, nothing was written');
+    await writeText(r.dir, LOG_FILE, text);
+    localStorage.setItem('rcr-last-invoice-no', Math.max(parseInt(localStorage.getItem('rcr-last-invoice-no'), 10) || 0, +invno));   // the Invoice Form's "last number" memory
+    localStorage.setItem('rcr-paymethod', method);
+    INV.push(slim(entry)); INV.sort((a, b) => b.t - a.t); custCache = null; idb.set('inv', { INV, invInfo }).catch(() => {});
+    invMod[S().logPaths[0]] = (await r.fh.getFile()).lastModified;
+    closeModal(true); render(); qsDone(id);
+  } catch (err) {
+    if ($('#qsgo')) $('#qsgo').disabled = false;
+    if (err.name === 'AuthError') { folderOK = false; setSync('reconnect'); }
+    toast('Could not save the sale: ' + err.message + (err.name === 'AuthError' ? ' — tap "Sign in again" at the top, then try again.' : ''), 'err');
+  }
+}
+function receiptText(e) {
+  return `Rapid Computer Repair — Receipt\nInvoice #${e.invno} · ${e.date}\n${e.job}\n` + e.lines.map(l => `${l.d}: ${money(l.p * l.q)}`).join('\n') +
+    `\nTotal paid: ${money(e.total)}${e.paidMethod ? ' (' + e.paidMethod + ')' : ''}\n\nThank you for your business!`;
+}
+function qsDone(id) {
+  const e = INV.find(x => x.id === id); if (!e) return;
+  const c = findCust(e.name, e.phone), email = (c && c.email) || '', ph = digits(e.phone).slice(-10);
+  modal(`✓ Invoice #${esc(e.invno)} saved`, `<div style="font-size:16px;margin-bottom:8px"><b>${esc(e.name || fmtPhone(e.phone))}</b> · ${esc(e.job)} · <b>${money(e.total)}</b> <span class="tag green">Paid · ${esc(e.paidMethod)}</span></div>
+    <p class="muted small">It's in your invoice log now, so it counts in Sales, Daily Close and the customer's history. Send a receipt?</p>
+    <pre class="qsrcpt">${esc(receiptText(e))}</pre>`,
+    `<button class="btn" onclick="qsUndo(${js(id)})">↩ Undo</button><span class="grow"></span>
+     ${ph.length === 10 ? `<button class="btn" onclick="launch('sms:+1${ph}?body='+encodeURIComponent(receiptText(INV.find(x=>x.id===${js(id)}))))">💬 Text receipt</button>` : ''}
+     <button class="btn" onclick="launch('mailto:${encodeURIComponent(email)}?subject='+encodeURIComponent('Your receipt — Invoice #${esc(e.invno)}')+'&body='+encodeURIComponent(receiptText(INV.find(x=>x.id===${js(id)}))+sig()))">✉ Email receipt</button>
+     <button class="btn" onclick="closeModal();openInvoiceEntry(${js(id)})">🧾 Open invoice</button><button class="btn pri" onclick="closeModal()">Done</button>`);
+}
+// Undo right after saving: removes just this Quick Sale entry from the log (re-read fresh first).
+async function qsUndo(id) {
+  if (!confirm('Remove this quick sale from the invoice log?')) return;
+  try {
+    const r = await findLog(folder, S().logPaths[0]); if (!r) throw new Error('invoice log not found');
+    const log = parseJSON(await (await r.fh.getFile()).text()); if (!Array.isArray(log)) throw new Error('the invoice log could not be read');
+    const i = log.findIndex(x => x.id === id && x.kind === 'Quick Sale'); if (i < 0) throw new Error('that sale is no longer in the log (or was changed in the Invoice Form)');
+    log.splice(i, 1); const text = JSON.stringify(log, null, 1);
+    if (JSON.parse(text).length !== log.length) throw new Error('safety check failed, nothing was written');
+    await writeText(r.dir, LOG_FILE, text);
+    INV = INV.filter(x => x.id !== id); custCache = null; idb.set('inv', { INV, invInfo }).catch(() => {});
+    invMod[S().logPaths[0]] = (await r.fh.getFile()).lastModified;
+    closeModal(true); render(); toast('Quick sale removed.');
+  } catch (err) { toast('Could not undo: ' + err.message, 'err'); }
+}
+function plusSheet() {
+  sheet('Add…', [['🛠️ Check in a device', () => editTicket()], ['⚡ Quick sale <span class="muted small">— paid on the spot, no ticket</span>', () => quickSale()], ['📅 Appointment', () => editAppt()]]);
 }
 
 /* ============ MONEY ============ */
@@ -1916,7 +2043,7 @@ function vClose() {
   const tRow = t => `<div class="li" style="cursor:pointer" onclick="editTicket('${t.id}')"><div class="tx"><b>#${t.no} ${esc(t.name)}</b><div class="s">${esc(devName(t))}${t.issue ? ' · ' + esc(t.issue.slice(0, 50)) : ''}</div></div><div>${badge(t.status)}</div></div>`;
   const iRow = e => `<div class="li" style="cursor:pointer" onclick="invModal(${js(e.id)})"><div class="tx"><b>${esc(e.invno)}</b> ${esc(nameFor(e))}<div class="s">${esc(e.job)}${e.status === 'paid' ? ' · ' + esc(e.paidMethod || '') : ''}</div></div><div style="text-align:right"><b>${money(e.total)}</b><br>${invStatus(e)}</div></div>`;
   return `<div class="toolbar"><div class="seg"><button onclick="ui.closeDay=addDays('${d}',-1);render()">‹</button><button class="on" style="min-width:150px">${isToday ? 'Today' : esc(day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}</button><button onclick="ui.closeDay=addDays('${d}',1);render()" ${isToday ? 'disabled' : ''}>›</button></div>
-      ${isToday ? '' : `<button class="btn sm" onclick="ui.closeDay='';render()">Back to today</button>`}<span class="grow"></span><button class="btn" onclick="copyText(closeText(),'Daily summary')">📋 Copy summary</button></div>
+      ${isToday ? '' : `<button class="btn sm" onclick="ui.closeDay='';render()">Back to today</button>`}<span class="grow"></span><button class="btn" onclick="quickSale()">⚡ Quick sale</button><button class="btn" onclick="copyText(closeText(),'Daily summary')">📋 Copy summary</button></div>
     <div class="grid kpis">
       ${kpi('Checked in', inT.length, plural(inT.length, 'device') + ' came in', "go('tickets')")}
       ${kpi('Picked up', outT.length, plural(outT.length, 'device') + ' went home', "go('tickets')")}
@@ -2476,7 +2603,7 @@ function vSettings() {
   const s = S();
   const u = HOSTED && RCRDrive.user();
   return `<div class="grid c2e">
-  ${PHONE_W.matches ? `<div class="card"><h3>📱 Bottom bar</h3><p class="small muted">Choose the 4 pages on the bar at the bottom of this phone (＋ Check in stays in the middle). Tip: you can also hold your finger on the bar.</p>
+  ${PHONE_W.matches ? `<div class="card"><h3>📱 Bottom bar</h3><p class="small muted">Choose the 4 pages on the bar at the bottom of this phone (＋ Add stays in the middle). Tip: you can also hold your finger on the bar.</p>
     <div class="row"><b>${tabSlots().map(k => tabIcon(k) + ' ' + TAB_LABEL[k]).join(' · ')}</b></div><div class="row" style="margin-top:10px"><button class="btn pri" onclick="tabSetup()">Change buttons</button></div></div>` : ''}
   ${HOSTED ? `<div class="card"><h3>🔐 Google account</h3>
     <p class="small">${folderOK ? `Signed in as <b>${esc(u ? u.email : '')}</b> <span class="tag green">OK</span> — saving to <b>My Drive › Documents › RCR</b>` : '<span class="tag amber">Not signed in</span> — changes are kept on this device until you sign in.'}</p>
@@ -2550,9 +2677,10 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { $('#gres').hidden = true; if (!$('#modal').hidden) closeModal(); return; }
   const tag = document.activeElement?.tagName || '';
   if (/INPUT|TEXTAREA|SELECT/.test(tag) || e.ctrlKey || e.metaKey || e.altKey || !$('#modal').hidden) return;
-  konami(e); if (kPos > 0 && !/^[nNiI/0-9]$/.test(e.key)) return;
+  konami(e); if (kPos > 0 && !/^[nNiIqQ/0-9]$/.test(e.key)) return;
   if (e.key === 'n' || e.key === 'N') { e.preventDefault(); editTicket(); }
   else if (e.key === 'i' || e.key === 'I') { e.preventDefault(); openInvoice(); }
+  else if (e.key === 'q' || e.key === 'Q') { e.preventDefault(); quickSale(); }
   else if (e.key === '/') { e.preventDefault(); $('#gq').focus(); }
   else if (/^[0-9]$/.test(e.key)) go(Object.keys(VIEWS)[(+e.key || 10) - 1]);
 });
