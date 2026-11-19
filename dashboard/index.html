@@ -54,6 +54,11 @@
   .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .grow { flex:1; }
   .qschips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; } #qsf .row2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); margin-bottom:8px; } #qsf label { min-width:0; } #qsf input, #qsf select { width:100%; min-width:0; box-sizing:border-box; } #qsf .fl { margin-bottom:6px; }
+  .impit { display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px; background:var(--card); }
+  .impit.dup { opacity:.6; } .impit .ck { padding-top:8px; } .impit .ck input { width:20px; height:20px; } .impit .grow { min-width:0; } .impit .grow > .inp { width:100%; box-sizing:border-box; font-weight:600; }
+  .impmeta { display:grid; grid-template-columns:70px 110px minmax(0,1fr); gap:8px; margin-top:6px; } .impmeta label { display:flex; flex-direction:column; gap:2px; font-size:11.5px; color:var(--mut); min-width:0; } .impmeta .inp { width:100%; box-sizing:border-box; }
+  .imptot { margin:10px 0 2px; font-size:14px; }
+  .impchk { display:flex; gap:8px; align-items:flex-start; font-size:13px; margin:4px 0; cursor:pointer; } .impchk input { margin-top:2px; flex:0 0 auto; }
   .qstot { text-align:right; font-size:18px; margin-top:12px; } .qstot b { font-size:22px; margin-left:6px; }
   .qsrcpt { white-space:pre-wrap; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font:13px/1.45 ui-monospace, Consolas, monospace; margin:0; }
   .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
@@ -309,6 +314,8 @@
     .tablewrap > table.t td .muted.small { display:inline; margin-left:4px; }
     .top .btn.pri, .top .qsb { display:none; }           /* the tab bar's ＋ has Check in and Quick sale */
     #qsf .row2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+    #impf.f { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } #impf input, #impf select { min-width:0; width:100%; box-sizing:border-box; }
+    .impmeta { grid-template-columns:70px minmax(0,1fr); } .impmeta .impfor { grid-column:1 / -1; }
     #modal { padding:0; }
     .mbox, .mbox.wide { width:100%; min-height:100%; border-radius:0; }
     .mbox > header { position:sticky; top:0; z-index:2; background:var(--card); padding-top:calc(14px + env(safe-area-inset-top)); }
@@ -369,7 +376,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-153129">
+<meta name="rcr-build" content="20261119-155020">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -1974,7 +1981,7 @@ async function qsUndo(id) {
   } catch (err) { toast('Could not undo: ' + err.message, 'err'); }
 }
 function plusSheet() {
-  sheet('Add…', [['🛠️ Check in a device', () => editTicket()], ['⚡ Quick sale <span class="muted small">— paid on the spot, no ticket</span>', () => quickSale()], ['📅 Appointment', () => editAppt()]]);
+  sheet('Add…', [['🛠️ Check in a device', () => editTicket()], ['⚡ Quick sale <span class="muted small">— paid on the spot, no ticket</span>', () => quickSale()], ['📅 Appointment', () => editAppt()], ['📥 Import a parts purchase <span class="muted small">— Amazon / eBay</span>', () => importPurchase()]]);
 }
 
 /* ============ MONEY ============ */
@@ -2354,7 +2361,7 @@ function vOrders() {
   const openO = DB.orders.filter(o => !['received', 'cancelled'].includes(o.status));
   return `<div class="grid kpis">${kpi('Open orders', openO.length, money0(sum(openO, o => num(o.cost) * (num(o.qty) || 1))) + ' on order', '')}${kpi('Late', openO.filter(o => o.eta && o.eta < today()).length, 'past ETA', '', openO.some(o => o.eta && o.eta < today()) ? 'alert' : '')}
     ${kpi('Arriving today', openO.filter(o => o.eta === today()).length, '', '')}${kpi('Tickets waiting on parts', DB.tickets.filter(t => t.status === 'parts').length, '', "ui.tMode='list';ui.tFilter='parts';go('tickets')")}</div>
-   <div class="toolbar"><button class="btn pri" onclick="editOrder()">+ New order</button><a class="btn" target="_blank" href="${EBAY_ORDERS}">🛒 My eBay purchases ↗</a><label class="row small"><input type="checkbox" ${ui.oAll ? 'checked' : ''} onchange="ui.oAll=this.checked;render()"> Show received / cancelled</label></div>
+   <div class="toolbar"><button class="btn pri" onclick="importPurchase()">📥 Import Amazon / eBay purchase</button><button class="btn" onclick="editOrder()">+ New order</button><a class="btn" target="_blank" href="${AMZ_ORDERS}">Amazon orders ↗</a><a class="btn" target="_blank" href="${EBAY_ORDERS}">🛒 My eBay purchases ↗</a><label class="row small"><input type="checkbox" ${ui.oAll ? 'checked' : ''} onchange="ui.oAll=this.checked;render()"> Show received / cancelled</label></div>
    ${list.length ? `<div class="tablewrap"><table class="t"><tr><th>Part</th><th>Supplier</th><th>For</th><th>Ordered</th><th>ETA</th><th>Tracking</th><th class="num">Cost</th><th>Status</th><th></th></tr>
    ${list.map(o => `<tr><td><b>${esc(o.part)}</b>${num(o.qty) > 1 ? ` ×${num(o.qty)}` : ''}${o.notes ? `<div class="muted small">${esc(o.notes)}</div>` : ''}</td><td>${o.url ? `<a target="_blank" href="${esc(o.url)}">${esc(o.supplier || 'link')}</a>` : isEbay(o.supplier) ? `<a target="_blank" href="${EBAY_ORDERS}" title="Opens your eBay purchase history">${esc(o.supplier)} ↗</a>` : esc(o.supplier || '')}${o.orderNo ?`<div class="muted small">Order ${esc(o.orderNo)}</div>` : ''}</td>
     <td class="small">${o.ticketId ? `<a href="#" onclick="editTicket('${o.ticketId}');return false">${ticketRef(o.ticketId)}</a>` : o.addToStock ? 'Stock' : ''}</td><td class="small">${fmtDs(o.ordered)}</td>
@@ -2405,6 +2412,218 @@ function orderStatus(id, st) {
       if (t.status === 'parts') { upsert('orders', o); toast(`Part for #${t.no} (${t.name}) arrived.`, '', [['Move to In Repair', () => setStatus(t.id, 'repair')]]); render(); return; } }
   }
   upsert('orders', o); render();
+}
+
+/* ---- 📥 Import a purchase (Amazon / eBay): paste the order page or email text, a link, or a photo/screenshot (read in the browser).
+   parsePurchase() pulls out supplier, order #, dates, tracking, items, tax and shipping; the review window turns them into parts orders. ---- */
+const AMZ_ORDERS = 'https://www.amazon.com/gp/css/order-history';
+const MON = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const DATE_RX = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:,?\s+(\d{4}))?|\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/gi;
+function datesIn(s, ref) {          // every date in a line, as YYYY-MM-DD (a missing year is taken as the one nearest `ref`)
+  const out = [], r = ref ? new Date(ref + 'T12:00') : new Date();
+  for (const m of String(s || '').matchAll(DATE_RX)) {
+    let y, mo, d;
+    if (m[1]) { mo = MON.indexOf(m[1].slice(0, 3).toLowerCase()); d = +m[2]; y = m[3] ? +m[3] : 0; } else { mo = +m[4] - 1; d = +m[5]; y = +m[6] < 100 ? 2000 + +m[6] : +m[6]; }
+    if (mo < 0 || d < 1 || d > 31) continue;
+    if (!y) { y = r.getFullYear(); const c = new Date(y, mo, d); if (c - r > 200 * 864e5) y--; else if (r - c > 165 * 864e5) y++; }
+    out.push(isoDay(new Date(y, mo, d)));
+  }
+  if (!out.length) {                 // "Arriving tomorrow", "Arriving Tuesday"
+    const t = new Date(); if (/\btoday\b/i.test(s)) out.push(isoDay(t)); else if (/\btomorrow\b/i.test(s)) out.push(isoDay(new Date(+t + 864e5)));
+    else { const w = String(s).match(/\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*day\b/i); if (w) { const k = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].indexOf(w[1].toLowerCase()); out.push(isoDay(new Date(+t + (((k - t.getDay() + 7) % 7) || 7) * 864e5))); } }
+  }
+  return out;
+}
+const MONEY_RX = /(?:US\s*)?\$\s?(\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2})/;
+const moneyIn = s => { const m = String(s).match(MONEY_RX); return m ? +m[1].replace(/,/g, '') : null; };
+const SUMMARY_RX = /^(items?\s*\(\d+\)|item\(s\)\s*subtotal|subtotal|sub-total|shipping|postage|delivery|est(imated)?\.?\s*tax|sales tax|tax|total|grand total|order total|total before tax|payment total|amount (paid|charged)|discount|promotion|coupon|savings|you saved|gift card|reward|refund|import charges|list price|was\b|paid\b|charged\b|visa|mastercard|amex|discover|paypal|card ending)/i;
+const JUNK_RX = /^(sold by|sold & shipped|seller|ships from|shipped by|supplied by|condition|return|quantity|qty|buy it again|view (your )?item|view order|write a|leave feedback|contact seller|get (product )?support|track package|arriving|arrives|delivered|shipped|out for delivery|estimated delivery|expected|order|ship(ping)? to|deliver to|payment|item number|item #|see all|more actions|archive|problem with|ask product|share|color|colour|size|style|model|capacity|pattern|details|hide|show|need help|your package|package was|items ordered|price\b|(amazon|ebay)(\.com)?$|amazon\.com (order|services)|your (amazon|ebay)|usps|ups\b|fedex|dhl|tracking|carrier|shipped with|hello|hi\b|thank|recommended|customers who|you may|sponsored|in stock)/i;
+const isTitle = s => s.length >= 12 && /[a-z]{3}/i.test(s) && !JUNK_RX.test(s) && !SUMMARY_RX.test(s) && moneyIn(s) == null && !/^\(?\d[\d\s-]{7,}\)?$/.test(s) && !/^https?:/i.test(s);
+function parsePurchase(text) {
+  const raw = String(text || '').replace(/\r/g, '').replace(/[   ]/g, ' ');
+  const L = raw.split('\n').map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean), all = L.join('\n');
+  const P = { supplier: '', orderNo: '', ordered: '', eta: '', status: 'ordered', tracking: '', url: '', tax: 0, ship: 0, total: 0, items: [] };
+  const amz = all.match(/\b(\d{3}-\d{7}-\d{7})\b/), eb = all.match(/\b(\d{2}-\d{5}-\d{5})\b/);
+  P.orderNo = amz ? amz[1] : eb ? eb[1] : '';
+  P.supplier = amz || (/amazon|amzn|a\.co\//i.test(all) && !/ebay/i.test(all)) ? 'Amazon' : eb || /ebay/i.test(all) ? 'eBay' : '';
+  // links: order # / item from the address, and a title from the words in it (amazon.com/Samsung-870-EVO…/dp/B08…)
+  for (const u of all.match(/https?:\/\/[^\s<>"]+/g) || []) {
+    if (/amazon\.|amzn\.|a\.co\//i.test(u)) { P.supplier = P.supplier || 'Amazon'; const o = u.match(/orderI[dD]=(\d{3}-\d{7}-\d{7})/); if (o) P.orderNo = P.orderNo || o[1];
+      const s = u.match(/amazon\.[a-z.]+\/([^/?#]+)\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i); if (s && !/^(dp|gp)$/i.test(s[1])) P.items.push({ title: decodeURIComponent(s[1]).replace(/-/g, ' '), qty: 1, cost: '', link: u }); }
+    else if (/ebay\./i.test(u)) { P.supplier = P.supplier || 'eBay'; const o = u.match(/orderid=(\d{2}-\d{5}-\d{5})/i); if (o) P.orderNo = P.orderNo || o[1];
+      const s = u.match(/\/itm\/(?:([^/?#]*[a-z][^/?#]*)\/)?(\d{9,14})/i); if (s) P.items.push({ title: s[1] ? decodeURIComponent(s[1]).replace(/-/g, ' ') : 'eBay item ' + s[2], qty: 1, cost: '', link: u, itemNo: s[2] }); }
+    P.url = P.url || u;
+  }
+  const near = (i, rx) => { for (const k of [i, i + 1]) { if (k >= L.length) break; if (k > i && SUMMARY_RX.test(L[k])) break; const ds = datesIn(L[k], P.ordered || undefined); if (ds.length) return ds; } return []; };
+  L.forEach((l, i) => {
+    if (!P.ordered && /(ordered on|order placed|order date|date ordered|purchased on|placed on|paid on|^ordered\b)/i.test(l)) P.ordered = near(i)[0] || '';
+  });
+  L.forEach((l, i) => {
+    if (/^(arriving|arrives|estimated delivery|expected delivery|delivery estimate|get it|est\. delivery|now expected)/i.test(l) || /\b(arriving|estimated delivery|expected by)\b/i.test(l)) { const d = near(i); if (d.length && !P.eta) P.eta = d[d.length - 1]; }
+    if (/^delivered\b|\bwas delivered\b|\bdelivered on\b/i.test(l)) { P.status = 'received'; const d = near(i); if (d.length) P.eta = d[d.length - 1]; }
+    else if (P.status === 'ordered' && /^(shipped|out for delivery|in transit)\b|\bhas shipped\b|\bon the way\b/i.test(l)) P.status = 'shipped';
+  });
+  const tr = all.match(/\b(1Z[0-9A-Z]{16})\b/) || all.match(/\b(9[2-5](?:\s?\d){18,24})\b/) || all.match(/\b(TBA\d{9,13})\b/i) || all.match(/tracking\s*(?:number|no\.?|#|id)?\s*[:#]?\s*([A-Z0-9]{10,30})\b/i);
+  if (tr) P.tracking = tr[1].replace(/\s/g, ''); if (P.tracking && P.status === 'ordered') P.status = 'shipped';
+  // prices: summary lines give tax / shipping / total; the rest are items, titled by the nearest title-looking line above
+  const used = new Set(), found = [];
+  L.forEach((l, i) => {
+    const v = moneyIn(l); if (v == null) return;
+    const label = l.replace(MONEY_RX, '').replace(/[:\s]+$/, '').trim(), prev = i ? L[i - 1] : '';
+    const lab = label || (moneyIn(prev) == null ? prev : '');
+    if (SUMMARY_RX.test(lab) || (!label && SUMMARY_RX.test(prev))) {
+      if (/sub|before tax|items?\s*\(/i.test(lab)) { /* item subtotal: not needed */ }
+      else if (/tax/i.test(lab)) P.tax = P.tax || v; else if (/shipping|postage|delivery/i.test(lab) && !/total/i.test(lab)) P.ship = P.ship || v;
+      else if (/total/i.test(lab) && !/sub|before/i.test(lab)) P.total = Math.max(P.total, v);
+      return;
+    }
+    let ti = -1, title = '';
+    if (isTitle(label) && !/^(item price|price|each|unit price)$/i.test(label)) { ti = i; title = label; }
+    else for (let j = i - 1; j >= Math.max(0, i - 9); j--) { if (moneyIn(L[j]) != null && !/^(item price|price)/i.test(L[j])) break; if (isTitle(L[j])) { ti = j; title = L[j]; break; } }
+    if (ti < 0 || used.has(ti)) return;
+    // a long title wrapped onto 2–3 lines (photos / phone screenshots): join the lines just above it that look like the same title
+    for (let j = ti - 1, n = 0; j >= 0 && n < 2 && !used.has(j) && isTitle(L[j]) && !/[:.!?]$/.test(L[j]) && !/\d(\s?\d){9,}/.test(L[j]) && !datesIn(L[j]).length && (title + L[j]).length < 220; j--, n++) title = L[j] + ' ' + title;
+    used.add(ti);
+    let qty = 1; const q1 = title.match(/^(\d+)\s*of:?\s*/i); if (q1) { qty = +q1[1]; title = title.slice(q1[0].length); }
+    for (let k = ti; k <= Math.min(L.length - 1, i + 3); k++) { const q = L[k].match(/\b(?:qty|quantity)\s*[:x]?\s*(\d{1,3})\b/i); if (q) { qty = +q[1]; break; } }
+    const itemNo = (L.slice(ti, i + 4).join(' ').match(/\((\d{11,13})\)|item (?:number|#)[:\s]*(\d{9,14})/i) || []).slice(1).find(Boolean);
+    found.push({ title: title.replace(/\s*\.{3}$|…$/, '').trim(), qty, cost: v.toFixed(2), itemNo: itemNo || '' });
+  });
+  if (found.length) P.items = found.concat(P.items.filter(x => !found.some(f => f.title.toLowerCase().includes(x.title.toLowerCase().slice(0, 20)))));
+  P.items.forEach(it => { if (!it.link && it.itemNo) it.link = 'https://www.ebay.com/itm/' + it.itemNo; });
+  // tax not listed (e.g. Amazon's order email only shows the Grand Total): it's what's left after items + shipping
+  const itemsSum = sum(found, i => num(i.cost) * i.qty), left = Math.round((P.total - itemsSum - P.ship - P.tax) * 100) / 100;
+  if (found.length && P.total && !P.tax && left > 0 && left <= itemsSum * 0.15) P.tax = left;
+  if (!P.ordered && (P.items.length || P.orderNo)) P.ordered = today();
+  return P;
+}
+// Best open ticket for a part: the device's make/model words found in the item title (tickets waiting on parts first)
+function guessTicket(title) {
+  const tl = title.toLowerCase(); let best = null, bs = 0;
+  for (const t of DB.tickets.filter(t => OPEN.includes(t.status))) {
+    const words = [t.make, ...String(t.model || '').split(/[\s/]+/)].map(w => String(w || '').toLowerCase()).filter(w => w.length >= 3);
+    let s = words.filter(w => tl.includes(w)).length * 2 + (t.status === 'parts' ? 1 : 0);
+    if (t.model && tl.includes(String(t.model).toLowerCase())) s += 3;
+    if (s > bs && s >= 3) { bs = s; best = t; }
+  }
+  return best;
+}
+function importPurchase(text) {
+  document.body.classList.remove('navopen');
+  if (!leaveModal()) return;
+  modal('📥 Import a parts purchase', `<p class="small muted" style="margin-top:0">Amazon or eBay — paste any of these and I'll read it:</p>
+    <ul class="small muted" style="margin:0 0 10px 18px;padding:0">
+      <li><b>The order page</b> — Your Orders › <i>View order details</i> (eBay: Purchases › <i>View order details</i>), select all, copy.</li>
+      <li><b>The confirmation or shipping email</b> — select all, copy.</li>
+      <li><b>A photo or screenshot</b> — tap 📷. ${/iPhone|iPad/.test(navigator.userAgent) ? 'Tip: in Photos you can press on the text, <i>Select All</i>, <i>Copy</i> and paste it here — that reads best.' : ''}</li>
+      <li><b>A link</b> — gives the order # and item; add the price yourself.</li></ul>
+    <textarea id="imptext" class="inp" rows="8" placeholder="Paste here…" style="width:100%;box-sizing:border-box;font-size:13px">${esc(text || '')}</textarea>
+    <div id="impocr" class="small muted" style="min-height:18px;margin-top:6px"></div>
+    <div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn" onclick="impPaste()">📋 Paste</button><label class="btn">📷 Photo / screenshot<input type="file" accept="image/*" multiple hidden onchange="impPhotos(this.files)"></label>
+      <span class="grow"></span><a class="btn sm" target="_blank" href="${AMZ_ORDERS}">Amazon orders ↗</a><a class="btn sm" target="_blank" href="${EBAY_ORDERS}">eBay purchases ↗</a></div>`,
+    `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn pri" onclick="impRead()">Read it →</button>`);
+}
+async function impPaste() {
+  try { const t = await navigator.clipboard.readText(); if (!t) return toast('The clipboard is empty — copy the order first.', 'err'); $('#imptext').value = t; impRead(); }
+  catch { toast('Press and hold in the box, then tap Paste.', 'err'); $('#imptext').focus(); }
+}
+// Photos: read in this browser with Tesseract.js (loaded from the jsDelivr CDN the first time; ~10 MB once, then cached)
+let ocrLib = null;
+function loadOCR() {
+  return ocrLib || (ocrLib = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload = () => res(window.Tesseract); s.onerror = () => { ocrLib = null; rej(new Error('could not load the photo reader (no internet?)')); }; document.head.appendChild(s); }));
+}
+async function impPhotos(files) {
+  files = [...(files || [])]; if (!files.length) return;
+  const st = $('#impocr'), say = m => { if (st) st.textContent = m; };
+  try {
+    say('Loading the photo reader… (the first time takes a little while)');
+    const T = await loadOCR();
+    const w = await T.createWorker('eng', 1, { logger: m => { if (m.status === 'recognizing text') say(`Reading ${files.length > 1 ? 'photos' : 'photo'}… ${Math.round(m.progress * 100)}%`); } });
+    let text = '';
+    for (const f of files) { const { data } = await w.recognize(f); text += data.text + '\n'; }
+    await w.terminate();
+    const ta = $('#imptext'); if (!ta) return;
+    ta.value = (ta.value ? ta.value + '\n' : '') + text.trim(); say('Done — check the text below if anything looks off.'); impRead();
+  } catch (e) { say(''); toast('Photo: ' + e.message, 'err'); }
+}
+let IMP = null;
+function impRead() {
+  const text = ($('#imptext') || {}).value || '';
+  if (!text.trim()) return toast('Paste the order first (or add a photo).', 'err');
+  const P = parsePurchase(text); P.src = text;
+  if (!P.items.length && !P.orderNo) return toast("I couldn't find an order or any items in that. Try copying the whole order page.", 'err');
+  if (!P.items.length) P.items.push({ title: '', qty: 1, cost: '' });
+  const dupOf = it => DB.orders.find(o => P.orderNo && o.orderNo === P.orderNo && o.part.toLowerCase().slice(0, 25) === it.title.toLowerCase().slice(0, 25));
+  P.items.forEach(it => { it.on = true; it.dup = dupOf(it); if (it.dup) it.on = false; const t = it.dup ? null : guessTicket(it.title); it.to = it.dup ? (it.dup.ticketId || 'stock') : t ? t.id : 'stock'; });
+  P.spread = true; IMP = P; impReview();
+}
+function impTargets(sel) {
+  return `<option value="stock" ${sel === 'stock' ? 'selected' : ''}>📦 Stock (add to inventory)</option><option value="none" ${sel === 'none' ? 'selected' : ''}>Just track it</option>` +
+    DB.tickets.filter(t => OPEN.includes(t.status)).sort((a, b) => (b.status === 'parts') - (a.status === 'parts') || b.no - a.no).map(t => `<option value="${t.id}" ${t.id === sel ? 'selected' : ''}>#${t.no} ${esc(t.name)} — ${esc(devName(t))}</option>`).join('');
+}
+function impExtra() {        // tax + shipping split over the chosen items by price
+  const P = IMP, on = P.items.filter(i => i.on), base = sum(on, i => num(i.cost) * (num(i.qty) || 1)), extra = P.spread ? num(P.tax) + num(P.ship) : 0;
+  return it => base && extra ? num(it.cost) * (1 + extra / base) : num(it.cost);
+}
+function impReview() {
+  const P = IMP, f = impExtra(), dups = P.items.filter(i => i.dup).length;
+  modal(`📥 ${esc(P.supplier || 'Purchase')}${P.orderNo ? ' order ' + esc(P.orderNo) : ''}`, `<form id="impf" class="f" onsubmit="return false" oninput="impSync()" onchange="impSync()">
+    <label>Supplier<input name="supplier" list="suppliers" value="${esc(P.supplier)}"><datalist id="suppliers">${suppliers().map(s => `<option value="${esc(s)}">`).join('')}</datalist></label><label>Order #<input name="orderNo" value="${esc(P.orderNo)}"></label>
+    <label>Ordered on<input type="date" name="ordered" value="${esc(P.ordered)}"></label><label>${P.status === 'received' ? 'Delivered' : 'Expected (ETA)'}<input type="date" name="eta" value="${esc(P.eta)}"></label>
+    <label>Tracking<input name="tracking" value="${esc(P.tracking)}"></label><label>Status<select name="status">${['ordered', 'shipped', 'received'].map(k => `<option value="${k}" ${P.status === k ? 'selected' : ''}>${ORD[k][0]}</option>`).join('')}</select></label></form>
+    ${dups ? `<div class="tag amber" style="display:block;margin:8px 0;padding:6px 10px">${plural(dups, 'item')} from this order ${dups > 1 ? 'are' : 'is'} already in Parts Orders — ${dups > 1 ? 'they' : 'it'}'ll just get the new tracking / ETA / status.</div>` : ''}
+    <div class="sec-h">Items</div><div id="impitems">${P.items.map((it, i) => `<div class="impit ${it.dup ? 'dup' : ''}">
+      <label class="ck"><input type="checkbox" ${it.on ? 'checked' : ''} ${it.dup ? 'disabled' : ''} onchange="IMP.items[${i}].on=this.checked;impSync()"></label>
+      <div class="grow"><input class="inp" value="${esc(it.title)}" placeholder="What did you buy?" oninput="IMP.items[${i}].title=this.value">
+        <div class="impmeta"><label>Qty<input class="inp" type="number" min="1" value="${esc(it.qty)}" oninput="IMP.items[${i}].qty=this.value;impSync()"></label>
+        <label>Cost each<input class="inp" inputmode="decimal" value="${esc(it.cost)}" placeholder="0.00" oninput="IMP.items[${i}].cost=this.value;impSync()"></label>
+        <label class="impfor">For<select class="inp" onchange="IMP.items[${i}].to=this.value" ${it.dup ? 'disabled' : ''}>${impTargets(it.to)}</select></label></div>
+        <div class="small muted" data-x="${i}">${it.dup ? 'Already imported' : ''}</div></div></div>`).join('')}</div>
+    <button class="btn sm" onclick="IMP.items.push({title:'',qty:1,cost:'',on:true,to:'stock'});impReview()">+ Add an item</button>
+    <div class="imptot" id="imptot"></div>
+    <label class="impchk" style="margin-top:6px"><input type="checkbox" ${P.spread ? 'checked' : ''} onchange="IMP.spread=this.checked;impSync()"><span>Add tax${P.ship ? ' & shipping' : ''} to the part costs (your real cost)</span></label>
+    <label class="impchk"><input type="checkbox" id="impwait" checked><span>Move linked tickets to "Waiting on Parts" (if not received yet)</span></label>`,
+    `<button class="btn" onclick="importPurchase(IMP.src)">← Back</button><span class="grow"></span><button class="btn pri" onclick="impSave()">Import</button>`, true);
+  impSync();
+}
+function impSync() {
+  const P = IMP, fm = $('#impf'); if (!fm) return;
+  ['supplier', 'orderNo', 'ordered', 'eta', 'tracking', 'status'].forEach(k => P[k] = fm[k].value.trim());
+  const f = impExtra(), on = P.items.filter(i => i.on && !i.dup);
+  P.items.forEach((it, i) => { const el = $(`[data-x="${i}"]`); if (el && !it.dup) el.textContent = it.on && P.spread && f(it) !== num(it.cost) ? `Real cost each with tax${P.ship ? '/shipping' : ''}: ${money(f(it))}` : ''; });
+  const items = sum(on, i => num(i.cost) * (num(i.qty) || 1));
+  $('#imptot').innerHTML = `${plural(on.length, 'item')} · items ${money(items)}${P.tax ? ` · tax ${money(P.tax)}` : ''}${P.ship ? ` · shipping ${money(P.ship)}` : ''}${P.total ? ` · <b>order total ${money(P.total)}</b>` : ''}`;
+  const b = $('.mbox footer .btn.pri'); if (b) b.textContent = on.length ? `Import ${plural(on.length, 'item')}` : P.items.some(i => i.dup) ? 'Update order' : 'Import';
+}
+function impSave() {
+  impSync(); const P = IMP, f = impExtra(), wait = $('#impwait') && $('#impwait').checked;
+  const add = P.items.filter(i => i.on && !i.dup);
+  if (add.some(i => !i.title.trim())) return toast('Give every checked item a name (or uncheck it).', 'err');
+  let n = 0, upd = 0; const recv = [];
+  for (const it of add) {
+    const to = it.to, t = to !== 'stock' && to !== 'none' ? DB.tickets.find(x => x.id === to) : null;
+    const p = to === 'stock' ? DB.parts.find(x => x.name.toLowerCase() === it.title.trim().toLowerCase()) : null;
+    const o = { id: uid(), part: it.title.trim(), supplier: P.supplier, orderNo: P.orderNo, qty: num(it.qty) || 1, cost: f(it) ? f(it).toFixed(2) : '', ordered: P.ordered || today(), eta: P.eta,
+      tracking: P.tracking, status: P.status === 'received' ? 'ordered' : P.status, url: it.link || P.url || '', ticketId: t ? t.id : '', addToStock: to === 'stock', invId: p ? p.id : '',
+      notes: `Imported from ${P.supplier || 'a'} order${P.spread && (P.tax || P.ship) ? ' (cost includes tax' + (P.ship ? '/shipping' : '') + ')' : ''}` };
+    upsert('orders', o); n++;
+    if (t) { (t.notes = t.notes || []).push({ t: nowISO(), x: `Part ordered: ${o.part}${o.cost ? ' (' + money(num(o.cost)) + ')' : ''} — ${P.supplier || ''} order ${P.orderNo || ''}`.trim() }); upsert('tickets', t);
+      if (wait && P.status !== 'received' && ['checkin', 'diag', 'approval', 'repair'].includes(t.status)) setStatus(t.id, 'parts', true); }
+    if (P.status === 'received') recv.push(o.id);
+  }
+  for (const it of P.items.filter(i => i.dup)) {          // already imported: bring tracking / ETA / status up to date
+    const o = it.dup; let ch = false;
+    if (P.tracking && o.tracking !== P.tracking) { o.tracking = P.tracking; ch = true; } if (P.eta && o.eta !== P.eta) { o.eta = P.eta; ch = true; }
+    if (P.status === 'shipped' && o.status === 'ordered') { o.status = 'shipped'; ch = true; }
+    if (P.status === 'received' && !['received', 'cancelled'].includes(o.status)) recv.push(o.id);
+    if (ch) { upsert('orders', o); upd++; }
+  }
+  closeModal(true); IMP = null;
+  recv.forEach(id => orderStatus(id, 'received'));
+  if (!recv.length) render(); if (view !== 'orders') go('orders');
+  const msg = [n ? `Imported ${plural(n, 'item')}` : '', upd ? `updated ${plural(upd, 'order')}` : '', recv.length ? `${recv.length} marked received` : ''].filter(Boolean).join(', ');
+  toast(msg ? msg + '.' : 'Nothing new to import.', msg ? 'ok' : '');
 }
 
 /* ============ TECH TOOLS ============ */
