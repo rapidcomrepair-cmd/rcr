@@ -122,7 +122,14 @@
   .contact div { line-height: 1.7; }
 
   .toolbar .homebtn { color: #fff; text-decoration: none; background: #1d5fd1; padding: 6px 12px; border-radius: 4px; font-weight: 600; }
-  .toolbar .homebtn[hidden] { display: none; }
+  .toolbar .homebtn[hidden], .toolbar button[hidden] { display: none; }
+  .pdfbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 25; width: min(560px, 94vw);
+            background: #2f3542; color: #fff; border-radius: 12px; padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+            font: 13px Segoe UI, Arial, sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+  .pdfbar[hidden] { display: none; }
+  .pdfbar span { flex: 1 1 100%; overflow-wrap: anywhere; }
+  .pdfbar button { font: inherit; padding: 9px 14px; border: 0; border-radius: 8px; background: #dfe4ea; cursor: pointer; }
+  .pdfbar button.go { background: #f5b301; font-weight: 600; flex: 1; }
 
   /* ---------- phone (the printed page is unchanged) ---------- */
   @media screen and (max-width: 760px) {
@@ -132,6 +139,8 @@
     .toolbar .break, .toolbar .hint, .toolbar [onclick="toggleKeys()"], .toolbar [onclick="saveTemplate()"] { display: none; }
     .toolbar button { padding: 9px 12px; }
     .toolbar .folder { flex-basis: 100%; margin: 0; }
+    body.hosted .toolbar [onclick="printIt()"] { display: none; }   /* phones print from the PDF's Send / Print menu */
+    .toolbar button.primary { flex: 1 1 45%; }
     .page { width: auto; min-height: 0; margin: 0; padding: 14px 12px calc(30px + env(safe-area-inset-bottom)); box-shadow: none; }
     .invtitle { font-size: 24px; }
     .header { padding: 0; gap: 8px; }
@@ -161,7 +170,7 @@
   /* ---------- print ---------- */
   @media print {
     body { background: #fff; }
-    .toolbar, .addrow, .rm, .noprint, .modal, .pe { display: none !important; }
+    .toolbar, .addrow, .rm, .noprint, .modal, .pe, .pdfbar { display: none !important; }
     .page { margin: 0; box-shadow: none; min-height: 11in; height: 11in; overflow: hidden; }
     /* --fit (set by fitPage) shrinks only the content when notes run long; page margins stay exactly 1" */
     .inner { zoom: var(--fit, 1); flex: none; width: calc(6.5in / var(--fit, 1)); min-height: calc(9in / var(--fit, 1)); }
@@ -189,6 +198,7 @@
   <button onclick="saveTemplate()" title="Save this invoice's lines and notes as a reusable template">Save as template</button>
   <div class="break"></div>
   <button class="primary" onclick="printIt()" title="Ctrl+P">Print / Save as PDF</button>
+  <button class="primary" id="pdfbtn" onclick="savePdf()" hidden title="Make the PDF, save it to Google Drive, then text / email / print it">📄 PDF → Drive &amp; send</button>
   <button class="primary" onclick="saveDocx()" title="Ctrl+S">Save as Word (.docx)</button>
   <button onclick="showLog()" title="Alt+I">Invoice log</button>
   <button onclick="newInvoice()" title="Alt+N">New invoice (next #)</button>
@@ -198,6 +208,9 @@
   <span id="tktflag" hidden style="color:#9fd3a8" title="Saving this invoice links it to the repair ticket in the RCR Dashboard"></span>
   <span class="folder">Saving to: <b id="foldername">Downloads</b> <a href="#" onclick="pickFolder();return false">change</a></span>
 </div>
+
+<div id="pdfbar" class="pdfbar" hidden><span id="pdfmsg"></span>
+  <button class="go" onclick="sharePdf()">📤 Send / Print</button><button onclick="openPdf()">Open</button><button onclick="$('#pdfbar').hidden=true" title="Close">✕</button></div>
 
 <div id="logModal" class="modal" onclick="if(event.target===this)this.hidden=true" hidden>
   <div class="box">
@@ -980,6 +993,207 @@ async function saveDocx() {
   if (canPickFolder && !dirHandle) toast('Saved to Downloads. Tip: click "change" at the top to save straight into your Invoice folder.');
 }
 
+/* ================= PDF made in the browser (web app / phone) =================
+   Lays the invoice out like the printed page (letter, 1" margins, Times) and writes a real PDF file,
+   so a phone can save it to Drive and send it by text or email without a print dialog. */
+const PDF_W = {   // character widths (1/1000 em) of the standard PDF fonts Times-Roman / Times-Bold, for ' '..'~'
+  r: [250,333,408,500,500,833,778,180,333,333,500,564,250,333,250,278,500,500,500,500,500,500,500,500,500,500,278,278,564,564,564,444,921,722,667,667,722,611,556,722,722,333,389,722,611,889,722,722,556,722,667,556,611,722,722,944,722,722,611,333,278,333,469,500,333,444,500,444,500,444,333,500,500,278,278,500,278,778,500,500,500,500,333,389,278,500,500,722,500,500,444,480,200,480,541],
+  b: [250,333,555,500,500,1000,833,278,333,333,500,570,250,333,250,278,500,500,500,500,500,500,500,500,500,500,333,333,570,570,570,500,930,722,667,722,722,667,611,778,778,389,500,778,667,944,722,778,611,778,722,556,667,722,722,1000,722,722,667,333,278,333,581,500,333,500,556,444,556,444,333,500,556,278,333,556,278,833,556,500,556,556,444,389,333,556,500,722,500,500,444,394,220,394,520]
+};
+const PDF_WIN = { 0x2013: 0x96, 0x2014: 0x97, 0x2018: 0x91, 0x2019: 0x92, 0x201C: 0x93, 0x201D: 0x94, 0x2022: 0x95, 0x2026: 0x85, 0x20AC: 0x80, 0x2122: 0x99, 0x00A0: 0x20 };
+const PDF_XW = { 0x96: 500, 0x97: 1000, 0x91: 333, 0x92: 333, 0x93: 444, 0x94: 444, 0x95: 350, 0x85: 1000, 0x80: 500, 0x99: 980 };
+function pdfChars(s) { let o = ''; for (const ch of String(s ?? '')) { const c = ch.codePointAt(0); o += String.fromCharCode(PDF_WIN[c] ?? (c < 256 ? c : 63)); } return o; }
+function pdfWidth(s, size, bold) {
+  let w = 0; const t = bold ? PDF_W.b : PDF_W.r;
+  for (const ch of pdfChars(s)) { const c = ch.charCodeAt(0); w += c >= 32 && c <= 126 ? t[c - 32] : (PDF_XW[c] || 500); }
+  return w * size / 1000;
+}
+function buildPdf() {
+  const d = collect(), px = v => v * 0.75;               // the page is laid out in CSS px; 1px = 0.75pt
+  const PW = 612, PH = 792, M = 72, CW = PW - 2 * M, BOTTOM = PH - M;
+  const pages = []; let ops = '', y = M;
+  const newPage = () => { if (ops) pages.push(ops); ops = ''; y = M; };
+  const rgb = h => { const n = parseInt(h.replace('#', ''), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255].map(v => v.toFixed(3)).join(' '); };
+  const esc = s => pdfChars(s).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const Y = v => (PH - v).toFixed(2);
+  const text = (x, base, s, size, o = {}) => {
+    const w = pdfWidth(s, size, o.bold); if (o.align === 'right') x -= w; else if (o.align === 'center') x -= w / 2;
+    ops += `BT /${o.bold ? 'F2' : 'F1'} ${size} Tf ${rgb(o.color || '#111111')} rg ${x.toFixed(2)} ${Y(base)} Td (${esc(s)}) Tj ET\n`;
+    if (o.u) ops += `${rgb(o.color || '#111111')} RG 0.6 w ${x.toFixed(2)} ${Y(base + 1.4)} m ${(x + w).toFixed(2)} ${Y(base + 1.4)} l S\n`;
+    return w;
+  };
+  const hline = (x1, x2, yy, color, w = 0.75) => { ops += `${rgb(color)} RG ${w} w ${x1.toFixed(2)} ${Y(yy)} m ${x2.toFixed(2)} ${Y(yy)} l S\n`; };
+  const rect = (x, yy, w, h, color) => { ops += `${rgb(color)} rg ${x.toFixed(2)} ${Y(yy + h)} ${w.toFixed(2)} ${h.toFixed(2)} re f\n`; };
+  // Text flow with mixed runs ([{t, bold, u}]), word wrap, optional justify and right/center alignment; returns the lines' height.
+  function layout(runs, w, size, bold0) {
+    const words = []; for (const r of runs) String(r.t ?? '').split(/(\n| )/).forEach(p => { if (p === '\n') words.push({ br: true }); else if (p && p !== ' ') words.push({ s: p, bold: r.bold ?? bold0, u: r.u }); });
+    const lines = []; let cur = [], cw = 0; const sp = pdfWidth(' ', size);
+    for (const wd of words) {
+      if (wd.br) { lines.push({ ws: cur, w: cw, hard: true }); cur = []; cw = 0; continue; }
+      wd.w = pdfWidth(wd.s, size, wd.bold);
+      if (cur.length && cw + sp + wd.w > w) { lines.push({ ws: cur, w: cw }); cur = []; cw = 0; }
+      cw += (cur.length ? sp : 0) + wd.w; cur.push(wd);
+    }
+    lines.push({ ws: cur, w: cw, hard: true }); return lines;
+  }
+  function flow(runs, x, w, size, o = {}) {           // draws at y (top of the first line); moves y down
+    const lead = o.lead || size * 1.25, sp = pdfWidth(' ', size);
+    for (const ln of layout(runs, w, size, o.bold)) {
+      if (y + lead > BOTTOM && !o.noBreak) newPage();
+      const base = y + size * 0.85; let cx = x, gap = sp;
+      if (o.align === 'right') cx = x + w - ln.w; else if (o.align === 'center') cx = x + (w - ln.w) / 2;
+      else if (o.justify && !ln.hard && ln.ws.length > 1) gap = sp + (w - ln.w) / (ln.ws.length - 1);
+      ln.ws.forEach((wd, i) => { text(cx, base, wd.s, size, { bold: wd.bold, u: wd.u, color: o.color }); if (wd.u && i < ln.ws.length - 1 && ln.ws[i + 1].u) hline(cx + wd.w, cx + wd.w + gap, base + 1.4, o.color || '#111111', 0.6); cx += wd.w + gap; });
+      y += lead;
+    }
+  }
+  // images: drawn on a white canvas and stored as JPEG
+  const imgs = [];
+  function jpeg(el, scale = 1) {
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round((el.naturalWidth || 100) * scale)); c.height = Math.max(1, Math.round((el.naturalHeight || 100) * scale));
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.imageSmoothingEnabled = scale <= 1; g.drawImage(el, 0, 0, c.width, c.height);
+    imgs.push({ w: c.width, h: c.height, data: atob(c.toDataURL('image/jpeg', 0.92).split(',')[1]) }); return 'Im' + imgs.length;   // JPEG bytes as a 1-byte-per-char string
+  }
+  const image = (name, x, top, w, h) => { ops += `q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${x.toFixed(2)} ${Y(top + h)} cm /${name} Do Q\n`; };
+  const logo = $('.logo'), gImg = $('.review .g'), qrImg = $('.review .qr');
+  const LOGO = jpeg(logo), GREV = jpeg(gImg), QR = jpeg(qrImg, 4);
+
+  // ---- header ----
+  const lw = px(115), lh = lw * (logo.naturalHeight || 1) / (logo.naturalWidth || 1);
+  const hTop = y, hx = M + px(12);
+  const headH = Math.max(lh, px(34) * 1.15 + px(27) * 1.2 + px(13) * 1.3);
+  let hy = hTop + headH - (px(34) * 1.15 + px(27) * 1.2 + px(13) * 1.3);
+  text(hx, hy + px(34) * 0.9, `${docType()} ${d.invno}`, px(34), { color: '#444444' }); hy += px(34) * 1.15;
+  text(hx, hy + px(27) * 0.9, 'RAPID COMPUTER REPAIR', px(27)); hy += px(27) * 1.2;
+  text(hx, hy + px(13) * 0.9, d.addr, px(13));
+  image(LOGO, M + CW - px(12) - lw, hTop + headH - lh, lw, lh);
+  y = hTop + headH + px(14);
+  // ---- date / to / ship to ----
+  const mTop = y, cols = [1, 1.25, 0.75], gap = px(18), inner = CW - px(24) - 2 * gap, colW = cols.map(c => c / 3 * inner);
+  hline(M, M + CW, mTop, '#999999');
+  let bottoms = [], cx = M + px(12);
+  [['Date', d.date], ['To', d.to], ['Ship To', d.shipto]].forEach(([l, v], i) => {
+    y = mTop + px(10); text(cx, y + px(14) * 0.85, l, px(14)); y += px(14) * 1.25 + px(6);
+    flow([{ t: v }], cx, colW[i], px(14), { noBreak: true }); bottoms.push(y); cx += colW[i] + gap;
+  });
+  y = Math.max(...bottoms) + px(18) - px(4); hline(M, M + CW, y, '#cccccc');
+  // ---- line items ----
+  y += px(24);
+  const iw = [px(90), 0, px(140), px(110)]; iw[1] = CW - iw[0] - iw[2] - iw[3];
+  const ix = [M, M + iw[0], M + iw[0] + iw[1], M + iw[0] + iw[1] + iw[2]], pad = px(12), fs = px(15);
+  const head = () => { const h = px(14) * 1.3 + px(8); rect(M, y, CW, h, '#6d6d72'); const b = y + px(4) + px(14) * 0.95;
+    text(ix[0] + pad, b, 'Quantity', px(14), { bold: true, color: '#ffffff' }); text(ix[1] + pad, b, 'Description', px(14), { bold: true, color: '#ffffff' });
+    text(ix[2] + iw[2] - pad, b, 'Unit Price', px(14), { bold: true, color: '#ffffff', align: 'right' }); text(ix[3] + iw[3] - pad, b, 'Total', px(14), { bold: true, color: '#ffffff', align: 'right' }); y += h; };
+  head();
+  document.querySelectorAll('#lines tr').forEach(tr => {
+    const q = tr.querySelector('.q').value, desc = tr.querySelector('.d').value, p = tr.querySelector('.p').value, t = tr.querySelector('.t').textContent;
+    if (!desc.trim() && !p.trim()) return;
+    const lines = layout([{ t: desc }], iw[1] - 2 * pad, fs), rh = Math.max(1, lines.length) * fs * 1.2 + px(6);
+    if (y + rh > BOTTOM) { newPage(); head(); }
+    const top = y, b = top + px(3) + fs * 0.88;
+    text(ix[0] + pad, b, q, fs); y = top + px(3); flow([{ t: desc }], ix[1] + pad, iw[1] - 2 * pad, fs, { lead: fs * 1.2, noBreak: true });
+    text(ix[2] + iw[2] - pad, b, p ? money(num(p)) : '', fs, { align: 'right' }); text(ix[3] + iw[3] - pad, b, t, fs, { align: 'right' });
+    y = top + rh; hline(M, M + CW, y, '#333333');
+  });
+  // ---- totals (and the PAID stamp beside them) ----
+  y += px(18);
+  const rows = [['Subtotal', $('#subtotal').textContent], ...[[d.adj1lbl, d.adj1], [d.adj2lbl, d.adj2]].filter(([, v]) => num(v)), [$('#totallbl').textContent, $('#totaldue').textContent, true]];
+  const rhh = px(29); if (y + rows.length * rhh > BOTTOM) newPage();
+  const tTop = y; hline(M, M + CW, y, '#333333');
+  rows.forEach(([l, v, b]) => { const base = y + rhh / 2 + fs * 0.33; text(M + CW - px(110) - pad, base, l, fs, { bold: b, align: 'right' }); text(M + CW - pad, base, v, fs, { bold: b, align: 'right' }); y += rhh; hline(M, M + CW, y, '#333333'); });
+  if (d.status === 'paid') {
+    const info = [d.paidDate, d.paidMethod, d.paidNote].map(s => (s || '').trim()).filter(Boolean).join(' · ');
+    const sw = Math.max(px(30) * 2.9, pdfWidth(info, px(12)) + px(28)), sh = px(30) + px(12) + px(14);
+    const cxs = M + px(40) + sw / 2, cys = tTop + (y - tTop) / 2;
+    const a = 8 * Math.PI / 180, co = Math.cos(a).toFixed(4), si = Math.sin(a).toFixed(4);
+    ops += `q ${co} ${si} ${-si} ${co} ${cxs.toFixed(2)} ${Y(cys)} cm 0.180 0.490 0.196 RG 0.180 0.490 0.196 rg 1.2 w ${(-sw / 2).toFixed(2)} ${(-sh / 2).toFixed(2)} ${sw.toFixed(2)} ${sh.toFixed(2)} re S ${(-sw / 2 + 2.5).toFixed(2)} ${(-sh / 2 + 2.5).toFixed(2)} ${(sw - 5).toFixed(2)} ${(sh - 5).toFixed(2)} re S\n`;
+    const pw = pdfWidth('PAID', px(30), true) + 3 * px(6);
+    ops += `BT /F2 ${px(30)} Tf ${px(6)} Tc ${(-pw / 2).toFixed(2)} ${(sh / 2 - px(4) - px(30) * 0.8).toFixed(2)} Td (PAID) Tj ET\n`;
+    if (info) ops += `BT /F1 ${px(12)} Tf 0 Tc ${(-pdfWidth(info, px(12)) / 2).toFixed(2)} ${(-sh / 2 + px(6)).toFixed(2)} Td (${esc(info)}) Tj ET\n`;
+    ops += 'Q\n';
+  }
+  // ---- job details (left) and thank-you / review / specs (right) ----
+  y += px(20);
+  const has = s => String(s || '').trim(), bx = M + px(12), bw = CW - px(24), lW = (bw - px(40)) * 0.6, rX = bx + lW + px(40), rW = bw - lW - px(40);
+  const startY = y, bs = px(14);
+  // right column first (it can't run onto another page), then the left column
+  const firstPage = pages.length;
+  y = startY; flow([{ t: 'Thank you for your business!' }], rX, rW, px(15), { align: 'right', noBreak: true }); y += px(16);
+  flow([{ t: 'Please make checks payable to:\nRapid Computer Repair' }], rX, rW, px(15), { align: 'right', noBreak: true }); y += px(10);
+  const gw = px(145), gh = gw * (gImg.naturalHeight || 1) / (gImg.naturalWidth || 1), qw = px(60), qh = qw * (qrImg.naturalHeight || 1) / (qrImg.naturalWidth || 1), rh = Math.max(gh, qh);
+  image(QR, rX + rW - qw, y + (rh - qh) / 2, qw, qh); image(GREV, rX + rW - qw - px(8) - gw, y + (rh - gh) / 2, gw, gh); y += rh + px(30);
+  const specs = [['Mobo', d.mobo], ['CPU', d.cpu], ['RAM', d.ram], ['GPU', d.gpu]].filter(([, v]) => has(v));
+  if (specs.length) { flow([{ t: 'Computer Specs:', bold: true }], rX, rW, bs, { align: 'center', noBreak: true }); specs.forEach(([k, v]) => flow([{ t: `${k} – ${v}` }], rX, rW, bs, { noBreak: true })); }
+  const rightEnd = y;
+  y = startY;
+  [['Make:', d.make], ['Model:', d.model]].filter(([, v]) => has(v)).forEach(([k, v]) => flow([{ t: k + ' ' }, { t: v }], bx, lW, bs));
+  [['Description(s):', d.desc], ['Resolution(s):', d.res], ['Time:', d.time], ['Recommendations:', d.rec]].forEach(([k, v]) => {
+    if (!has(v)) return; y += k === 'Time:' ? 0 : px(14); flow([{ t: k, u: true }, { t: ' ' + v }], bx, lW, bs);
+  });
+  if (pages.length === firstPage) y = Math.max(y, rightEnd);
+  // ---- warranty + contact, at the bottom of the (last) page ----
+  const wfs = px(10.5), wlead = wfs * 1.25, wW = CW - px(24);
+  const wRuns = [{ t: 'Parts are warranted against defects for thirty (30) days from the date of service.', bold: true },
+    { t: ' ' + ($('.warranty').innerText.replace(/^\s*Limited Warranty:\s*/i, '').replace(/^Parts are warranted against defects for thirty \(30\) days from the date of service\.\s*/, '')).replace(/\s+/g, ' ').trim() }];
+  const wLines = layout(wRuns, wW, wfs).length, cfs = px(13), contactH = px(22) + cfs * 1.7 * 2;
+  const tailH = px(24) + wlead + wLines * wlead + contactH;
+  if (y + tailH > BOTTOM) newPage();
+  y = BOTTOM - tailH + px(24);
+  flow([{ t: 'Limited Warranty:', u: true }], M + px(12), wW, wfs, { align: 'center', lead: wlead, noBreak: true });
+  flow(wRuns, M + px(12), wW, wfs, { justify: true, lead: wlead, noBreak: true });
+  y += px(22);
+  const cL = $('.contact').children[0]?.innerText.split('\n') || [], cR = $('.contact').children[1]?.innerText.split('\n') || [];
+  [0, 1].forEach(i => { const base = y + cfs * 1.7 * i + cfs * 1.1; if (cL[i]) text(M + px(12), base, cL[i].trim(), cfs); if (cR[i]) text(M + CW - px(12) - Math.max(...cR.map(s => pdfWidth(s.trim(), cfs))), base, cR[i].trim(), cfs); });
+  pages.push(ops);
+
+  // ---- write the PDF file ----
+  const parts = [], offs = []; let len = 0;
+  const put = s => { parts.push(s); len += s.length; };     // every char here is one byte (0–255)
+  const nImg = imgs.length, firstPageObj = 6 + nImg;
+  const obj = (n, body) => { offs[n] = len; put(`${n} 0 obj\n${body}\nendobj\n`); };
+  put('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, `<< /Type /Pages /Count ${pages.length} /Kids [${pages.map((_, i) => `${firstPageObj + 2 * i} 0 R`).join(' ')}] >>`);
+  obj(3, '<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>');
+  obj(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold /Encoding /WinAnsiEncoding >>');
+  obj(5, `<< /Title (${esc(fileName())}) /Author (Rapid Computer Repair) /Creator (RCR Shop) >>`);
+  imgs.forEach((im, i) => obj(6 + i, `<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>\nstream\n${im.data}\nendstream`));
+  const res = `<< /Font << /F1 3 0 R /F2 4 0 R >> /XObject << ${imgs.map((_, i) => `/Im${i + 1} ${6 + i} 0 R`).join(' ')} >> >>`;
+  pages.forEach((c, i) => {
+    obj(firstPageObj + 2 * i, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources ${res} /Contents ${firstPageObj + 2 * i + 1} 0 R >>`);
+    obj(firstPageObj + 2 * i + 1, `<< /Length ${c.length} >>\nstream\n${c}\nendstream`);
+  });
+  const n = firstPageObj + 2 * pages.length - 1, xref = len;
+  let x = `xref\n0 ${n + 1}\n0000000000 65535 f \n`; for (let i = 1; i <= n; i++) x += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
+  put(x + `trailer\n<< /Size ${n + 1} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  const all = parts.join(''), bytes = new Uint8Array(all.length);
+  for (let i = 0; i < all.length; i++) bytes[i] = all.charCodeAt(i) & 255;
+  return new Blob([bytes], { type: 'application/pdf' });
+}
+let lastPdf = null;
+async function savePdf() {
+  const dir = await getDir(true);
+  if (!(await recordInvoice('PDF', dir))) return;
+  markSaved();
+  const name = fileName() + '.pdf'; let blob;
+  try { blob = buildPdf(); } catch (e) { console.error(e); return alert('Could not make the PDF: ' + e.message); }
+  let where = '';
+  if (dir) { try { await writeFile(dir, name, blob); where = `Saved to ${HOSTED ? 'Google Drive › ' : ''}${dir.name}`; } catch (err) { alert(`Couldn't save the PDF into ${dir.name} (${err.message}).`); } }
+  lastPdf = { name, blob };
+  const bar = $('#pdfbar');
+  $('#pdfmsg').textContent = (where ? '✓ ' + where + ':  ' : '') + name;
+  bar.hidden = false;
+}
+async function sharePdf() {                  // a fresh tap, so the phone allows the share sheet (Messages, Mail, Print…)
+  if (!lastPdf) return;
+  const file = new File([lastPdf.blob], lastPdf.name, { type: 'application/pdf' });
+  const d = collect();
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: lastPdf.name, text: `${docType()} ${d.invno} from Rapid Computer Repair` }); } catch (e) { if (e.name !== 'AbortError') alert('Could not share: ' + e.message); }
+  } else openPdf();
+}
+function openPdf() { if (!lastPdf) return; const u = URL.createObjectURL(lastPdf.blob); const w = window.open(u, '_blank'); if (!w) download(lastPdf.name, lastPdf.blob); setTimeout(() => URL.revokeObjectURL(u), 60000); }
+
 // Measure the page as it will print (no buttons/hints, no stretch) and shrink it to fit one letter page if needed.
 // Mark fields that are blank (or $0 adjustments) so they're left off the printed page.
 function markEmpty() {
@@ -1086,6 +1300,7 @@ $('#favicon').href = $('.logo').src; // logo as the Chrome tab / bookmark icon
 updateDirty();
 if (HOSTED) {                       // web app: Google Drive instead of a picked folder, plus a way back to the dashboard
   $('#homebtn').hidden = false; $('#homebtn').href = '../dashboard/';
+  $('#pdfbtn').hidden = false; document.body.classList.add('hosted');
   if (!SIGNING_IN) { showFolder(); refreshLists(); }
 } else idb.get('dir').then(h => { dirHandle = h || null; showFolder(); refreshLists(); });
 

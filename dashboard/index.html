@@ -207,7 +207,30 @@
   [data-theme=terminal] aside, [data-theme=terminal] nav a { color:#39ff88; }
   [data-theme=terminal] .badge { color:#000; text-shadow:none; }
   /* phone */
-  .btn.menu, #scrim { display:none; }
+  .btn.menu, #scrim, #tabbar { display:none; }
+  .tc .mv { display:none; margin-left:4px; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:6px; padding:0 9px; font-size:15px; line-height:22px; cursor:pointer; }
+  @media (pointer:coarse), (max-width:760px) { .tc .mv { display:inline-block; } }
+  .quick { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; } .quick:empty { display:none; }
+  .inrow { display:flex; gap:5px; } .inrow input { flex:1; min-width:0; }
+  .photos { display:grid; grid-template-columns:repeat(auto-fill, minmax(78px, 1fr)); gap:6px; }
+  .photos .ph { position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; background:#e8ebf2; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--mut); text-align:center; }
+  .photos .ph img { width:100%; height:100%; object-fit:cover; display:block; }
+  .photos .ph .up { position:absolute; right:3px; bottom:3px; background:rgba(0,0,0,.55); color:#fff; border-radius:6px; padding:0 4px; font-size:10px; }
+  .sigs { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .sig { border:1px dashed #c9d1df; border-radius:8px; padding:6px; text-align:center; min-height:80px; display:flex; flex-direction:column; justify-content:center; gap:4px; font-size:12px; color:var(--mut); }
+  .sig img { max-width:100%; max-height:70px; background:#fff; border-radius:4px; }
+  .overlay { position:fixed; inset:0; z-index:70; background:rgba(10,15,30,.75); display:flex; align-items:center; justify-content:center; padding:12px; }
+  .overlay .ob { background:var(--card); color:var(--ink); border-radius:14px; padding:14px; width:100%; max-width:640px; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  .overlay.sheet { align-items:flex-end; padding:0; }
+  .overlay.sheet .ob { border-radius:16px 16px 0 0; max-width:520px; padding:14px 14px calc(14px + env(safe-area-inset-bottom)); }
+  .sheet .sb { display:block; width:100%; text-align:left; padding:13px 14px; margin:4px 0; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); font-size:15px; cursor:pointer; }
+  .sheet .sb.cur { border-color:var(--accent); background:var(--accent2); font-weight:600; }
+  #sigcanvas { width:100%; height:220px; background:#fff; border:1px solid #c9d1df; border-radius:10px; touch-action:none; display:block; }
+  .viewer img { max-width:100%; max-height:72vh; display:block; margin:0 auto 10px; border-radius:8px; }
+  .scanner { background:#000; padding:0; flex-direction:column; }
+  .scanner video { width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
+  .scanner .frame { position:absolute; left:8%; right:8%; top:38%; height:24%; border:3px solid #39ff88; border-radius:12px; box-shadow:0 0 0 2000px rgba(0,0,0,.35); }
+  .scanner .bar { position:absolute; left:0; right:0; bottom:0; padding:14px 14px calc(14px + env(safe-area-inset-bottom)); display:flex; gap:10px; align-items:center; color:#fff; background:rgba(0,0,0,.6); }
   @media (max-width:760px) {
     #app { grid-template-columns:1fr; }
     aside { position:fixed; left:0; top:0; bottom:0; width:260px; height:auto; z-index:50; transform:translateX(-105%); transition:transform .2s; padding-top:calc(14px + env(safe-area-inset-top)); }
@@ -238,6 +261,15 @@
     .toast { max-width:none; }
     .row2 { grid-template-columns:1fr; }
     .btn { padding:8px 12px; } .btn.sm { padding:5px 9px; }
+    #tabbar { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:30; background:var(--card); border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); box-shadow:0 -2px 10px rgba(0,0,0,.06); }
+    #tabbar a { flex:1; display:flex; flex-direction:column; align-items:center; gap:1px; padding:6px 0 5px; font-size:10.5px; color:var(--mut); text-decoration:none; cursor:pointer; user-select:none; }
+    #tabbar a.on { color:var(--accent); font-weight:600; }
+    #tabbar .ti { font-size:20px; line-height:1.15; position:relative; }
+    #tabbar .ti b { position:absolute; top:-3px; right:-13px; background:var(--bad); color:#fff; font-size:10px; border-radius:9px; padding:0 5px; line-height:15px; }
+    #tabbar a.plus .ti { background:var(--accent); color:#fff; border-radius:50%; width:40px; height:40px; display:flex; align-items:center; justify-content:center; font-size:24px; margin-top:-16px; box-shadow:0 3px 10px rgba(0,0,0,.25); }
+    .content { padding-bottom:calc(86px + env(safe-area-inset-bottom)); }
+    #toasts { bottom:calc(72px + env(safe-area-inset-bottom)); }
+    .sigs { grid-template-columns:1fr; }
   }
   /* print */
   #print { display:none; }
@@ -300,6 +332,7 @@
   </main>
 </div>
 <div id="scrim" onclick="document.body.classList.remove('navopen')"></div>
+<nav id="tabbar"></nav>
 <div id="modal" hidden></div>
 <div id="toasts"></div>
 <div id="print"></div>
@@ -377,6 +410,7 @@ const idb = (() => {
   return {
     get: async k => { const d = await db(); return new Promise((res, rej) => { const r = d.transaction('kv').objectStore('kv').get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
     set: async (k, v) => { const d = await db(); return new Promise((res, rej) => { const t = d.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); },
+    del: async k => { const d = await db(); return new Promise((res, rej) => { const t = d.transaction('kv', 'readwrite'); t.objectStore('kv').delete(k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); },
   };
 })();
 
@@ -462,6 +496,7 @@ async function pullFromFolder() {           // read the Drive copy and merge it 
   } catch (e) { driveError(e); }
   finally { busy = false; }
   await loadInvoices();
+  uploadPhotos();
 }
 async function weeklyBackup(d) {
   const day = today(); if (backupDay === day) return; backupDay = day;
@@ -614,10 +649,17 @@ function navHTML() {
   return Object.entries(VIEWS).map(([k, [ic, l]], i) => (k === 'follow' || k === 'tools' ? '<div class="sep"></div>' : '') +
     `<a class="${k === view ? 'on' : ''}" onclick="go('${k}')" title="Shortcut: ${(i + 1) % 10}">${ic} ${l}${ct[k] ? `<span class="ct ${hot[k] ? 'hot' : ''}">${ct[k]}</span>` : ''}</a>`).join('');
 }
+// Phone: tab bar along the bottom (the ☰ menu still has every page)
+function tabbarHTML() {
+  const open = DB.tickets.filter(t => OPEN.includes(t.status)).length;
+  const it = (k, ic, l, n) => `<a class="${view === k ? 'on' : ''}" onclick="go('${k}')"><span class="ti">${ic}${n ? `<b>${n}</b>` : ''}</span>${l}</a>`;
+  return it('home', '📊', 'Home') + it('tickets', '🛠️', 'Tickets', open) + `<a class="plus" onclick="editTicket()"><span class="ti">＋</span>Check in</a>` +
+    it('customers', '👥', 'Customers') + `<a onclick="document.body.classList.add('navopen')"><span class="ti">☰</span>More</a>`;
+}
 function render() {
   view = location.hash.slice(1); if (!VIEWS[view]) view = 'home';
   document.body.classList.remove('navopen');
-  $('#nav').innerHTML = navHTML(); $('#title').textContent = VIEWS[view][1];
+  $('#nav').innerHTML = navHTML(); $('#title').textContent = VIEWS[view][1]; $('#tabbar').innerHTML = tabbarHTML();
   document.title = 'RCR Dashboard · ' + VIEWS[view][1];
   const sy = window.scrollY; $('#main').innerHTML = banner() + VIEWS[view][2](); window.scrollTo(0, sy);
   fillDatalists(); drawUptime();
@@ -821,7 +863,7 @@ function setStatus(id, k, quiet) {
   if (quiet) return;
   if (k === 'ready') toast(`#${t.no} is ready for pickup.`, '', [['💬 Tell the customer', () => msgOpen(id, 'msgReady')]]);
   else if (k === 'approval') toast(`#${t.no} is waiting for approval.`, '', [['💬 Ask for approval', () => msgOpen(id, 'msgApproval')]]);
-  else if (k === 'done') toast(`#${t.no} picked up.${t.invno ? '' : ' Remember to make the invoice.'}`, '', t.invno ? [] : [['🧾 Make invoice', () => openInvoice(id)]]);
+  else if (k === 'done') toast(`#${t.no} picked up.${t.invno ? '' : ' Remember to make the invoice.'}`, '', [...(t.sigOut ? [] : [['✍️ Pickup signature', () => { editTicket(id); sigPad('sigOut'); }]]), ...(t.invno ? [] : [['🧾 Make invoice', () => openInvoice(id)]])]);
   else toast(`#${t.no} → ${ST[k].l}`);
 }
 let dragId = null;
@@ -872,7 +914,7 @@ function dueTag(t) {
 function tCard(t) {
   const age = daysSince(t.status === 'ready' ? readySince(t) : t.created);
   return `<div class="tc" draggable="true" ondragstart="dragStart(event,'${t.id}')" onclick="editTicket('${t.id}')">
-    <div class="no">#${t.no} ${prioTag(t)} ${t.warrantyReturn ? '<span class="tag amber">Warranty</span>' : ''}<span style="margin-left:auto">${t.tech ? esc(t.tech) : ''}</span></div>
+    <div class="no">#${t.no} ${prioTag(t)} ${t.warrantyReturn ? '<span class="tag amber">Warranty</span>' : ''}${(t.photos || []).length ? `<span title="${plural(t.photos.length, 'photo')}">📷</span>` : ''}<span style="margin-left:auto">${t.tech ? esc(t.tech) : ''}</span><button class="mv" title="Move to another status" onclick="event.stopPropagation();statusSheet('${t.id}')">⋯</button></div>
     <div class="nm">${esc(t.name)}</div><div class="dv">${esc(devName(t))}</div><div class="is">${esc(t.issue || '')}</div>
     <div class="ft">${dueTag(t)}<span class="tag ${age >= (t.status === 'ready' ? S().staleDays : 5) ? 'amber' : ''}">${age}d${t.status === 'ready' ? ' waiting' : ''}</span>${t.estimate && !t.invno ? `<span class="tag">${money0(t.estimate)}</span>` : ''}${invTag(t)}${t.backup ? '<span class="tag blue">Backup</span>' : ''}</div></div>`;
 }
@@ -886,22 +928,29 @@ function editTicket(id, pre) {
   const accOther = (t.accessories || []).filter(a => !ACCESSORIES.includes(a)).join(', ');
   const body = `<form id="tf" class="tk" oninput="modalDirty=true" onsubmit="return false">
    <div>
-    <div class="box"><div class="bh">👤 Customer</div>
+    <div class="box" oninput="cquick()"><div class="bh">👤 Customer</div>
       <div class="f"><label>Name *<input name="name" list="custList" value="${esc(t.name || '')}" oninput="custLookup()" onchange="custFill()" required></label>
       <label>Phone<input name="phone" value="${esc(t.phone || '')}" oninput="custLookup()" onblur="this.value=fmtPhone(this.value)"></label>
       <label>Email<input name="email" type="email" value="${esc(t.email || '')}"></label>
       <label>Address (on-site jobs)<input name="addr" value="${esc(t.addr || '')}"></label></div>
+      <div id="cquick" class="quick"></div>
       <div id="ret" class="ret" hidden></div></div>
     <div class="box" oninput="wl()"><div class="bh">💻 Device</div>
       <div class="f three"><label>Type<select name="devType">${opt(S().devTypes, t.devType)}</select></label>
       <label>Make<input name="make" value="${esc(t.make || '')}" list="makes"></label><label>Model<input name="model" value="${esc(t.model || '')}"></label>
-      <label>Serial / service tag<input name="serial" value="${esc(t.serial || '')}"></label>
+      <label>Serial / service tag<span class="inrow"><input name="serial" value="${esc(t.serial || '')}"><button class="btn sm" type="button" title="Scan the barcode / QR code on the label with the camera" onclick="scanInto($('#tf').serial)">📷</button></span></label>
       <label>Password / PIN<input name="pass" value="${esc(t.pass || '')}" autocomplete="off" placeholder="not printed"></label>
       <label>Condition on arrival<input name="condition" value="${esc(t.condition || '')}" placeholder="scratches, cracks, missing keys…"></label>
       <div class="full fl">Left with device<div class="chk">${ACCESSORIES.map(a => `<label><input type="checkbox" name="acc" value="${esc(a)}" ${(t.accessories || []).includes(a) ? 'checked' : ''}>${esc(a)}</label>`).join('')}
         <input name="accOther" class="inp" style="width:170px;padding:3px 7px" placeholder="Other…" value="${esc(accOther)}"></div></div></div>
       <div id="wlinks" class="small" style="margin-top:8px;line-height:1.8"></div>
       <datalist id="makes">${['Dell', 'HP', 'Lenovo', 'Apple', 'ASUS', 'Acer', 'MSI', 'Microsoft', 'Samsung', 'Razer', 'Gigabyte', 'Toshiba', 'LG', 'Alienware', 'Custom'].map(x => `<option value="${x}">`).join('')}</datalist></div>
+    <div class="box"><div class="bh">📷 Photos <span class="r muted small" id="phcount"></span></div>
+      <div id="tphotos" class="photos"></div>
+      <div class="row" style="margin-top:8px"><label class="btn sm">📷 Take photo<input type="file" accept="image/*" capture="environment" hidden onchange="addPhotos(this)"></label>
+        <label class="btn sm">🖼 Add from library<input type="file" accept="image/*" multiple hidden onchange="addPhotos(this)"></label>
+        <span class="muted small">Condition on arrival, damage, serial label… Saved to Drive with the ticket.</span></div></div>
+    <div class="box"><div class="bh">✍️ Customer signatures</div><div id="tsigs" class="sigs"></div></div>
     <div class="box"><div class="bh">🛠️ Job</div>
       <div class="f"><label class="full">Problem (what the customer says) *<textarea name="issue">${esc(t.issue || '')}</textarea></label>
       <label class="full">Diagnosis / work done<textarea name="diag">${esc(t.diag || '')}</textarea></label></div>
@@ -944,7 +993,152 @@ function editTicket(id, pre) {
     <button class="btn" onclick="editOrder(null,{ticketId:'${t.id}'})">🚚 Order part</button>
     <span class="grow"></span><button class="btn danger" onclick="delTicket('${t.id}')">Delete</button>` : ''}`;
   modal(id ? `Ticket #${t.no} · ${badge(t.status)}` : 'New repair ticket — check in', body, foot, true);
-  drawParts(); drawNotes(); custLookup(); drawChecks(); wl();
+  drawParts(); drawNotes(); custLookup(); drawChecks(); wl(); cquick(); drawPhotos(); drawSigs();
+}
+
+/* ---- phone helpers: call / text / map, photos, signatures, barcode scan, status sheet ---- */
+function cquick() {
+  const f = $('#tf'), el = $('#cquick'); if (!f || !el) return;
+  const p = digits(f.phone.value), e = f.email.value.trim(), a = f.addr.value.trim();
+  el.innerHTML = (p.length >= 10 ? `<a class="btn sm" href="tel:${p}">📞 Call</a><a class="btn sm" href="sms:${p}">💬 Text</a>` : '') +
+    (e ? `<a class="btn sm" href="mailto:${esc(e)}">✉ Email</a>` : '') + (a ? `<a class="btn sm" target="_blank" rel="noopener" href="https://maps.google.com/?q=${encodeURIComponent(a)}">📍 Directions</a>` : '');
+}
+function overlay(html, cls) {        // a layer above everything (even the ticket window); returns the element
+  const ov = document.createElement('div'); ov.className = 'overlay ' + (cls || ''); ov.innerHTML = html;
+  document.body.appendChild(ov); return ov;
+}
+function sheet(title, items) {       // bottom action sheet: items = [[label, fn, current?], …]
+  const ov = overlay(`<div class="ob"><div style="font-weight:700;margin:2px 4px 8px">${title}</div>${items.map(([l, , cur], i) => `<button class="sb ${cur ? 'cur' : ''}" data-i="${i}">${l}</button>`).join('')}<button class="sb" data-i="x" style="text-align:center">Cancel</button></div>`, 'sheet');
+  ov.onclick = e => { const b = e.target.closest('[data-i]'); if (e.target === ov || b) ov.remove(); if (b && b.dataset.i !== 'x') items[+b.dataset.i][1](); };
+}
+function statusSheet(id) {
+  const t = DB.tickets.find(x => x.id === id); if (!t) return;
+  sheet(`Move #${t.no} ${esc(t.name)} to…`, STATUSES.map(s => [`<span class="dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.c};margin-right:8px"></span>${s.l}`, () => setStatus(id, s.k), s.k === t.status]));
+}
+
+// Photos: shrunk on the phone (max 1600 px JPEG), kept in this browser until the ticket is saved,
+// then uploaded to <RCR>/<dataPath>/Photos/Ticket <no>/ and listed on the ticket (t.photos = [{f, t}]).
+const photoURL = new Map();          // file name → object URL for thumbnails
+async function shrinkImage(file, max, q) {
+  let src, w, h;
+  try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); w = src.width; h = src.height; }
+  catch { src = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('that file is not a picture')); i.src = URL.createObjectURL(file); }); w = src.naturalWidth; h = src.naturalHeight; }
+  const s = Math.min(1, max / Math.max(w, h)), c = document.createElement('canvas');
+  c.width = Math.round(w * s); c.height = Math.round(h * s); c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  return new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('could not compress the picture')), 'image/jpeg', q));
+}
+async function addPhotos(input) {
+  const files = [...input.files]; input.value = '';
+  for (const f of files) {
+    try {
+      const blob = await shrinkImage(f, 1600, 0.82), d = new Date(), p2 = n => String(n).padStart(2, '0');
+      const name = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}.${p2(d.getMinutes())}.${p2(d.getSeconds())} ${Math.random().toString(36).slice(2, 5)}.jpg`;
+      await idb.set('photo:' + name, blob);
+      (tmp.photos = tmp.photos || []).push({ f: name, t: nowISO(), pending: true });
+      photoURL.set(name, URL.createObjectURL(blob));
+    } catch (e) { toast('Could not add that photo: ' + e.message, 'err'); }
+  }
+  modalDirty = true; drawPhotos();
+}
+const photoDir = (t, create) => getDir(folder, `${S().dataPath}/Photos/Ticket ${t.no}`, create);
+async function photoSrc(t, p) {
+  if (photoURL.has(p.f)) return photoURL.get(p.f);
+  let blob = await idb.get('photo:' + p.f).catch(() => null);
+  if (!blob && folder && folderOK && t.no) {
+    const f = await (await (await photoDir(t, false)).getFileHandle(p.f)).getFile();
+    blob = f instanceof Blob ? f : await f.blob();         // a real File on the computer, a Drive file object in the web app
+  }
+  if (!blob) return null;
+  const u = URL.createObjectURL(blob); photoURL.set(p.f, u); return u;
+}
+function drawPhotos() {
+  const el = $('#tphotos'); if (!el || !tmp) return; const ps = tmp.photos || [];
+  $('#phcount').textContent = ps.length ? plural(ps.length, 'photo') : '';
+  el.innerHTML = ps.length ? ps.map((p, i) => `<div class="ph" onclick="viewPhoto(${i})" data-f="${esc(p.f)}">…${p.pending ? '<span class="up" title="Uploads to Drive when the ticket is saved">⏳</span>' : ''}</div>`).join('') : '<div class="muted small" style="grid-column:1/-1">No photos yet.</div>';
+  const t = tmp;
+  ps.forEach(p => photoSrc(t, p).then(u => { const d = el.querySelector(`[data-f="${CSS.escape(p.f)}"]`); if (d) { if (u) d.innerHTML = `<img src="${u}" alt="">` + (p.pending ? '<span class="up">⏳</span>' : ''); else d.textContent = 'On another device'; } })
+    .catch(() => { const d = el.querySelector(`[data-f="${CSS.escape(p.f)}"]`); if (d) d.textContent = 'Not found'; }));
+}
+function viewPhoto(i) {
+  const p = tmp.photos[i], t = tmp;
+  const ov = overlay(`<div class="ob viewer"><img alt=""><div class="row"><span class="small muted">${fmtTs(p.t)}</span><span class="grow"></span>
+    <button class="btn danger" data-a="del">Remove</button><button class="btn pri" data-a="x">Close</button></div></div>`);
+  photoSrc(t, p).then(u => { if (u) ov.querySelector('img').src = u; });
+  ov.onclick = e => { const a = e.target.dataset.a; if (e.target === ov || a === 'x') ov.remove();
+    if (a === 'del' && confirm('Remove this photo from the ticket? (A copy stays in the Drive Photos folder.)')) { tmp.photos.splice(i, 1); modalDirty = true; ov.remove(); drawPhotos(); } };
+}
+let uploading = false;
+async function uploadPhotos() {       // send photos taken on this device to Drive (runs after saving and when Drive connects)
+  if (uploading || !folder || !folderOK) return; uploading = true;
+  try {
+    for (const t of DB.tickets.filter(x => x.no && (x.photos || []).some(p => p.pending))) {
+      const d = await photoDir(t, true); let changed = false;
+      for (const p of t.photos.filter(p => p.pending)) {
+        const blob = await idb.get('photo:' + p.f);
+        if (blob) { await writeBlob(d, p.f, blob); await idb.del('photo:' + p.f); }
+        else { try { await d.getFileHandle(p.f); } catch { continue; } }   // taken on another device and not uploaded yet
+        delete p.pending; changed = true;
+      }
+      if (changed) upsert('tickets', t);
+    }
+  } catch (e) { console.error(e); if (e.name === 'AuthError') driveError(e); }
+  finally { uploading = false; }
+}
+async function writeBlob(dir, name, blob) { const fh = await dir.getFileHandle(name, { create: true }); const w = await fh.createWritable(); await w.write(blob); await w.close(); }
+
+// Signatures: drawn with a finger, stored on the ticket as a small PNG (t.sigIn = drop-off, t.sigOut = pickup)
+function drawSigs() {
+  const el = $('#tsigs'); if (!el || !tmp) return;
+  const one = (k, l) => { const s = tmp[k]; return `<div class="sig">${s ? `<img src="${s.d}" alt=""><div>${l} · ${fmtTs(s.t)}</div><button type="button" class="btn sm" onclick="sigPad('${k}')">Sign again</button>` : `<div>${l}</div><button type="button" class="btn sm pri" onclick="sigPad('${k}')">✍️ Sign</button>`}</div>`; };
+  el.innerHTML = one('sigIn', 'Drop-off') + one('sigOut', 'Pickup');
+}
+function sigPad(kind) {
+  const ov = overlay(`<div class="ob"><div style="margin-bottom:6px"><b>${kind === 'sigIn' ? 'Drop-off' : 'Pickup'} signature</b> <span class="muted small">— ${esc(tmp.name || 'customer')}, please sign below${kind === 'sigIn' ? ' to agree to the repair terms' : ' to confirm you picked up your device'}</span></div>
+    <canvas id="sigcanvas"></canvas>
+    <div class="row" style="margin-top:10px"><button class="btn" data-a="clear">Clear</button><span class="grow"></span><button class="btn" data-a="x">Cancel</button><button class="btn pri" data-a="ok">Save signature</button></div></div>`);
+  const c = ov.querySelector('canvas'), r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
+  const g = c.getContext('2d'); g.scale(dpr, dpr); g.lineWidth = 2.6; g.lineCap = g.lineJoin = 'round'; g.strokeStyle = g.fillStyle = '#111';
+  let drawing = false, any = false, last;
+  const pt = e => { const b = c.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+  c.onpointerdown = e => { e.preventDefault(); drawing = any = true; last = pt(e); try { c.setPointerCapture(e.pointerId); } catch { } g.beginPath(); g.arc(last[0], last[1], 1.2, 0, 7); g.fill(); };
+  c.onpointermove = e => { if (!drawing) return; e.preventDefault(); const p = pt(e); g.beginPath(); g.moveTo(last[0], last[1]); g.lineTo(p[0], p[1]); g.stroke(); last = p; };
+  c.onpointerup = c.onpointercancel = () => { drawing = false; };
+  ov.onclick = e => {
+    const a = e.target.dataset.a; if (!a) return;
+    if (a === 'clear') { g.clearRect(0, 0, c.width, c.height); any = false; }
+    if (a === 'x') ov.remove();
+    if (a === 'ok') {
+      if (!any) return toast('Please sign in the box first.', 'err');
+      const o = document.createElement('canvas'), w = Math.min(480, c.width); o.width = w; o.height = Math.round(c.height * w / c.width);
+      const og = o.getContext('2d'); og.fillStyle = '#fff'; og.fillRect(0, 0, o.width, o.height); og.drawImage(c, 0, 0, o.width, o.height);
+      const px = og.getImageData(0, 0, o.width, o.height), a = px.data;    // pure black & white keeps the PNG tiny (it's synced with the tickets)
+      for (let i = 0; i < a.length; i += 4) { const v = a[i] < 170 ? 0 : 255; a[i] = a[i + 1] = a[i + 2] = v; a[i + 3] = 255; }
+      og.putImageData(px, 0, 0);
+      tmp[kind] = { d: o.toDataURL('image/png'), t: nowISO() }; modalDirty = true; ov.remove(); drawSigs();
+      toast('Signature added — tap Save to keep it.');
+    }
+  };
+}
+
+// Barcode / QR scan with the camera (Chrome on Android, Chrome/Edge on computers). iPhone browsers can't read barcodes yet.
+async function scanInto(input) {
+  if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia)
+    return alert('This browser can\'t read barcodes yet (iPhones don\'t support it).\n\nOn an iPhone instead: tap the Serial box, tap it once more and choose "Scan Text" — point the camera at the label and tap Insert.');
+  let det; try { const f = await BarcodeDetector.getSupportedFormats(); det = new BarcodeDetector(f.length ? { formats: f } : undefined); } catch (e) { return toast('Barcode reading is not available: ' + e.message, 'err'); }
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 } }, audio: false }); }
+  catch (e) { return toast('The camera could not start: ' + e.message, 'err'); }
+  const ov = overlay(`<video playsinline muted autoplay></video><div class="frame"></div><div class="bar"><span style="flex:1">Point at the barcode or QR code on the label</span><button class="btn">Cancel</button></div>`, 'scanner');
+  const v = ov.querySelector('video'); v.srcObject = stream; v.play().catch(() => { });
+  let done = false; const stop = () => { done = true; stream.getTracks().forEach(t => t.stop()); ov.remove(); };
+  ov.querySelector('button').onclick = stop;
+  const tick = async () => {
+    if (done) return;
+    try { const hit = (await det.detect(v)).find(x => (x.rawValue || '').trim());
+      if (hit) { input.value = hit.rawValue.trim(); input.dispatchEvent(new Event('input', { bubbles: true })); if (navigator.vibrate) navigator.vibrate(80); stop(); modalDirty = true; toast('Scanned: ' + input.value); return; } } catch { }
+    setTimeout(tick, 220);
+  };
+  v.addEventListener('loadeddata', tick, { once: true });
 }
 const CHECKS = [['power', 'Powers on'], ['boot', 'Boots to OS'], ['display', 'Display'], ['keyboard', 'Keyboard'], ['touchpad', 'Trackpad / mouse'], ['ports', 'USB / ports'],
   ['wifi', 'Wi-Fi / Bluetooth'], ['audio', 'Speakers / mic'], ['camera', 'Webcam'], ['charging', 'Charging'], ['battery', 'Battery'], ['storage', 'Drive / SMART'],
@@ -1032,6 +1226,7 @@ function saveTicket(andPrint) {
   const nowInv = (t.parts || []).filter(p => p.invId).map(p => p.invId);
   for (const idv of oldInv) { const i = nowInv.indexOf(idv); if (i >= 0) nowInv.splice(i, 1); else { const ip = DB.parts.find(x => x.id === idv); if (ip) { ip.qty = num(ip.qty) + 1; upsert('parts', ip); } } }
   upsert('tickets', t); modalDirty = false; closeModal(true); render();
+  if ((t.photos || []).some(p => p.pending)) setTimeout(uploadPhotos, 900);
   toast(isNew ? `Ticket #${t.no} checked in for ${t.name}.` : `Ticket #${t.no} saved.`);
   if (old && old.status !== t.status && t.status === 'ready') toast(`#${t.no} is ready.`, '', [['💬 Tell the customer', () => msgOpen(t.id, 'msgReady')]]);
   if (andPrint) setTimeout(() => printClaim(t.id), 150);
@@ -1091,7 +1286,9 @@ function printClaim(id) {
    <div><span>Promised by</span> ${t.due ? fmtD(t.due) : 'We will call you'}</div><div><span>Data backup</span> ${t.backup ? 'Requested' : 'Not requested'}</div></div>
    <div style="margin-top:8px"><b>Problem described:</b></div><div class="pr-box">${esc(t.issue || '')}</div>
    <div class="pr-terms"><b>Terms</b>\n${esc(s.terms)}</div>
-   <div class="pr-sign"><div>Customer signature</div><div>Date</div></div>
+   ${t.sigIn ? `<div class="pr-sign" style="margin-top:8px;align-items:flex-end"><div style="border-top:0;padding-top:0"><img src="${t.sigIn.d}" alt="" style="height:52px;display:block"><div style="border-top:1px solid #000;padding-top:3px">Customer signature (signed on screen)</div></div>
+      <div style="border-top:0;padding-top:0"><b>${new Date(t.sigIn.t).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</b><div style="border-top:1px solid #000;padding-top:3px">Date</div></div></div>`
+      : '<div class="pr-sign"><div>Customer signature</div><div>Date</div></div>'}
    <div class="pr-cut">✂ — cut and attach to device — ✂</div>
    <div class="pr-tag"><div class="big">#${t.no}</div><div><b>${esc(t.name)}</b><br>${esc(fmtPhone(t.phone))}<br>${esc(devName(t))}<br>In: ${new Date(t.created).toLocaleDateString()}${t.due ? ' · Due: ' + fmtDs(t.due) : ''}${t.priority === 'rush' ? ' · <b>RUSH</b>' : ''}<br><small>${esc((t.issue || '').slice(0, 90))}</small></div></div>`;
   setTimeout(() => window.print(), 50);
@@ -1185,7 +1382,7 @@ function custModal(key) {
   const body = `<div class="grid kpis" style="grid-template-columns:repeat(4,1fr)">
      ${kpi('Visits', c.visits, c.first !== Infinity && c.first ? 'since ' + new Date(c.first).toLocaleDateString() : '', '')}${kpi('Total spent', money0(c.spent), c.inv.length ? 'avg ' + money0(c.spent / Math.max(1, c.inv.filter(isRev).length)) : '', '')}
      ${kpi('Last visit', c.last ? new Date(c.last).toLocaleDateString() : '—', warranty(c) || 'no active warranty', '')}${kpi('Balance owed', money(c.unpaid), c.unpaid ? 'unpaid invoices' : 'all clear', '', c.unpaid ? 'alert' : 'good')}</div>
-   <div class="row" style="margin-bottom:10px">${c.phone ? `<a class="btn" href="tel:${digits(c.phone)}">📞 ${esc(c.phone)}</a>` : ''}${c.email ? `<a class="btn" href="mailto:${esc(c.email)}">✉ ${esc(c.email)}</a>` : ''}${c.addr ? `<a class="btn" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(c.addr)}">📍 ${esc(c.addr)}</a>` : ''}</div>
+   <div class="row" style="margin-bottom:10px">${c.phone ? `<a class="btn" href="tel:${digits(c.phone)}">📞 ${esc(c.phone)}</a><a class="btn" href="sms:${digits(c.phone)}">💬 Text</a>` : ''}${c.email ? `<a class="btn" href="mailto:${esc(c.email)}">✉ ${esc(c.email)}</a>` : ''}${c.addr ? `<a class="btn" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(c.addr)}">📍 ${esc(c.addr)}</a>` : ''}</div>
    <label class="fl" style="margin-bottom:10px">Name${c.origName && c.origName !== c.name ? ` <span class="muted" style="font-weight:400">(on invoices as "${esc(c.origName)}")</span>` : !c.origName ? ` <span class="muted" style="font-weight:400">(${c.name ? 'added here — the invoices only have the phone number' : 'not on the invoices — add it here'})</span>` : ''}
      <input class="inp" style="max-width:340px" value="${esc(c.name)}" placeholder="Customer name" onchange="setCustName(${js(key)},this.value);$('.mbox > header h3').textContent=this.value.trim()||${js(c.phone)};if($('#clist'))$('#clist').innerHTML=custBody()"></label>
    <label class="fl">Customer notes (preferences, gate code, how they like to be contacted…)<textarea class="inp" rows="2" onchange="saveCustNote(${js(key)},this.value)">${esc(note)}</textarea></label>
