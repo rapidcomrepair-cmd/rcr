@@ -58,6 +58,8 @@
   .impit.dup { opacity:.6; } .impit .ck { padding-top:8px; } .impit .ck input { width:20px; height:20px; } .impit .grow { min-width:0; } .impit .grow > .inp { width:100%; box-sizing:border-box; font-weight:600; }
   .impmeta { display:grid; grid-template-columns:70px 110px minmax(0,1fr); gap:8px; margin-top:6px; } .impmeta label { display:flex; flex-direction:column; gap:2px; font-size:11.5px; color:var(--mut); min-width:0; } .impmeta .inp { width:100%; box-sizing:border-box; }
   .imptot { margin:10px 0 2px; font-size:14px; }
+  .gmrow { display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px; background:var(--card); } .gmrow .grow { min-width:0; } .gmrow .grow > div { margin-bottom:3px; }
+  .gmbtn { display:flex; flex-direction:column; gap:6px; }
   .impchk { display:flex; gap:8px; align-items:flex-start; font-size:13px; margin:4px 0; cursor:pointer; } .impchk input { margin-top:2px; flex:0 0 auto; }
   .qstot { text-align:right; font-size:18px; margin-top:12px; } .qstot b { font-size:22px; margin-left:6px; }
   .qsrcpt { white-space:pre-wrap; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font:13px/1.45 ui-monospace, Consolas, monospace; margin:0; }
@@ -376,7 +378,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-155020">
+<meta name="rcr-build" content="20261119-161238">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -671,7 +673,7 @@ async function driveConnect(auto) {
   if (!RCRDrive.signedIn()) { if (auto && !RCRDrive.wasSignedIn()) { setSync('local'); return; } return RCRDrive.signIn({ silent: RCRDrive.wasSignedIn() }); }
   try {
     folder = await RCRDrive.root(); folderOK = true;
-    await pullFromFolder(); await loadInvoices(true); render();
+    await pullFromFolder(); await loadInvoices(true); render(); gmAfterSignIn();
   } catch (e) { if (!driveError(e)) toast('Google Drive: ' + e.message, 'err'); }
 }
 function driveError(e) {          // true if it was an expired sign-in
@@ -2361,7 +2363,7 @@ function vOrders() {
   const openO = DB.orders.filter(o => !['received', 'cancelled'].includes(o.status));
   return `<div class="grid kpis">${kpi('Open orders', openO.length, money0(sum(openO, o => num(o.cost) * (num(o.qty) || 1))) + ' on order', '')}${kpi('Late', openO.filter(o => o.eta && o.eta < today()).length, 'past ETA', '', openO.some(o => o.eta && o.eta < today()) ? 'alert' : '')}
     ${kpi('Arriving today', openO.filter(o => o.eta === today()).length, '', '')}${kpi('Tickets waiting on parts', DB.tickets.filter(t => t.status === 'parts').length, '', "ui.tMode='list';ui.tFilter='parts';go('tickets')")}</div>
-   <div class="toolbar"><button class="btn pri" onclick="importPurchase()">📥 Import Amazon / eBay purchase</button><button class="btn" onclick="editOrder()">+ New order</button><a class="btn" target="_blank" href="${AMZ_ORDERS}">Amazon orders ↗</a><a class="btn" target="_blank" href="${EBAY_ORDERS}">🛒 My eBay purchases ↗</a><label class="row small"><input type="checkbox" ${ui.oAll ? 'checked' : ''} onchange="ui.oAll=this.checked;render()"> Show received / cancelled</label></div>
+   <div class="toolbar"><button class="btn pri" onclick="importPurchase()">📥 Import Amazon / eBay purchase</button>${HOSTED ? `<button class="btn" onclick="gmPending().length ? gmailList() : gmailCheck()">📬 Check Gmail${gmPending().length ? ` <span class="tag blue">${gmPending().length} new</span>` : ''}</button>` : ''}<button class="btn" onclick="editOrder()">+ New order</button><a class="btn" target="_blank" href="${AMZ_ORDERS}">Amazon orders ↗</a><a class="btn" target="_blank" href="${EBAY_ORDERS}">🛒 My eBay purchases ↗</a><label class="row small"><input type="checkbox" ${ui.oAll ? 'checked' : ''} onchange="ui.oAll=this.checked;render()"> Show received / cancelled</label></div>
    ${list.length ? `<div class="tablewrap"><table class="t"><tr><th>Part</th><th>Supplier</th><th>For</th><th>Ordered</th><th>ETA</th><th>Tracking</th><th class="num">Cost</th><th>Status</th><th></th></tr>
    ${list.map(o => `<tr><td><b>${esc(o.part)}</b>${num(o.qty) > 1 ? ` ×${num(o.qty)}` : ''}${o.notes ? `<div class="muted small">${esc(o.notes)}</div>` : ''}</td><td>${o.url ? `<a target="_blank" href="${esc(o.url)}">${esc(o.supplier || 'link')}</a>` : isEbay(o.supplier) ? `<a target="_blank" href="${EBAY_ORDERS}" title="Opens your eBay purchase history">${esc(o.supplier)} ↗</a>` : esc(o.supplier || '')}${o.orderNo ?`<div class="muted small">Order ${esc(o.orderNo)}</div>` : ''}</td>
     <td class="small">${o.ticketId ? `<a href="#" onclick="editTicket('${o.ticketId}');return false">${ticketRef(o.ticketId)}</a>` : o.addToStock ? 'Stock' : ''}</td><td class="small">${fmtDs(o.ordered)}</td>
@@ -2437,7 +2439,7 @@ function datesIn(s, ref) {          // every date in a line, as YYYY-MM-DD (a mi
 const MONEY_RX = /(?:US\s*)?\$\s?(\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2})/;
 const moneyIn = s => { const m = String(s).match(MONEY_RX); return m ? +m[1].replace(/,/g, '') : null; };
 const SUMMARY_RX = /^(items?\s*\(\d+\)|item\(s\)\s*subtotal|subtotal|sub-total|shipping|postage|delivery|est(imated)?\.?\s*tax|sales tax|tax|total|grand total|order total|total before tax|payment total|amount (paid|charged)|discount|promotion|coupon|savings|you saved|gift card|reward|refund|import charges|list price|was\b|paid\b|charged\b|visa|mastercard|amex|discover|paypal|card ending)/i;
-const JUNK_RX = /^(sold by|sold & shipped|seller|ships from|shipped by|supplied by|condition|return|quantity|qty|buy it again|view (your )?item|view order|write a|leave feedback|contact seller|get (product )?support|track package|arriving|arrives|delivered|shipped|out for delivery|estimated delivery|expected|order|ship(ping)? to|deliver to|payment|item number|item #|see all|more actions|archive|problem with|ask product|share|color|colour|size|style|model|capacity|pattern|details|hide|show|need help|your package|package was|items ordered|price\b|(amazon|ebay)(\.com)?$|amazon\.com (order|services)|your (amazon|ebay)|usps|ups\b|fedex|dhl|tracking|carrier|shipped with|hello|hi\b|thank|recommended|customers who|you may|sponsored|in stock)/i;
+const JUNK_RX = /^(sold by|sold & shipped|seller|ships from|shipped by|supplied by|condition|return|quantity|qty|buy it again|view (your )?item|view order|write a|leave feedback|contact seller|get (product )?support|track package|arriving|arrives|delivered|shipped|out for delivery|estimated delivery|expected|order|ship(ping)? to|deliver to|payment|item number|item #|see all|more actions|archive|problem with|ask product|share|color|colour|size|style|model|capacity|pattern|details|hide|show|need help|your package|package was|items ordered|price\b|(amazon|ebay)(\.com)?$|amazon\.com (order|services)|your (amazon|ebay)|usps|ups\b|fedex|dhl|tracking|carrier|shipped with|from:|to:|cc:|date:|sent:|subject:|-+ ?forwarded|begin forwarded|your (order|package|item|purchase)|thanks for|we('|’)ll|we've|hello|hi\b|thank|recommended|customers who|you may|sponsored|in stock)/i;
 const isTitle = s => s.length >= 12 && /[a-z]{3}/i.test(s) && !JUNK_RX.test(s) && !SUMMARY_RX.test(s) && moneyIn(s) == null && !/^\(?\d[\d\s-]{7,}\)?$/.test(s) && !/^https?:/i.test(s);
 function parsePurchase(text) {
   const raw = String(text || '').replace(/\r/g, '').replace(/[   ]/g, ' ');
@@ -2467,8 +2469,11 @@ function parsePurchase(text) {
   if (tr) P.tracking = tr[1].replace(/\s/g, ''); if (P.tracking && P.status === 'ordered') P.status = 'shipped';
   // prices: summary lines give tax / shipping / total; the rest are items, titled by the nearest title-looking line above
   const used = new Set(), found = [];
+  // emails end with ads ("Recommended for you", "Deals inspired by…"): no items after that point
+  const stop = L.findIndex(l => /^(recommended|customers (also|who)|you might|you may also|deals (for|inspired)|inspired by|top picks|similar items|more items|sponsored|buy again|related to items)/i.test(l));
   L.forEach((l, i) => {
     const v = moneyIn(l); if (v == null) return;
+    if (stop >= 0 && i > stop && !SUMMARY_RX.test(l.replace(MONEY_RX, '').trim() || L[i - 1] || '')) return;
     const label = l.replace(MONEY_RX, '').replace(/[:\s]+$/, '').trim(), prev = i ? L[i - 1] : '';
     const lab = label || (moneyIn(prev) == null ? prev : '');
     if (SUMMARY_RX.test(lab) || (!label && SUMMARY_RX.test(prev))) {
@@ -2494,7 +2499,8 @@ function parsePurchase(text) {
   // tax not listed (e.g. Amazon's order email only shows the Grand Total): it's what's left after items + shipping
   const itemsSum = sum(found, i => num(i.cost) * i.qty), left = Math.round((P.total - itemsSum - P.ship - P.tax) * 100) / 100;
   if (found.length && P.total && !P.tax && left > 0 && left <= itemsSum * 0.15) P.tax = left;
-  if (!P.ordered && (P.items.length || P.orderNo)) P.ordered = today();
+  if (!P.ordered) { const dl = L.find(l => /^(date|sent):/i.test(l)); if (dl) P.ordered = datesIn(dl)[0] || ''; }      // a forwarded email's "Date:" line
+  if (!P.ordered && (P.items.length || P.orderNo)) { P.ordered = today(); P.orderedGuess = true; }
   return P;
 }
 // Best open ticket for a part: the device's make/model words found in the item title (tickets waiting on parts first)
@@ -2520,7 +2526,7 @@ function importPurchase(text) {
     <textarea id="imptext" class="inp" rows="8" placeholder="Paste here…" style="width:100%;box-sizing:border-box;font-size:13px">${esc(text || '')}</textarea>
     <div id="impocr" class="small muted" style="min-height:18px;margin-top:6px"></div>
     <div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn" onclick="impPaste()">📋 Paste</button><label class="btn">📷 Photo / screenshot<input type="file" accept="image/*" multiple hidden onchange="impPhotos(this.files)"></label>
-      <span class="grow"></span><a class="btn sm" target="_blank" href="${AMZ_ORDERS}">Amazon orders ↗</a><a class="btn sm" target="_blank" href="${EBAY_ORDERS}">eBay purchases ↗</a></div>`,
+      ${HOSTED ? `<button class="btn" onclick="closeModal();gmailCheck()">📬 Check Gmail</button>` : ''}<span class="grow"></span><a class="btn sm" target="_blank" href="${AMZ_ORDERS}">Amazon orders ↗</a><a class="btn sm" target="_blank" href="${EBAY_ORDERS}">eBay purchases ↗</a></div>`,
     `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn pri" onclick="impRead()">Read it →</button>`);
 }
 async function impPaste() {
@@ -2584,7 +2590,7 @@ function impReview() {
     <div class="imptot" id="imptot"></div>
     <label class="impchk" style="margin-top:6px"><input type="checkbox" ${P.spread ? 'checked' : ''} onchange="IMP.spread=this.checked;impSync()"><span>Add tax${P.ship ? ' & shipping' : ''} to the part costs (your real cost)</span></label>
     <label class="impchk"><input type="checkbox" id="impwait" checked><span>Move linked tickets to "Waiting on Parts" (if not received yet)</span></label>`,
-    `<button class="btn" onclick="importPurchase(IMP.src)">← Back</button><span class="grow"></span><button class="btn pri" onclick="impSave()">Import</button>`, true);
+    `<button class="btn" onclick="IMP.fromGmail?gmailList():importPurchase(IMP.src)">← Back</button><span class="grow"></span><button class="btn pri" onclick="impSave()">Import</button>`, true);
   impSync();
 }
 function impSync() {
@@ -2624,6 +2630,113 @@ function impSave() {
   if (!recv.length) render(); if (view !== 'orders') go('orders');
   const msg = [n ? `Imported ${plural(n, 'item')}` : '', upd ? `updated ${plural(upd, 'order')}` : '', recv.length ? `${recv.length} marked received` : ''].filter(Boolean).join(', ');
   toast(msg ? msg + '.' : 'Nothing new to import.', msg ? 'ok' : '');
+  if (P.fromGmail && GM.list) { GM.list = GM.list.filter(o => o.P.orderNo !== P.orderNo); gmHide(P.orderNo, P.sig); if (gmPending().length) setTimeout(gmailList, 400); }
+}
+
+/* ---- 📬 Check Gmail (web app only): finds Amazon / eBay order emails in the shop Gmail — including ones forwarded there from
+   other inboxes — reads each with parsePurchase(), groups them by order #, and lists orders that are new or have news
+   (shipped / delivered / tracking). Read-only Gmail access, asked for only after the user turns it on. ---- */
+const GM = { list: null, at: 0, busy: false };
+const GM_Q = '(amazon OR ebay) ("order #" OR "order number" OR "order confirmed" OR "ordered" OR shipped OR delivered OR "out for delivery") -from:business.amazon.com -category:promotions -category:social newer_than:';
+const gmSeen = () => { try { return JSON.parse(localStorage.getItem('rcr-gmail-done') || '{}'); } catch { return {}; } };
+function gmHide(no, sig) { const s = gmSeen(); s[no] = sig || 'hide'; const k = Object.keys(s); if (k.length > 400) delete s[k[0]]; localStorage.setItem('rcr-gmail-done', JSON.stringify(s)); }
+const gmPending = () => (GM.list || []).filter(o => gmSeen()[o.P.orderNo] !== o.P.sig);
+const b64 = s => { const bin = atob(String(s).replace(/-/g, '+').replace(/_/g, '/')); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))); };
+function htmlText(h) {          // email HTML → plain lines (one per block / table cell)
+  const doc = new DOMParser().parseFromString(h, 'text/html'); doc.querySelectorAll('style,script,head').forEach(e => e.remove());
+  doc.querySelectorAll('br,p,div,tr,td,th,li,h1,h2,h3,h4,table').forEach(e => e.insertAdjacentText('afterend', '\n'));
+  doc.querySelectorAll('a[href]').forEach(a => { if (/\/(dp|itm)\//.test(a.href)) a.insertAdjacentText('afterend', '\n' + a.href + '\n'); });
+  return (doc.body ? doc.body.textContent : '').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n');
+}
+function mailText(p) {         // a Gmail message payload → text (plain part, else the HTML part)
+  let plain = '', html = '';
+  (function walk(x) { if (!x) return; if (x.mimeType === 'text/plain' && x.body && x.body.data) plain += b64(x.body.data) + '\n'; else if (x.mimeType === 'text/html' && x.body && x.body.data) html += b64(x.body.data) + '\n'; (x.parts || []).forEach(walk); })(p);
+  return html ? htmlText(html) : plain;        // the HTML part keeps prices next to the items; plain text versions are often cut short
+}
+function gmMerge(ps) {         // several emails about one order (confirmed, shipped, delivered) → one order, newest news wins
+  ps.sort((a, b) => a.when - b.when);
+  const R = { ...ps[0] }, rank = { ordered: 0, shipped: 1, received: 2 };
+  R.items = ps.map(p => p.items.filter(i => num(i.cost))).sort((a, b) => b.length - a.length)[0];
+  if (!R.items.length) R.items = ps.map(p => p.items).sort((a, b) => b.length - a.length)[0];
+  for (const p of ps) {
+    if (p.ordered && (!R.ordered || p.ordered < R.ordered)) R.ordered = p.ordered;
+    if (p.eta) R.eta = p.eta; if (p.tracking) R.tracking = p.tracking; if (rank[p.status] > rank[R.status]) R.status = p.status;
+    for (const k of ['tax', 'ship', 'total']) if (p[k] && !R[k]) R[k] = p[k];
+  }
+  R.src = ps.map(p => p.src).join('\n\n-----\n\n'); R.sig = [R.status, R.tracking, R.eta, R.items.length].join('|'); R.mails = ps.length;
+  return R;
+}
+async function gmailCheck(quiet) {
+  if (!HOSTED) return quiet || toast('Check Gmail works in the web app (your phone, or rapidcomrepair-cmd.github.io/rcr on a computer). Here, use 📥 Import and paste the email.', 'err');
+  if (!RCRDrive.hasGmail()) return quiet || gmailSetup();
+  if (GM.busy) return; GM.busy = true;
+  try {
+    if (!quiet) toast('Checking Gmail for Amazon / eBay orders…');
+    const days = DB.orders.length ? 45 : 30;
+    const ids = ((await RCRDrive.gmail('messages?maxResults=60&q=' + encodeURIComponent(GM_Q + days + 'd'))).messages || []).map(m => m.id);
+    const cache = GM.cache || (GM.cache = {}), byNo = {};
+    for (const id of ids) {
+      if (!cache[id]) {
+        const m = await RCRDrive.gmail('messages/' + id + '?format=full');
+        const subj = (m.payload.headers || []).find(h => /^subject$/i.test(h.name))?.value || '';
+        const P = parsePurchase(subj + '\n' + mailText(m.payload)); P.when = +m.internalDate || 0; P.subj = subj; P.mailId = id;
+        if (P.orderedGuess && P.when) P.ordered = isoDay(new Date(P.when));          // no order date in the email: the day it arrived
+        cache[id] = /Amazon|eBay/.test(P.supplier) && P.orderNo ? P : 'skip';
+      }
+      const P = cache[id]; if (P !== 'skip') (byNo[P.orderNo] = byNo[P.orderNo] || []).push(P);
+    }
+    GM.list = Object.values(byNo).map(gmMerge).map(P => {
+      const have = DB.orders.filter(o => o.orderNo === P.orderNo), rank = { ordered: 0, shipped: 1, backorder: 0, received: 2, cancelled: 3 };
+      const news = have.length && have.some(o => rank[o.status] < rank[P.status] || (P.tracking && o.tracking !== P.tracking) || (P.eta && o.eta !== P.eta && o.status !== 'received'));
+      return { P, kind: !have.length ? 'new' : news ? 'update' : 'same' };
+    }).filter(o => o.kind !== 'same').sort((a, b) => b.P.when - a.P.when);
+    GM.at = Date.now(); localStorage.setItem('rcr-gmail-at', GM.at);
+    const n = gmPending().length; softRender();
+    if (quiet) { if (n) toast(`📬 ${plural(n, 'Amazon / eBay order')} in Gmail to import.`, '', [['Review', gmailList]]); }
+    else if (n) gmailList(); else toast('Gmail checked — no new Amazon / eBay orders. (Forward order emails to the shop Gmail to have them show up here.)', 'ok');
+  } catch (e) {
+    if (e.name === 'AuthError') { folderOK = false; setSync('reconnect'); if (!quiet) toast('Google sign-in ran out — tap "Sign in again" at the top, then check again.', 'err'); }
+    else if (e.name === 'GmailDenied') { if (!quiet) gmailSetup(e.message); }
+    else if (!quiet) toast(e.message, 'err');
+  } finally { GM.busy = false; }
+}
+function gmailSetup(err) {
+  modal('📬 Read Amazon / eBay orders from Gmail', `${err ? `<p class="down small">${esc(err)}</p>` : ''}
+    <p>RCR can look in the shop Gmail for Amazon and eBay order emails and turn them into parts orders — new orders, then shipped / delivered updates and tracking.</p>
+    <p><b>Your orders go to other inboxes?</b> Just forward each order email to the shop Gmail (one tap: Forward → the shop address). RCR finds forwarded ones too.</p>
+    <p class="small muted">Google will ask you once to let RCR Shop <i>read</i> your email — tick that box. It only searches for Amazon / eBay order emails, can't send or delete anything, and nothing leaves this phone except to Google. You can turn it off any time in your Google account › Security › Third-party access.</p>`,
+    `<button class="btn" onclick="closeModal()">Not now</button><button class="btn pri" onclick="sessionStorage.setItem('rcr-gmail-after','1');RCRDrive.signIn({gmail:true})">Turn on Gmail</button>`);
+}
+function gmAfterSignIn() {        // called once the web app is connected: finish "Turn on Gmail", or a quiet check every 30 min
+  if (!HOSTED) return;
+  if (sessionStorage.getItem('rcr-gmail-after')) {
+    sessionStorage.removeItem('rcr-gmail-after');
+    if (RCRDrive.hasGmail()) { toast('📬 Gmail is on. Checking for Amazon / eBay orders…', 'ok'); return gmailCheck(); }
+    if (localStorage.getItem('rcr-gmail-note')) { localStorage.removeItem('rcr-gmail-note'); return gmailSetup('Gmail was not turned on — the box that lets RCR Shop read your email was not ticked. Try again and tick it.'); }
+  }
+  if (RCRDrive.hasGmail() && Date.now() - (+localStorage.getItem('rcr-gmail-at') || 0) > 30 * 6e4) setTimeout(() => gmailCheck(true), 5000);
+}
+function gmailList() {
+  const L = gmPending();
+  if (!L.length) return toast('Nothing new from Gmail.', 'ok');
+  if (!leaveModal()) return;
+  modal(`📬 From Gmail — ${plural(L.length, 'order')}`, `<p class="small muted" style="margin-top:0">Amazon / eBay order emails in the shop Gmail. Review one to import it (or update the order you already have).</p>
+    ${L.map(({ P, kind }, i) => `<div class="gmrow"><div class="grow"><div><b>${esc(P.supplier)}</b> ${esc(P.orderNo)} <span class="tag ${kind === 'new' ? 'blue' : 'amber'}">${kind === 'new' ? 'New order' : P.status === 'received' ? 'Delivered' : P.status === 'shipped' ? 'Shipped' : 'Update'}</span></div>
+      <div class="small">${P.items.map(it => esc(it.title.slice(0, 70)) + (num(it.cost) ? ' · ' + money(num(it.cost)) : '')).join('<br>') || '<span class="muted">No item details in the email — you can type them in</span>'}</div>
+      <div class="small muted">${P.ordered ? 'Ordered ' + fmtDs(P.ordered) : ''}${P.eta ? ' · ' + (P.status === 'received' ? 'delivered ' : 'ETA ') + fmtDs(P.eta) : ''}${P.total ? ' · total ' + money(P.total) : ''}${P.mails > 1 ? ' · ' + P.mails + ' emails' : ''}</div></div>
+      <div class="gmbtn"><button class="btn sm pri" onclick="gmReview(${i})">Review</button><button class="btn sm" title="Don't show this order again (until it changes)" onclick="gmHide(${js(P.orderNo)},${js(P.sig)});gmailList()">Hide</button></div></div>`).join('')}`,
+    `<span class="small muted">Checked ${GM.at ? new Date(GM.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}</span><span class="grow"></span><button class="btn" onclick="closeModal();gmailCheck()">⟳ Check again</button>`, true);
+}
+function gmReview(i) {
+  const o = gmPending()[i]; if (!o) return;
+  const P = JSON.parse(JSON.stringify(o.P)); P.fromGmail = true;
+  const dupOf = it => DB.orders.find(x => x.orderNo === P.orderNo && x.part.toLowerCase().slice(0, 25) === it.title.toLowerCase().slice(0, 25));
+  if (!P.items.length) P.items.push({ title: '', qty: 1, cost: '' });
+  const have = DB.orders.filter(x => x.orderNo === P.orderNo);
+  P.items.forEach(it => { it.on = true; it.dup = dupOf(it) || (have.length && !it.title ? have[0] : null); if (it.dup) it.on = false; const t = it.dup ? null : guessTicket(it.title); it.to = it.dup ? (it.dup.ticketId || 'stock') : t ? t.id : 'stock'; });
+  // order already imported under other item names (e.g. typed by hand): treat every item as that order, just update it
+  if (have.length && !P.items.some(it => it.dup)) P.items.forEach((it, k) => { it.dup = have[Math.min(k, have.length - 1)]; it.on = false; });
+  P.spread = true; IMP = P; impReview();
 }
 
 /* ============ TECH TOOLS ============ */

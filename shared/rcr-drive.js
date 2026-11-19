@@ -25,11 +25,11 @@
     if (!leaving) {
       leaving = true;
       const ret = location.pathname + location.search + location.hash;
-      location.href = base + '?signin=1' + (opts && opts.silent ? '&silent=1' : '') + '&ret=' + encodeURIComponent(ret);
+      location.href = base + '?signin=1' + (opts && opts.silent ? '&silent=1' : '') + (opts && opts.gmail ? '&gmail=1' : '') + '&ret=' + encodeURIComponent(ret);
     }
     return new Promise(() => {});
   }
-  function signOut() { localStorage.removeItem(TK); localStorage.removeItem(USERK); localStorage.removeItem(ROOTK); location.href = base; }
+  function signOut() { [TK, USERK, ROOTK, 'rcr-gmail', 'rcr-gscope'].forEach(k => localStorage.removeItem(k)); location.href = base; }
   const user = () => { try { return JSON.parse(localStorage.getItem(USERK) || 'null'); } catch { return null; } };
   const wasSignedIn = () => !!user();
 
@@ -196,5 +196,19 @@
     setInterval(checkUpdate, 10 * 60e3);
   }
 
-  window.RCRDrive = { hosted, base, root, signIn, signOut, user, wasSignedIn, signedIn: () => !!token(), minutesLeft, AuthError };
+  /* ---------- Gmail (read-only, opt-in): used by the dashboard's "Check Gmail" for Amazon / eBay order emails ---------- */
+  const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me/';
+  const hasGmail = () => /gmail\.readonly/.test(localStorage.getItem('rcr-gscope') || '');
+  async function gmail(path) {
+    const t = token(); if (!t) throw new AuthError();
+    const r = await fetch(GMAIL + path, { headers: { Authorization: 'Bearer ' + t } });
+    if (r.status === 401) { localStorage.removeItem(TK); throw new AuthError(); }
+    if (!r.ok) {
+      let msg = r.status + ' ' + r.statusText; try { const j = await r.json(); msg = (j.error && j.error.message) || msg; } catch { }
+      const e = new Error('Gmail: ' + msg); if (r.status === 403) { e.name = 'GmailDenied'; localStorage.removeItem('rcr-gscope'); } throw e;
+    }
+    return r.json();
+  }
+
+  window.RCRDrive = { hosted, base, root, signIn, signOut, user, wasSignedIn, signedIn: () => !!token(), minutesLeft, AuthError, hasGmail, gmail };
 })();

@@ -59,6 +59,8 @@
    (localStorage "rcr-gtoken", valid 1 hour) and returns to <page>. ?silent=1 tries without showing anything first. */
 const CLIENT_ID = '561861377412-gpe07bt2tp6djrcokgrsvihoirsb4ii0.apps.googleusercontent.com';   // Google OAuth client ID (Google Cloud project "My First Project", client "RCR Shop web")
 const SCOPE = 'https://www.googleapis.com/auth/drive';      // read/write the shop files in Google Drive
+const GSCOPE = 'https://www.googleapis.com/auth/gmail.readonly';   // optional: read Amazon / eBay order emails ("Check Gmail"); only asked for after the user turns it on
+const wantGmail = () => localStorage.getItem('rcr-gmail') === '1';
 const BASE = location.pathname.replace(/index\.html$/, '');
 const HERE = location.origin + BASE;
 const $ = s => document.querySelector(s);
@@ -71,7 +73,7 @@ function msg(t) { $('#msg').hidden = !t; $('#msg').textContent = t || ''; }
 
 function goGoogle(silent, ret) {
   if (!CLIENT_ID) { msg('Setup is not finished: the Google sign-in key (client ID) has not been added to this page yet.'); show('out'); return; }
-  const u = user(), p = new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: HERE, response_type: 'token', scope: SCOPE,
+  const u = user(), p = new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: HERE, response_type: 'token', scope: wantGmail() ? SCOPE + ' ' + GSCOPE : SCOPE,
     include_granted_scopes: 'true', state: safeRet(ret.startsWith(BASE) ? ret : BASE + ret) });
   if (silent) p.set('prompt', 'none'); else if (!u) p.set('prompt', 'select_account');
   if (u && u.email) p.set('login_hint', u.email);
@@ -81,7 +83,7 @@ function goGoogle(silent, ret) {
 function signOut() {
   const t = (() => { try { return JSON.parse(localStorage.getItem('rcr-gtoken') || 'null'); } catch { return null; } })();
   if (t && t.token) fetch('https://oauth2.googleapis.com/revoke?token=' + encodeURIComponent(t.token), { method: 'POST' }).catch(() => {});
-  ['rcr-gtoken', 'rcr-guser', 'rcr-drive-root'].forEach(k => localStorage.removeItem(k));
+  ['rcr-gtoken', 'rcr-guser', 'rcr-drive-root', 'rcr-gmail', 'rcr-gscope'].forEach(k => localStorage.removeItem(k));
   start();
 }
 
@@ -92,6 +94,9 @@ async function start() {
     show('busy');
     const tok = h.get('access_token');
     localStorage.setItem('rcr-gtoken', JSON.stringify({ token: tok, exp: Date.now() + (+h.get('expires_in') || 3600) * 1000 }));
+    localStorage.setItem('rcr-gscope', h.get('scope') || SCOPE);
+    // Gmail box left unticked: stop asking for it (otherwise every quiet hourly sign-in would need a tap)
+    if (wantGmail() && !(h.get('scope') || '').includes(GSCOPE)) { localStorage.removeItem('rcr-gmail'); localStorage.setItem('rcr-gmail-note', 'no'); }
     if (!(h.get('scope') || SCOPE).includes(SCOPE)) { msg('Google sign-in worked, but access to Google Drive was not allowed. Sign in again and tick the Google Drive box.'); show('out'); return; }
     try {
       const r = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress,displayName)', { headers: { Authorization: 'Bearer ' + tok } });
@@ -103,10 +108,11 @@ async function start() {
   if (h.get('error')) {                                      // Google said no
     history.replaceState(null, '', BASE);
     const e = h.get('error');
+    if (e === 'access_denied' && wantGmail() && !/gmail\.readonly/.test(localStorage.getItem('rcr-gscope') || '')) { localStorage.removeItem('rcr-gmail'); if (user()) return location.replace(safeRet(h.get('state'))); }
     if (/interaction_required|login_required|consent_required|account_selection_required/.test(e)) return goGoogle(false, h.get('state') || 'dashboard/');   // silent try failed: ask normally
     msg(e === 'access_denied' ? 'Sign-in was cancelled.' : 'Google sign-in failed: ' + e);
   }
-  if (q.get('signin')) { history.replaceState(null, '', BASE); return goGoogle(q.get('silent') === '1' && !!user(), q.get('ret') || 'dashboard/'); }
+  if (q.get('signin')) { history.replaceState(null, '', BASE); if (q.get('gmail') === '1') localStorage.setItem('rcr-gmail', '1'); return goGoogle(q.get('gmail') === '1' ? false :q.get('silent') === '1' && !!user(), q.get('ret') || 'dashboard/'); }
   const u = user();
   if (u && tokenOK()) { $('#email').textContent = u.email || u.name || 'your Google account'; show('in'); }
   else if (u) { $('#email').textContent = u.email || ''; show('in'); }     // apps renew the sign-in themselves when opened
