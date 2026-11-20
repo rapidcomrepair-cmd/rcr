@@ -54,6 +54,14 @@
   .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .grow { flex:1; }
   .qschips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; } #qsf .row2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); margin-bottom:8px; } #qsf label { min-width:0; } #qsf input, #qsf select { width:100%; min-width:0; box-sizing:border-box; } #qsf .fl { margin-bottom:6px; }
+  #qf .row2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); margin-bottom:8px; } #qf label { min-width:0; } #qf input:not([type=checkbox]) { width:100%; min-width:0; box-sizing:border-box; }
+  #qf .inp, #qf .qpart input, #qf .ql input { padding:7px 9px; border:1px solid var(--line); border-radius:8px; font:inherit; color:var(--ink); background:var(--card, #fff); }
+  #qf .sec-h { margin:12px 0 2px; }
+  .qpart { display:grid; grid-template-columns:minmax(0,1fr) 96px; gap:6px; } .qpart .qpa { grid-column:1 / 3; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .ql { display:grid; grid-template-columns:minmax(0,1fr) 92px 30px; gap:6px; margin-bottom:6px; align-items:center; }
+  #qlines.pf .ql { grid-template-columns:minmax(0,1fr) 74px 84px 30px; }
+  .ql button { border:0; background:none; color:var(--bad); font-size:18px; cursor:pointer; } .ql .qcl { font-size:11px; color:var(--mut); text-align:center; }
+  .chk1 { display:flex; gap:8px; align-items:center; margin:10px 0 4px; font-size:13.5px; }
   .impit { display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px; background:var(--card); }
   .impit.dup { opacity:.6; } .impit .ck { padding-top:8px; } .impit .ck input { width:20px; height:20px; } .impit .grow { min-width:0; } .impit .grow > .inp { width:100%; box-sizing:border-box; font-weight:600; }
   .impmeta { display:grid; grid-template-columns:70px 110px minmax(0,1fr); gap:8px; margin-top:6px; } .impmeta label { display:flex; flex-direction:column; gap:2px; font-size:11.5px; color:var(--mut); min-width:0; } .impmeta .inp { width:100%; box-sizing:border-box; }
@@ -378,7 +386,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-201258">
+<meta name="rcr-build" content="20261119-203756">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -412,6 +420,7 @@
       </div>
       <span id="sync" class="sync" onclick="syncClick()">…</span>
       <button class="btn" onclick="openInvoice()" title="Open the Invoice Form (shortcut: I)">🧾<span class="lbl"> New Invoice</span></button>
+      <button class="btn qsb" onclick="quoteModal()" title="Price quote from your price sheet (shortcut: P)">💲<span class="lbl"> Quote</span></button>
       <button class="btn qsb" onclick="quickSale()" title="Quick sale — a paid invoice for a quick fix, no ticket (shortcut: Q)">⚡<span class="lbl"> Quick Sale</span></button>
       <button class="btn pri" onclick="editTicket()">+<span class="lbl"> New Ticket</span></button>
     </div>
@@ -485,7 +494,8 @@ const DEF = {
   techs: ['Owner'], nextTicket: 1001, logPaths: ['Invoice/2026 Invoices'], dataPath: 'Dashboard', staleDays: 7,
   devTypes: ['Laptop', 'Desktop', 'All-in-One', 'Custom PC Build', 'MacBook', 'iMac / Mac', 'Tablet', 'Phone', 'Printer', 'Network / Router', 'Game Console', 'Other'],
   shopPhone: '(682) 308-6824', shopEmail: 'rapidcomrepair@gmail.com', shopWeb: 'rapidcomrepair.com', shopAddr: ADDRS[0],
-  reviewLink: '', goal: 0, ledgerPath: 'Ledger/2026_RCR_Ledger Rebuilt.xlsx',
+  reviewLink: '', goal: 0, ledgerPath: 'Ledger/2026_RCR_Ledger Rebuilt.xlsx', priceSheet: 'RCR Pricing Sheet.xlsx',
+  msgQuote: 'Hi {first}, here is your quote from Rapid Computer Repair{forDevice}:\n{lines}\nTotal: {total}{depositLine}\n{benchLine}Reply or call {shopPhone} to get it booked in. Thanks!',
   terms: '• The estimate may change once the device is opened. We will contact you for approval before doing any work beyond the approved amount.\n' +
          '• Please back up your data. Rapid Computer Repair is not responsible for loss of data, software or settings.\n' +
          '• We are not responsible for pre-existing damage or for problems not listed on this ticket.\n' +
@@ -521,8 +531,8 @@ const idb = (() => {
 
 /* ============ data ============ */
 const LS = 'rcr-dashboard-v1', DATA_FILE = '_dashboard-data.json', LOG_FILE = '_invoice-log.json';
-const COLLS = ['tickets', 'parts', 'orders', 'appts', 'tasks', 'leads'];
-const blank = () => ({ v: 1, tickets: [], parts: [], orders: [], appts: [], tasks: [], leads: [], custNotes: {}, deleted: {}, settings: {}, settingsUpd: '', savedAt: '' });
+const COLLS = ['tickets', 'parts', 'orders', 'appts', 'tasks', 'leads', 'quotes'];
+const blank = () => ({ v: 1, tickets: [], parts: [], orders: [], appts: [], tasks: [], leads: [], quotes: [], custNotes: {}, deleted: {}, settings: {}, settingsUpd: '', savedAt: '' });
 function normalize(d) {
   d = { ...blank(), ...(d || {}) };
   d.settings = { ...JSON.parse(JSON.stringify(DEF)), ...(d.settings || {}) };
@@ -755,7 +765,7 @@ const formData = f => { const o = {}; for (const el of f.elements) if (el.name &
 
 /* ============ navigation ============ */
 const VIEWS = {
-  home: ['📊', 'Dashboard', vHome], tickets: ['🛠️', 'Repair Tickets', vTickets], customers: ['👥', 'Customers', vCustomers], leads: ['🎯', 'Leads', vLeads],
+  home: ['📊', 'Dashboard', vHome], tickets: ['🛠️', 'Repair Tickets', vTickets], quotes: ['💲', 'Quotes', vQuotes], customers: ['👥', 'Customers', vCustomers], leads: ['🎯', 'Leads', vLeads],
   money: ['💵', 'Sales & Invoices', vMoney], profit: ['📈', 'Profit', vProfit], close: ['🧾', 'Daily Close', vClose], follow: ['🔔', 'Follow-ups', vFollow], calendar: ['📅', 'Appointments', vCalendar],
   inventory: ['📦', 'Inventory', vInventory], orders: ['🚚', 'Parts Orders', vOrders], tools: ['🧰', 'Tech Tools', vTools], settings: ['⚙️', 'Settings', vSettings] };
 let view = 'home';
@@ -767,7 +777,7 @@ function navHTML() {
   const open = DB.tickets.filter(t => OPEN.includes(t.status)).length, fu = followItems().length,
     low = DB.parts.filter(p => num(p.qty) <= num(p.min)).length, tdAppts = DB.appts.filter(a => !a.done && a.date === today()).length,
     lateOrders = DB.orders.filter(o => !['received', 'cancelled'].includes(o.status)).length;
-  const ct = { tickets: open, follow: fu, inventory: low, calendar: tdAppts, orders: lateOrders };
+  const ct = { tickets: open, follow: fu, inventory: low, calendar: tdAppts, orders: lateOrders, quotes: (DB.quotes || []).filter(q => q.status === 'open').length };
   const hot = { follow: fu > 0, inventory: low > 0 };
   return Object.entries(VIEWS).map(([k, [ic, l]], i) => (k === 'follow' || k === 'tools' ? '<div class="sep"></div>' : '') +
     `<a class="${k === view ? 'on' : ''}" onclick="go('${k}')" title="Shortcut: ${(i + 1) % 10}">${ic} ${l}${ct[k] ? `<span class="ct ${hot[k] ? 'hot' : ''}">${ct[k]}</span>` : ''}</a>`).join('');
@@ -775,7 +785,7 @@ function navHTML() {
 const TOUCH = () => matchMedia('(pointer:coarse)').matches || matchMedia('(max-width:760px)').matches;
 // Phone: tab bar along the bottom (the ☰ menu still has every page)
 // The 4 outer buttons are chosen per device (localStorage "rcr-tabs"); ＋ Check in always sits in the middle.
-const TAB_LABEL = { home: 'Home', tickets: 'Tickets', customers: 'Customers', leads: 'Leads', money: 'Sales', profit: 'Profit', close: 'Close', follow: 'Follow-ups', calendar: 'Appts', inventory: 'Inventory', orders: 'Orders', tools: 'Tools', settings: 'Settings', menu: 'More' };
+const TAB_LABEL = { home: 'Home', tickets: 'Tickets', quotes: 'Quotes', customers: 'Customers', leads: 'Leads', money: 'Sales', profit: 'Profit', close: 'Close', follow: 'Follow-ups', calendar: 'Appts', inventory: 'Inventory', orders: 'Orders', tools: 'Tools', settings: 'Settings', menu: 'More' };
 const TAB_DEFAULT = ['home', 'tickets', 'customers', 'menu'];
 const tabIcon = k => k === 'menu' ? '☰' : VIEWS[k][0];
 function tabSlots() {
@@ -970,6 +980,7 @@ function followItems() {
   for (const e of INV) if (e.status === 'unpaid' && isRev(e)) { const d = Math.floor((Date.now() - e.t) / 864e5); if (d >= 3) out.push({ sev: d > 14 ? 3 : 2, ic: '💵', grp: 'Unpaid invoices', tx: `Invoice ${e.invno || '(no #)'} — ${e.name} — ${money(e.total)}`, s: `${e.date} · ${plural(d, 'day')} ago · ${e.job}`, ac: `${payBtn(e)} <button class="btn sm" onclick="invModal(${js(e.id)})">View</button>` }); }
   for (const p of DB.parts) if (num(p.qty) <= num(p.min) && !DB.orders.some(o => o.invId === p.id && !['received', 'cancelled'].includes(o.status))) out.push({ sev: 1, ic: '📉', grp: 'Low stock', tx: `${p.name}`, s: `${num(p.qty)} left (minimum ${num(p.min)})${p.supplier ? ' · ' + p.supplier : ''}`, ac: `<button class="btn sm" onclick="editOrder(null,{invId:'${p.id}',part:${js(p.name)},supplier:${js(p.supplier || '')},cost:${js(p.cost || '')},addToStock:true})">Order</button><button class="btn sm" onclick="ebaySearch(${js(partWords(p.name))})">🛒 eBay</button>` });
   for (const l of DB.leads || []) if (leadSt(l) === 'new' && leadAge(l) <= 7) { const p = digits(l.phone).slice(-10); out.push({ sev: 2, ic: '🎯', grp: 'New website leads', tx: `${l.name || l.email || fmtPhone(l.phone)}`, s: `Reached out ${leadAge(l) <= 0 ? 'today' : plural(leadAge(l), 'day') + ' ago'} · ${[fmtPhone(l.phone), l.email].filter(Boolean).join(' · ')}`, ac: `${p.length === 10 ? `<a class="btn sm" href="tel:${p}" onclick="leadTouch('${l.id}','Called')">📞 Call</a><a class="btn sm" href="sms:+1${p}?body=${encodeURIComponent(fillLead(S().msgLead, l))}" onclick="leadTouch('${l.id}','Texted')">💬 Text</a>` : ''}<button class="btn sm" onclick="go('leads')">Leads →</button>` }); }
+  for (const q of DB.quotes || []) { const d = daysSince(q.sentAt || q.created); if (q.status === 'open' && d >= 3 && d <= 30) out.push({ sev: 1, ic: '💲', grp: 'Quotes not booked in yet', tx: `${q.name || fmtPhone(q.phone) || 'No name'} — ${quoteDev(q) || 'quote'} — ${money(q.total)}`, s: `Quoted ${plural(d, 'day')} ago${q.lastFollow ? ' · followed up ' + fmtTs(q.lastFollow) : ''}`, ac: `${digits(q.phone).length >= 10 ? `<button class="btn sm" onclick="quoteSend('${q.id}','text',true)">💬 Follow up</button>` : ''}<button class="btn sm" onclick="quoteModal('${q.id}')">Open</button><button class="btn sm" onclick="quoteStatus('${q.id}','lost')">Not interested</button>` }); }
   for (const a of DB.tasks) if (!a.done && a.due && a.due <= td) out.push({ sev: a.due < td ? 2 : 1, ic: '✅', grp: 'Tasks due', tx: a.text, s: a.due < td ? 'Due ' + fmtD(a.due) : 'Due today', ac: `<button class="btn sm" onclick="toggleTask('${a.id}')">Done</button>` });
   return out.sort((a, b) => b.sev - a.sev);
 }
@@ -1163,7 +1174,8 @@ function editTicket(id, pre) {
       <div class="row" style="margin-top:6px"><input class="inp" id="padd" list="partList" placeholder="Add from inventory or type a part…" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addPart()}"><button class="btn sm" type="button" onclick="addPart()">Add</button>
       <button class="btn sm" type="button" onclick="ebaySearch(ebayQuery($('#padd').value, curTicket()))" title="Search eBay (Buy It Now, US sellers) for this part, for this device">🛒 eBay</button>
       <button class="btn sm" type="button" onclick="useEstimate()" title="Set the estimate to the parts + labor total">= Estimate</button></div>
-      <div class="muted small" style="margin-top:4px">Parts picked from inventory are taken out of stock when you save.</div></div>
+      <div class="row" style="margin-top:6px"><select class="inp" style="width:auto;max-width:100%" onchange="tLabor(this)"><option value="">＋ Labor from price sheet…</option>${PRICING().labor.map((l, i) => `<option value="${i}">${esc(l.job)} — ${money0(l.price)}</option>`).join('')}</select></div>
+      <div class="muted small" style="margin-top:4px">Type a part's cost and its price fills in from your price sheet. Parts picked from inventory are taken out of stock when you save.</div></div>
     <div class="box"><div class="bh">🩺 Diagnostics checklist <span class="r muted small" id="chksum"></span></div>
       <div class="small muted" style="margin-bottom:6px">Click to mark: ✓ works → ✗ problem → N/A → not tested</div><div id="tchecks" class="chips"></div>
       <div class="f three" style="margin-top:10px"><label>Battery health %<input name="battHealth" inputmode="numeric" value="${esc(t.battHealth || '')}" placeholder="e.g. 78"></label>
@@ -1470,8 +1482,8 @@ function drawParts() {
   const ps = tmp.parts || [];
   $('#tparts').innerHTML = ps.length ? `<div class="pl muted small"><span>Item</span><span>Cost</span><span>Price</span><span></span><span></span></div>` + ps.map((p, i) => `<div class="pl">
     <input value="${esc(p.desc)}" oninput="tmp.parts[${i}].desc=this.value;modalDirty=true" title="${p.invId ? 'From inventory' : ''}" ${p.invId ? 'style="background:#f3f8ff"' : ''}>
-    <input value="${esc(p.cost ?? '')}" placeholder="cost" oninput="tmp.parts[${i}].cost=this.value;partTot();modalDirty=true">
-    <input value="${esc(p.price ?? '')}" placeholder="price" oninput="tmp.parts[${i}].price=this.value;partTot();modalDirty=true">
+    <input value="${esc(p.cost ?? '')}" placeholder="cost" inputmode="decimal" oninput="tmp.parts[${i}].cost=this.value;tAutoPrice(${i});partTot();modalDirty=true">
+    <input value="${esc(p.price ?? '')}" placeholder="price" inputmode="decimal" class="tprice" oninput="tmp.parts[${i}].price=this.value;tmp.parts[${i}].pa=false;partTot();modalDirty=true">
     ${/^(labor|fee|travel|remote)/i.test(p.desc || '') ? '<span></span>' : `<button type="button" title="Find this part on eBay" style="color:inherit" onclick="ebaySearch(ebayQuery(tmp.parts[${i}].desc, curTicket()))">🛒</button>`}
     <button type="button" title="Remove" onclick="tmp.parts.splice(${i},1);drawParts();modalDirty=true">×</button></div>`).join('') : '<div class="muted small">No parts or labor added yet.</div>';
   partTot();
@@ -1483,6 +1495,17 @@ function addPart() {
   (tmp.parts = tmp.parts || []).push(inv ? { desc: inv.name, cost: inv.cost || '', price: inv.price || '', invId: inv.id, fresh: true } : { desc: v, cost: '', price: /^labor/i.test(v) ? '' : '' });
   if (inv && num(inv.qty) <= 0) toast(`"${inv.name}" shows 0 in stock.`, 'err');
   $('#padd').value = ''; modalDirty = true; drawParts();
+}
+// Price sheet in the ticket: a part's price fills in from its cost (until the price is typed by hand); labor rates from a picker.
+function tAutoPrice(i) {
+  const p = tmp.parts[i]; if (!p || /^(labor|fee|travel|remote|handling)/i.test(p.desc || '')) return;
+  if (p.price && !p.pa) return;
+  const c = partCharge(p.cost); p.price = c ? c.toFixed(2) : ''; p.pa = true;
+  const el = $$('#tparts .tprice')[i]; if (el) el.value = p.price;
+}
+function tLabor(sel) {
+  const l = PRICING().labor[+sel.value]; sel.value = ''; if (!l) return;
+  (tmp.parts = tmp.parts || []).push({ desc: 'Labor – ' + l.job, cost: '', price: l.price.toFixed(2) }); modalDirty = true; drawParts();
 }
 function useEstimate() { const v = sum(tmp.parts || [], p => num(p.price)); if (v) { $('#tf').estimate.value = v.toFixed(2); modalDirty = true; } }
 function drawNotes() { $('#tnotes').innerHTML = (tmp.notes || []).length ? [...tmp.notes].reverse().map(n => `<div class="note"><small>${fmtTs(n.t)}</small>${esc(n.x)}</div>`).join('') : '<div class="muted small">No notes yet.</div>'; }
@@ -1504,7 +1527,9 @@ function saveTicket(andPrint) {
   for (const p of t.parts || []) if (p.invId && p.fresh) { const ip = DB.parts.find(x => x.id === p.invId); if (ip) { ip.qty = num(ip.qty) - 1; upsert('parts', ip); } delete p.fresh; }
   const nowInv = (t.parts || []).filter(p => p.invId).map(p => p.invId);
   for (const idv of oldInv) { const i = nowInv.indexOf(idv); if (i >= 0) nowInv.splice(i, 1); else { const ip = DB.parts.find(x => x.id === idv); if (ip) { ip.qty = num(ip.qty) + 1; upsert('parts', ip); } } }
-  upsert('tickets', t); modalDirty = false; closeModal(true); render();
+  upsert('tickets', t); modalDirty = false; closeModal(true);
+  if (isNew && t.quoteId) { const q = (DB.quotes || []).find(x => x.id === t.quoteId); if (q) upsert('quotes', { ...q, status: 'ticket', ticketId: t.id, ticketNo: t.no }); }
+  render();
   if ((t.photos || []).some(p => p.pending)) setTimeout(uploadPhotos, 900);
   toast(isNew ? `Ticket #${t.no} checked in for ${t.name}.` : `Ticket #${t.no} saved.`, '', isNew && (digits(t.phone).length >= 10 || t.email) ? [['💬 Send receipt', () => msgOpen(t.id, 'msgReceived')]] : undefined);
   if (old && old.status !== t.status && t.status === 'ready') toast(`#${t.no} is ready.`, '', [['💬 Tell the customer', () => msgOpen(t.id, 'msgReady')]]);
@@ -1814,6 +1839,7 @@ function custModal(key) {
    <div class="sec-h">Invoices (${c.inv.length})</div>
    ${c.inv.length ? c.inv.map(e => `<details class="inv card" style="padding:8px 12px;margin-bottom:6px"><summary><b>${esc(e.invno || '—')}</b> · ${esc(e.date)} · ${esc(e.job)} · <b>${money(e.total)}</b> ${invStatus(e)} ${e.status === 'unpaid' ? payBtn(e) : ''}</summary>${invDetail(e)}</details>`).join('') : '<div class="muted">No invoices in the log.</div>'}`;
   modal(esc(c.name || c.phone), body, `<button class="btn pri" onclick="closeModal();editTicket(null,{name:${js(c.name)},phone:${js(c.phone)},email:${js(c.email)},addr:${js(c.addr)}})">+ New ticket for ${esc(first(c.name))}</button>
+    <button class="btn" onclick="closeModal();quoteModal(null,{name:${js(c.name)},phone:${js(c.phone)},email:${js(c.email)}})">💲 Quote</button>
     <button class="btn" onclick="closeModal();quickSale({name:${js(c.name)},phone:${js(c.phone)}})">⚡ Quick sale</button>
     <button class="btn" onclick="closeModal();editAppt(null,{name:${js(c.name)},phone:${js(c.phone)},addr:${js(c.addr)}})">📅 Schedule</button>`, true);
 }
@@ -2163,8 +2189,250 @@ async function qsUndo(id) {
     closeModal(true); render(); toast('Quick sale removed.');
   } catch (err) { toast('Could not undo: ' + err.message, 'err'); }
 }
+/* ============ 💲 QUOTES: prices from the owner's price sheet (RCR/RCR Pricing Sheet.xlsx, "Pricing" tab) ============
+   Parts: landed cost (part + shipping + tax) → markup tier → rounded UP to the whole dollar (the sheet's own examples: 68 → 96, 1277.34 → 1469).
+   Labor: one fixed charge per job type. Bench fee, own-part handling and the special-order deposit come from the same tab.
+   The sheet is only read, never written; the last good read is kept in localStorage so quotes work instantly and offline. */
+const PRICE_DEF = { src: 'built-in', file: '', bench: 49, handling: 25, depOver: 150, depPct: 50, rules: [],
+  tiers: [{ lo: 0, hi: 50, add: 25, mult: 1, min: 0, l: 'Under $50', r: 'Cost + $25' }, { lo: 50, hi: 150, add: 0, mult: 1.4, min: 0, l: '$50 to $150', r: 'Cost × 1.40' },
+    { lo: 150, hi: 400, add: 0, mult: 1.25, min: 0, l: '$150 to $400', r: 'Cost × 1.25' }, { lo: 400, hi: null, add: 0, mult: 1.15, min: 75, l: 'Over $400', r: 'Cost × 1.15 (at least $75 profit)' }],
+  labor: [{ job: 'Quick fix', time: '30 min or less', price: 60, ex: 'Software, settings, sign-in issues' }, { job: 'Simple install', time: 'About 1 hr', price: 95, ex: 'RAM, SSD, battery, fan, thermal paste' },
+    { job: 'Screen and body', time: '1 to 1.5 hr', price: 120, ex: 'Screen, keyboard, palmrest, top cover' }, { job: 'Full teardown', time: '2 hr or more', price: 160, ex: 'Motherboard, DC jack, hinge' },
+    { job: 'Data and OS', time: 'Varies', price: 135, ex: 'OS reinstall with data transfer, data recovery (starting price)' }, { job: 'Custom PC build', time: '3 to 4 hr', price: 250, ex: 'Assembly, setup and testing' },
+    { job: 'House call / on-site', time: 'Per hour, 1 hr minimum', price: 125, ex: 'Plus travel fee outside your service area' }, { job: 'Business remote support', time: 'Per hour, 15-min blocks', price: 100, ex: 'Remote help for business clients' }] };
+let pricingCache = null, pricingBusy = false, pricingChecked = 0;
+function PRICING() {
+  if (!pricingCache) { try { pricingCache = JSON.parse(localStorage.getItem('rcr-pricing') || 'null'); } catch { } }
+  return (pricingCache && pricingCache.P) || PRICE_DEF;
+}
+function parsePricing(sheets) {
+  const rows = sheets.Pricing || Object.values(sheets)[0] || [], cell = (r, i) => String((r || [])[i] ?? '').trim();
+  const P = { tiers: [], labor: [], rules: [], bench: 0, handling: 0, depOver: 0, depPct: 0 }; let mode = '';
+  for (const r of rows) {
+    if (!r) continue;
+    const a = cell(r, 0), b = cell(r, 1); if (!a) continue;
+    if (/^landed cost$/i.test(a) && /^charge$/i.test(b)) { mode = 'tiers'; continue; }
+    if (/^job type$/i.test(a)) { mode = 'labor'; continue; }
+    if (/^rules$/i.test(a)) { mode = 'rules'; continue; }
+    if (/^(parts markup|labor rates)$/i.test(a)) { mode = ''; continue; }
+    if (mode === 'tiers') {
+      const n = (a.match(/\d[\d,]*(\.\d+)?/g) || []).map(num); let lo = 0, hi = null;
+      if (/under|less|below/i.test(a)) hi = n[0]; else if (/over|above|more/i.test(a)) lo = n[0]; else if (n.length >= 2) { lo = n[0]; hi = n[1]; } else continue;
+      const add = (b.match(/\+\s*\$?\s*([\d.]+)/) || [])[1], mult = (b.match(/[×x*]\s*([\d.]+)/i) || [])[1], min = (b.match(/at least\s*\$?\s*([\d.]+)/i) || [])[1];
+      if (!add && !mult) continue;
+      P.tiers.push({ lo, hi, add: num(add), mult: mult ? num(mult) : 1, min: num(min), l: a, r: b });
+    } else if (mode === 'labor') {
+      const price = num(r[2]); if (!price) continue;
+      if (/bench/i.test(a)) { P.bench = price; continue; }
+      P.labor.push({ job: a, time: cell(r, 1), price, ex: cell(r, 3) });
+    } else if (mode === 'rules') {
+      if (/yellow cell|blue numbers/i.test(a)) continue;
+      P.rules.push(a);
+      const h = a.match(/own part.*?\$\s*([\d.]+)\s*handling/i); if (h) P.handling = num(h[1]);
+      const d = a.match(/over\s*\$\s*([\d,.]+).*?(\d+)\s*%\s*deposit/i); if (d) { P.depOver = num(d[1]); P.depPct = num(d[2]); }
+    }
+  }
+  if (!P.tiers.length || !P.labor.length) return null;
+  P.tiers.sort((x, y) => x.lo - y.lo); return P;
+}
+// Re-reads the price sheet only when the file changed (checked at most once a minute unless forced).
+async function loadPricing(force) {
+  if (!folder || !folderOK || pricingBusy || (!force && Date.now() - pricingChecked < 60e3)) return;
+  pricingBusy = true; pricingChecked = Date.now();
+  try {
+    const parts = String(S().priceSheet || DEF.priceSheet).split(/[\\/]/).filter(Boolean), name = parts.pop();
+    const f = await (await (await getDir(folder, parts.join('/'), false)).getFileHandle(name)).getFile();
+    PRICING(); if (!force && pricingCache && pricingCache.mod === f.lastModified && pricingCache.file === name) return;
+    const P = parsePricing(await readXlsx(await f.arrayBuffer()));
+    if (!P) throw new Error(`"${name}" has no markup or labor table on its Pricing tab.`);
+    P.src = 'sheet'; P.file = name;
+    pricingCache = { P, mod: f.lastModified, file: name, at: nowISO() };
+    try { localStorage.setItem('rcr-pricing', JSON.stringify(pricingCache)); } catch { }
+    if (force) toast('Price sheet loaded.');
+    if ($('#qf')) qDraw();
+  } catch (e) { if (force || !pricingCache) toast("Couldn't read the price sheet: " + (e.name === 'NotFoundError' ? `"${S().priceSheet}" not found in the RCR folder (check Settings)` : e.message) + '. Using the last known rates.', 'err'); }
+  finally { pricingBusy = false; }
+}
+function partCharge(cost, P = PRICING()) {
+  cost = num(cost); if (cost <= 0) return 0;
+  const t = P.tiers.find(t => cost >= t.lo && (t.hi == null || cost < t.hi)) || P.tiers[P.tiers.length - 1];
+  let c = cost * t.mult + t.add; if (t.min && c - cost < t.min) c = cost + t.min;
+  return Math.ceil(c - 1e-9);
+}
+const quoteDev = q => [q.make, q.model].filter(Boolean).join(' ');
+const qLabel = l => l.kind === 'labor' ? String(l.desc).replace(/^labor\s*[–-]\s*/i, '') + ' (labor)' : String(l.desc).replace(/^part\s*[–-]\s*/i, '');
+function quoteText(q) {
+  const P = PRICING(), dev = quoteDev(q);
+  const map = { first: first(q.name), name: q.name || '', forDevice: dev ? ` for your ${dev}` : '', shopPhone: S().shopPhone, total: money(q.total || 0),
+    lines: q.lines.map(l => `• ${qLabel(l)}: ${money(num(l.price))}`).join('\n') + (q.ownPart ? '\n• You supply the part (no warranty on the part itself)' : ''),
+    depositLine: q.deposit ? `\nDeposit to order the part: ${money(q.deposit)}` : '',
+    benchLine: P.bench ? `Quotes are free. If you decide not to go ahead after we open the device, there's a ${money0(P.bench)} bench fee.\n` : '' };
+  return (S().msgQuote || DEF.msgQuote).replace(/\{(\w+)\}/g, (m, k) => map[k] ?? m);
+}
+
+let QT = null;          // the quote open in the quote window
+function quoteModal(id, pre) {
+  document.body.classList.remove('navopen');
+  const saved = id && (DB.quotes || []).find(x => x.id === id);
+  QT = saved ? JSON.parse(JSON.stringify(saved)) : { id: uid(), created: nowISO(), status: 'open', name: '', phone: '', email: '', make: '', model: '', issue: '', lines: [], ownPart: false, ...(pre || {}) };
+  QT.showProfit = false;
+  const P = PRICING();
+  modal(saved ? `💲 Quote · ${esc(QT.name || fmtPhone(QT.phone) || fmtD(QT.created.slice(0, 10)))}` : '💲 New quote', `<form id="qf" onsubmit="return false" autocomplete="off" oninput="qRead()">
+    <label class="fl" style="margin-bottom:8px">Customer<input name="name" class="inp" list="custList" value="${esc(QT.name)}" placeholder="Name (optional)" onchange="qCust()"></label>
+    <div class="row2"><label>Phone<input name="phone" class="inp" type="tel" inputmode="tel" value="${esc(fmtPhone(QT.phone))}" placeholder="(817) 555-1234" onchange="qCust()"></label>
+      <label>Email<input name="email" class="inp" type="email" value="${esc(QT.email || '')}" placeholder="optional"></label></div>
+    <div id="qret" class="small muted" style="margin:-4px 0 6px"></div>
+    <div class="row2"><label>Make<input name="make" class="inp" list="qmakes" value="${esc(QT.make)}" placeholder="Dell, HP, Apple…"></label><label>Model<input name="model" class="inp" value="${esc(QT.model)}" placeholder="optional"></label></div>
+    <datalist id="qmakes">${['Dell', 'HP', 'Lenovo', 'Apple', 'ASUS', 'Acer', 'MSI', 'Microsoft', 'Samsung', 'Razer', 'Gigabyte', 'Toshiba', 'LG', 'Alienware', 'Custom'].map(x => `<option value="${x}">`).join('')}</datalist>
+    <label class="fl">Problem<input name="issue" class="inp" value="${esc(QT.issue)}" placeholder="e.g. cracked screen, won't charge"></label>
+    <div class="sec-h">Labor <span class="small muted" style="font-weight:400">— tap to add</span></div>
+    <div class="qschips">${P.labor.map((l, i) => `<button type="button" class="chipbtn" title="${esc([l.time, l.ex].filter(Boolean).join(' · '))}" onclick="qAddLabor(${i})">${esc(l.job)} <b>${money0(l.price)}</b></button>`).join('')}</div>
+    <div class="sec-h">Part <span class="small muted" style="font-weight:400">— what it costs you, with shipping & tax</span></div>
+    <div class="qpart"><input id="qpn" list="partList" placeholder="Part, e.g. 15.6&quot; screen" onchange="qInv()"><input id="qpc" inputmode="decimal" placeholder="Your cost $" oninput="qPrev()" onkeydown="if(event.key==='Enter'){event.preventDefault();qAddPart()}">
+      <div class="qpa"><button type="button" class="btn sm pri" onclick="qAddPart()">＋ Add part</button><button type="button" class="btn sm" onclick="ebaySearch(ebayQuery($('#qpn').value, QT))" title="Look up the part on eBay (Buy It Now, US sellers)">🛒 eBay price</button><span id="qpp" class="small"></span></div></div>
+    <div class="sec-h">Quote</div>
+    <div id="qlines"></div>
+    <label class="chk1"><input type="checkbox" name="ownPart" ${QT.ownPart ? 'checked' : ''} onchange="qOwn(this.checked)"> Customer brings their own part${P.handling ? ` (+${money0(P.handling)} handling, no parts warranty)` : ''}</label>
+    <div id="qtot"></div></form>`,
+    `${saved ? `<button class="btn" onclick="quoteMenu('${QT.id}')">⋯</button>` : ''}<button class="btn" onclick="quoteSend(null,'copy')">📋 Copy</button><button class="btn" onclick="quoteSend(null,'email')">✉ Email</button>
+     <button class="btn" onclick="quoteSend(null,'text')">💬 Text</button><button class="btn" onclick="qSave(true)">💾 Save</button><button class="btn pri" onclick="qCheckin()">🛠️ Check in</button>`, true);
+  qDraw(); qCust(true); loadPricing();
+}
+function qRead() {
+  const f = $('#qf'); if (!f || !QT) return;
+  for (const k of ['name', 'phone', 'email', 'make', 'model', 'issue']) QT[k] = f[k].value.trim();
+}
+function qCust(quiet) {
+  qRead(); const f = $('#qf'), c = (QT.name || QT.phone) && findCust(QT.name, QT.phone);
+  if (c) { if (!f.phone.value && c.phone) f.phone.value = c.phone; if (!f.name.value && c.name) f.name.value = c.name; if (!f.email.value && c.email) f.email.value = c.email; qRead(); }
+  const last = c && c.tix && [...c.tix].sort((a, b) => b.no - a.no)[0];
+  if (c && !quiet && !f.make.value && last && last.make) { f.make.value = last.make; f.model.value = last.model || ''; qRead(); }
+  $('#qret').innerHTML = c && (c.inv.length || c.tix.length) ? `Returning customer · ${plural(c.visits || c.inv.length, 'visit')}${last ? ` · last device ${esc(devName(last))}` : ''} ${warranty(c)}` : '';
+}
+function qAddLabor(i) { const l = PRICING().labor[i]; if (!l) return; qRead(); QT.lines.push({ kind: 'labor', job: l.job, desc: 'Labor – ' + l.job, cost: '', price: l.price.toFixed(2) }); qDraw(); }
+function qInv() {
+  const ip = DB.parts.find(p => p.name.toLowerCase() === $('#qpn').value.trim().toLowerCase());
+  if (ip && ip.cost && !$('#qpc').value) $('#qpc').value = ip.cost;
+  qPrev();
+}
+function qPrev() {
+  const c = num($('#qpc').value), ip = DB.parts.find(p => p.name.toLowerCase() === $('#qpn').value.trim().toLowerCase());
+  const pr = ip && num(ip.price) ? num(ip.price) : partCharge(c);
+  $('#qpp').innerHTML = pr ? `→ customer pays <b>${money(pr)}</b>${ip && num(ip.price) ? ' (inventory price)' : ''}` : '';
+}
+function qAddPart() {
+  qRead();
+  const name = $('#qpn').value.trim(), c = num($('#qpc').value), ip = DB.parts.find(p => p.name.toLowerCase() === name.toLowerCase());
+  const price = ip && num(ip.price) ? num(ip.price) : partCharge(c);
+  if (!price) { toast('Type what the part costs you (part + shipping + tax).', 'err'); return $('#qpc').focus(); }
+  if (QT.ownPart) qOwn(false, true);
+  QT.lines.push({ kind: 'part', desc: !name ? 'Part' : /^part\b/i.test(name) ? name : 'Part – ' + name, cost: c ? c.toFixed(2) : '', price: price.toFixed(2), ...(ip ? { invId: ip.id } : {}) });
+  $('#qpn').value = ''; $('#qpc').value = ''; $('#qpp').innerHTML = ''; qDraw();
+}
+function qOwn(on, quiet) {
+  const P = PRICING(); QT.ownPart = on; if ($('#qf')) $('#qf').ownPart.checked = on;
+  QT.lines = QT.lines.filter(l => l.kind !== 'fee');
+  if (on) {
+    const had = QT.lines.some(l => l.kind === 'part'); QT.lines = QT.lines.filter(l => l.kind !== 'part');
+    if (P.handling) QT.lines.push({ kind: 'fee', desc: 'Handling – customer-supplied part', cost: '', price: P.handling.toFixed(2) });
+    if (had && !quiet) toast('Part lines removed — the customer is bringing the part.');
+  }
+  qDraw();
+}
+function qDraw() {
+  const el = $('#qlines'); if (!el || !QT) return;
+  const show = QT.showProfit; el.classList.toggle('pf', show);
+  el.innerHTML = QT.lines.length ? QT.lines.map((l, i) => `<div class="ql"><input value="${esc(l.desc)}" oninput="QT.lines[${i}].desc=this.value">
+      ${show ? (l.kind === 'part' ? `<input inputmode="decimal" value="${esc(l.cost)}" placeholder="cost" title="Your cost" oninput="qCost(${i},this.value)">` : '<span class="qcl">—</span>') : ''}
+      <input class="qprice" inputmode="decimal" value="${esc(l.price)}" title="Customer price" oninput="QT.lines[${i}].price=this.value;QT.lines[${i}].manual=true;qTot()">
+      <button type="button" title="Remove" onclick="QT.lines.splice(${i},1);qDraw()">×</button></div>`).join('')
+    : '<div class="muted small">Tap a labor type above and/or add a part.</div>';
+  qTot();
+}
+function qCost(i, v) {                           // cost typed while 👁 is on → re-price the line (unless the price was typed by hand)
+  const l = QT.lines[i]; l.cost = v;
+  if (!l.manual) { l.price = partCharge(v) ? partCharge(v).toFixed(2) : l.price; const pi = $$('#qlines .qprice')[i]; if (pi) pi.value = l.price; }
+  qTot();
+}
+function qTot() {
+  const P = PRICING(), ls = QT.lines, total = sum(ls, l => num(l.price)), cost = sum(ls.filter(l => l.kind === 'part'), l => num(l.cost));
+  const special = ls.filter(l => l.kind === 'part' && P.depOver && num(l.cost || l.price) > P.depOver);
+  QT.total = Math.round(total * 100) / 100;
+  QT.deposit = special.length ? Math.round(sum(special, l => num(l.price)) * P.depPct) / 100 : 0;
+  $('#qtot').innerHTML = `<div class="qstot">Total <b>${money(total)}</b></div>
+    ${QT.deposit ? `<div class="small" style="text-align:right">Deposit before ordering: <b>${money(QT.deposit)}</b> <span class="muted">(${P.depPct}% of special-order parts over ${money0(P.depOver)})</span></div>` : ''}
+    <div class="row small" style="gap:8px;margin-top:6px"><button type="button" class="btn sm" onclick="QT.showProfit=!QT.showProfit;qDraw()">${QT.showProfit ? '🙈 Hide my cost' : '👁 My cost & profit'}</button>
+      ${QT.showProfit ? `<span>Parts cost ${money(cost)} · Profit <b class="${total - cost > 0 ? 'up' : 'down'}">${money(total - cost)}</b></span>` : ''}</div>
+    <div class="small muted" style="margin-top:6px">${P.src === 'sheet' ? `Rates from ${esc(P.file)}` : '⚠ Using built-in rates (your price sheet hasn\'t been read on this device yet)'}${P.bench ? ` · bench fee ${money0(P.bench)} if declined` : ''} · no sales tax</div>`;
+}
+function qSave(close) {
+  qRead();
+  if (!QT.lines.length) { toast('Add labor or a part first.', 'err'); return false; }
+  const { showProfit, ...rec } = QT; rec.phone = fmtPhone(rec.phone);
+  upsert('quotes', rec); QT.upd = rec.upd;
+  if (close) { closeModal(true); render(); toast(`Quote saved — ${money(rec.total)}${rec.name ? ' for ' + rec.name : ''}.`); }
+  return true;
+}
+// Text / email / copy a quote: from the open quote window (id null) or straight from a list (id). followUp = the short "still interested?" text.
+function quoteSend(id, how, followUp) {
+  let q;
+  if (id) q = (DB.quotes || []).find(x => x.id === id);
+  else { if (!qSave(false)) return; q = (DB.quotes || []).find(x => x.id === QT.id); }
+  if (!q) return;
+  const body = followUp ? `Hi ${first(q.name)}, just following up on the ${money(q.total)} quote${quoteDev(q) ? ` for your ${quoteDev(q)}` : ''} from Rapid Computer Repair. Would you like to get it booked in? Call or text ${S().shopPhone}.` : quoteText(q);
+  const ph = digits(q.phone).replace(/^1(?=\d{10}$)/, '');
+  if (how === 'text') { if (ph.length !== 10) return toast('Add the customer\'s phone number first.', 'err'); launch(`sms:+1${ph}?body=${encodeURIComponent(body)}`); }
+  else if (how === 'email') { if (!q.email) return toast('Add the customer\'s email first.', 'err'); launch(`mailto:${encodeURIComponent(q.email)}?subject=${encodeURIComponent('Your repair quote — Rapid Computer Repair')}&body=${encodeURIComponent(body + sig())}`); }
+  else copyText(body, 'Quote');
+  const upd = { ...q, notes: [...(q.notes || []), { t: nowISO(), x: `${followUp ? 'Follow-up' : 'Quote'} ${how === 'text' ? 'texted' : how === 'email' ? 'emailed' : 'copied'}` }] };
+  if (followUp) upd.lastFollow = nowISO(); else if (how !== 'copy' && !upd.sentAt) upd.sentAt = nowISO();
+  upsert('quotes', upd); if (!id && QT) QT.upd = upd.upd;
+  if (id) render();
+}
+// Quote → new repair ticket with the same customer, device, parts and labor lines (cost + price), estimate = quote total.
+function qCheckin(id) {
+  let q;
+  if (id) q = (DB.quotes || []).find(x => x.id === id); else { qRead(); if (QT.lines.length && !qSave(false)) return; q = QT; }
+  if (!q) return;
+  closeModal(true);
+  editTicket(null, { name: q.name, phone: fmtPhone(q.phone), email: q.email || '', make: q.make, model: q.model, issue: q.issue, estimate: q.total ? q.total.toFixed(2) : '',
+    parts: (q.lines || []).map(l => ({ desc: l.desc, cost: l.cost || '', price: l.price, ...(l.invId ? { invId: l.invId, fresh: true } : {}) })),
+    notes: [{ t: nowISO(), x: `From quote of ${fmtTs(q.created)}: ${money(q.total || 0)}${q.deposit ? ` (deposit ${money(q.deposit)} before ordering)` : ''}${q.ownPart ? ' · customer supplies the part' : ''}` }], quoteId: q.lines && q.lines.length ? q.id : undefined });
+}
+function quoteStatus(id, s) { const q = (DB.quotes || []).find(x => x.id === id); if (!q) return; upsert('quotes', { ...q, status: s }); render(); toast(s === 'lost' ? 'Marked not interested.' : 'Quote reopened.'); }
+function quoteMenu(id) {
+  const q = (DB.quotes || []).find(x => x.id === id); if (!q) return;
+  sheet(esc(q.name || fmtPhone(q.phone) || 'Quote'), [
+    ...(q.status !== 'open' ? [['↩ Reopen (still interested)', () => quoteStatus(id, 'open')]] : []),
+    ...(q.status !== 'lost' ? [['👋 Not interested', () => { closeModal(true); quoteStatus(id, 'lost'); }]] : []),
+    ...(q.ticketId ? [[`🛠️ Open ticket #${q.ticketNo || ''}`, () => { closeModal(true); editTicket(q.ticketId); }]] : []),
+    ['🗑 Delete quote', () => { if (!confirm('Delete this quote?')) return; closeModal(true); removeRec('quotes', id); render(); toast('Quote deleted.'); }]]);
+}
+const QST = { open: ['Open', '#1d5fd1'], ticket: ['Became a ticket', '#16a34a'], lost: ['Not interested', '#94a3b8'] };
+function vQuotes() {
+  const all = DB.quotes || [], f = ui.qSt || 'open';
+  return `<div class="toolbar"><button class="btn pri" onclick="quoteModal()">＋ New quote</button><input type="search" class="inp" style="flex:1;min-width:160px" placeholder="Search name, phone, device…" value="${esc(ui.qq || '')}" oninput="ui.qq=this.value;$('#qlist').innerHTML=quotesBody()">
+      <button class="btn sm" onclick="loadPricing(true)" title="Read the price sheet again">⟳ Price sheet</button></div>
+    <div class="dstrip chips-row">${[['open', 'Open'], ['ticket', 'Became a ticket'], ['lost', 'Not interested'], ['all', 'All']].map(([k, l]) => `<button class="chipbtn ${f === k ? 'on' : ''}" onclick="ui.qSt='${k}';render()">${k !== 'all' ? `<span class="dot" style="background:${QST[k][1]}"></span>` : ''}${l} <b>${all.filter(q => k === 'all' || q.status === k).length}</b></button>`).join('')}</div>
+    <div id="qlist">${quotesBody()}</div>`;
+}
+function quotesBody() {
+  const f = ui.qSt || 'open', q0 = (ui.qq || '').trim().toLowerCase(), qd = digits(q0);
+  let list = (DB.quotes || []).filter(q => f === 'all' || q.status === f);
+  if (q0) list = list.filter(q => [q.name, q.email, q.make, q.model, q.issue].join(' ').toLowerCase().includes(q0) || (qd.length >= 3 && digits(q.phone).includes(qd)));
+  list.sort((a, b) => (b.created || '').localeCompare(a.created || ''));
+  if (!list.length) return `<div class="card empty">${(DB.quotes || []).length ? 'No quotes here.' : 'No quotes yet. Tap <b>＋ New quote</b> (or ＋ Add › Price quote on the phone) to price a repair from your price sheet.'}</div>`;
+  return list.slice(0, 150).map(q => { const p = digits(q.phone).replace(/^1(?=\d{10}$)/, ''), d = daysSince(q.created), st = QST[q.status] || QST.open;
+    return `<div class="lead" style="border-left-color:${st[1]}">
+      <div class="lh"><b>${esc(q.name || fmtPhone(q.phone) || 'No name')}</b> <span class="badge" style="background:${st[1]}">${st[0]}${q.ticketNo ? ' #' + q.ticketNo : ''}</span><span class="r"><b>${money(q.total || 0)}</b></span></div>
+      <div class="small muted">${[quoteDev(q), q.issue].filter(Boolean).map(esc).join(' · ') || 'No device'} · ${d <= 0 ? 'today' : d === 1 ? 'yesterday' : d + ' days ago'}${q.sentAt ? ' · sent' : ''}${q.lastFollow ? ' · followed up ' + esc(fmtTs(q.lastFollow)) : ''}</div>
+      <div class="small" style="margin-top:3px">${(q.lines || []).map(l => esc(qLabel(l))).join(' + ')}</div>
+      <div class="acts">${p.length === 10 ? `<a class="btn sm" href="tel:${p}">📞 Call</a><button class="btn sm" onclick="quoteSend('${q.id}','text',${q.sentAt ? 'true' : 'false'})">💬 ${q.sentAt ? 'Follow up' : 'Text quote'}</button>` : ''}
+        <button class="btn sm" onclick="quoteModal('${q.id}')">Open</button>${q.status === 'open' ? `<button class="btn sm ok" onclick="qCheckin('${q.id}')">🛠️ Check in</button>` : ''}<button class="btn sm" onclick="quoteMenu('${q.id}')">⋯</button></div></div>`; }).join('');
+}
+
 function plusSheet() {
-  sheet('Add…', [['🛠️ Check in a device', () => editTicket()], ['⚡ Quick sale <span class="muted small">— paid on the spot, no ticket</span>', () => quickSale()], ['📅 Appointment', () => editAppt()], ['📥 Import a parts purchase <span class="muted small">— Amazon / eBay</span>', () => importPurchase()]]);
+  sheet('Add…', [['🛠️ Check in a device', () => editTicket()], ['💲 Price quote <span class="muted small">— from your price sheet</span>', () => quoteModal()], ['⚡ Quick sale <span class="muted small">— paid on the spot, no ticket</span>', () => quickSale()], ['📅 Appointment', () => editAppt()], ['📥 Import a parts purchase <span class="muted small">— Amazon / eBay</span>', () => importPurchase()]]);
 }
 
 /* ============ MONEY ============ */
@@ -3132,6 +3400,8 @@ function vSettings() {
       <label>Dashboard data folder<input name="dataPath" value="${esc(s.dataPath)}"></label></form>
     <form class="f" style="margin-top:10px" onsubmit="return false" onchange="saveSettings({ledgerPath:this.ledgerPath.value.trim()||DEF.ledgerPath});LEDGER=null;ledgerErr='';toast('Saved')">
       <label class="full">Ledger workbook for the Profit page (inside the RCR folder — change it next year)<input name="ledgerPath" value="${esc(s.ledgerPath)}"></label></form>
+    <form class="f" style="margin-top:10px" onsubmit="return false" onchange="saveSettings({priceSheet:this.priceSheet.value.trim()||DEF.priceSheet});loadPricing(true)">
+      <label class="full">Price sheet for 💲 Quotes (inside the RCR folder; the "Pricing" tab's markup and labor tables)<input name="priceSheet" value="${esc(s.priceSheet)}"></label></form>
     <p class="small muted">${invInfo.files.length ? 'Loaded: ' + esc(invInfo.files.join(', ')) + ' · ' + INV.length + ' invoices' + (invInfo.loadedAt ? ' · ' + fmtTs(invInfo.loadedAt) : '') : ''}${invInfo.errors.length ? '<br><span class="down">' + esc(invInfo.errors.join(' · ')) + '</span>' : ''}</p></div>
   <div class="card"><h3>🏪 Shop</h3><form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')">
     <label class="full">Address on printed tickets<select name="shopAddr">${ADDRS.map(a => `<option ${a === s.shopAddr ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
@@ -3144,7 +3414,7 @@ function vSettings() {
     <label>Next ticket number<input name="nextTicket" type="number" value="${esc(s.nextTicket)}"></label><label>Pickup reminder after (days)<input name="staleDays" type="number" value="${esc(s.staleDays)}"></label></form></div>
   <div class="card"><h3>💬 Message templates</h3><p class="small muted">Used by the "Copy … text" buttons. Fill-ins: {first} {name} {device} {no} {estimate} {estimateLine} {total} {diag} {review} {shopPhone} {readyDate} {readyDays}</p>
     <form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')">
-    ${[...MSG_TYPES, ['msgLead', 'Website lead follow-up (Leads page)']].map(([k, l]) => `<label class="full">${l}<textarea name="${k}" rows="2">${esc(s[k])}</textarea></label>`).join('')}</form></div>
+    ${[...MSG_TYPES, ['msgLead', 'Website lead follow-up (Leads page)'], ['msgQuote', 'Price quote (Quotes) — fill-ins {forDevice} {lines} {total} {depositLine} {benchLine}']].map(([k, l]) => `<label class="full">${l}<textarea name="${k}" rows="2">${esc(s[k])}</textarea></label>`).join('')}</form></div>
   <div class="card"><h3>🧾 Printed check-in ticket terms</h3><p class="small muted">Printed on every repair ticket. These are a starting point — not reviewed by a lawyer.</p>
     <form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')"><label class="full"><textarea name="terms" rows="8">${esc(s.terms)}</textarea></label></form></div>
   <div class="card"><h3>💾 Backup</h3><p class="small muted">${DB.tickets.length} tickets · ${DB.parts.length} parts · ${DB.orders.length} orders · ${DB.appts.length} appointments · ${DB.tasks.length} tasks${DB.savedAt ? ' · last change ' + fmtTs(DB.savedAt) : ''}</p>
@@ -3191,7 +3461,8 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { $('#gres').hidden = true; if (!$('#modal').hidden) closeModal(); return; }
   const tag = document.activeElement?.tagName || '';
   if (/INPUT|TEXTAREA|SELECT/.test(tag) || e.ctrlKey || e.metaKey || e.altKey || !$('#modal').hidden) return;
-  konami(e); if (kPos > 0 && !/^[nNiIqQ/0-9]$/.test(e.key)) return;
+  konami(e); if (kPos > 0 && !/^[nNiIqQpP/0-9]$/.test(e.key)) return;
+  if (e.key === 'p' || e.key === 'P') { e.preventDefault(); return quoteModal(); }
   if (e.key === 'n' || e.key === 'N') { e.preventDefault(); editTicket(); }
   else if (e.key === 'i' || e.key === 'I') { e.preventDefault(); openInvoice(); }
   else if (e.key === 'q' || e.key === 'Q') { e.preventDefault(); quickSale(); }
