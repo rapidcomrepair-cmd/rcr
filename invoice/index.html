@@ -179,7 +179,7 @@
     table.items th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
-<meta name="rcr-build" content="20261119-161238">
+<meta name="rcr-build" content="20261119-193827">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -281,7 +281,7 @@
     <div><div class="lbl">Date</div><input data-k="date" id="date"></div>
     <div><div class="lbl">To</div>
       <input data-k="custname" id="custname" list="dl-names" placeholder="Customer name" autocomplete="off">
-      <input data-k="custphone" id="custphone" list="dl-phones" placeholder="Phone" autocomplete="off" style="margin-top:3px"></div>
+      <input data-k="custphone" id="custphone" type="tel" inputmode="tel" list="dl-phones" placeholder="Phone" autocomplete="off" style="margin-top:3px"></div>
     <div><div class="lbl">Ship To</div><input data-k="shipto" value="Same as recipient"></div>
   </div>
   <div id="history" class="history noprint" hidden></div>
@@ -1292,6 +1292,14 @@ document.addEventListener('keydown', e => {
   }
 }, true);
 $('#custphone').addEventListener('blur', e => { const f = fmtPhone(e.target.value); if (f !== e.target.value) { e.target.value = f; save(); } });
+// Phone formats while typing: "(817" → "(817) 555" → "(817) 555-1234" (same rule as the dashboard). Capture phase, so
+// the save and customer-lookup handlers already see the formatted value. Skipped for deletes, mid-text edits and letters.
+document.addEventListener('input', e => {
+  const el = e.target; if (el.id !== 'custphone' || /^delete/.test(e.inputType || '') || el.selectionStart !== el.value.length || !/^[\d\s().+-]*$/.test(el.value)) return;
+  const d = String(el.value).replace(/\D/g, '').replace(/^1/, ''); if (!d || d.length > 10) return;
+  const f = d.length <= 3 ? '(' + d : d.length <= 6 ? `(${d.slice(0, 3)}) ${d.slice(3)}` : `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  if (f !== el.value) el.value = f;
+}, true);
 document.addEventListener('change', e => { if (e.target.matches('[data-k]')) save(); });
 ['#adj1', '#adj2'].forEach(s => $(s).addEventListener('blur', e => { e.target.value = num(e.target.value) ? money(num(e.target.value)) : '00.00'; recalc(); }));
 

@@ -378,7 +378,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-161238">
+<meta name="rcr-build" content="20261119-193827">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -450,7 +450,22 @@ const fmtDs = s => s ? parseYMD(s).toLocaleDateString('en-US', { month: 'short',
 const fmtTs = iso => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const fmtT = t => { if (!t) return ''; const [h, m] = t.split(':').map(Number); return ((h + 11) % 12 + 1) + ':' + pad(m) + (h < 12 ? ' AM' : ' PM'); };
 const digits = s => String(s || '').replace(/\D/g, '');
-const fmtPhone = s => { const d = digits(s).slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (s || ''); };
+// Phone numbers are always shown as (XXX) XXX-XXXX. A leading 1 / +1 is dropped; anything that isn't 10 digits is left as typed.
+const fmtPhone = s => { const d = digits(s).replace(/^1(?=\d{10}$)/, ''); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : String(s || '').trim(); };
+// Every <input type="tel"> formats while typing ("(817" → "(817) 555" → "(817) 555-1234") and fully on leaving the box.
+// Capture phase, so the box's own oninput/onchange handlers already see the formatted value.
+function phoneTyping(v) {
+  if (!/^[\d\s().+-]*$/.test(v)) return v;                       // letters (e.g. "ext 2") → leave alone
+  const d = digits(v).replace(/^1/, '');                          // US area codes never start with 1
+  if (!d || d.length > 10) return v;
+  return d.length <= 3 ? '(' + d : d.length <= 6 ? `(${d.slice(0, 3)}) ${d.slice(3)}` : `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+}
+document.addEventListener('input', e => {
+  const el = e.target; if (!(el instanceof HTMLInputElement) || el.type !== 'tel' || /^delete/.test(e.inputType || '')) return;
+  if (el.selectionStart !== el.value.length) return;              // only when typing at the end, so the cursor never jumps
+  const f = phoneTyping(el.value); if (f !== el.value) el.value = f;
+}, true);
+document.addEventListener('focusout', e => { const el = e.target; if (el instanceof HTMLInputElement && el.type === 'tel' && el.value) el.value = fmtPhone(el.value); }, true);
 const first = n => String(n || '').trim().split(/\s+/)[0] || 'there';
 const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
 
@@ -560,7 +575,7 @@ function persistLocal() { try { localStorage.setItem(LS, JSON.stringify(DB)); } 
 function commit() { DB.savedAt = nowISO(); persistLocal(); pending = true; setSync('saving'); clearTimeout(wt); wt = setTimeout(flush, 700); }
 function upsert(coll, rec) { rec.upd = nowISO(); if (coll === 'leads') leadsDirty = true; const a = DB[coll], i = a.findIndex(x => x.id === rec.id); if (i < 0) a.push(rec); else a[i] = rec; commit(); }
 function removeRec(coll, id) { DB[coll] = DB[coll].filter(x => x.id !== id); DB.deleted[id] = nowISO(); commit(); }
-function saveSettings(patch) { Object.assign(DB.settings, patch); DB.settingsUpd = nowISO(); commit(); }
+function saveSettings(patch) { if (patch.shopPhone) patch.shopPhone = fmtPhone(patch.shopPhone); Object.assign(DB.settings, patch); DB.settingsUpd = nowISO(); commit(); }
 
 async function getDir(root, path, create) { let d = root; for (const part of String(path || '').split(/[\\/]/).filter(Boolean)) d = await d.getDirectoryHandle(part, { create }); return d; }
 async function readText(dir, name) { try { return await (await (await dir.getFileHandle(name)).getFile()).text(); } catch (e) { if (e.name === 'NotFoundError') return null; throw e; } }
@@ -1107,7 +1122,7 @@ function editTicket(id, pre) {
    <div>
     <div class="box" oninput="cquick()"><div class="bh">👤 Customer</div>
       <div class="f"><label>Name *<input name="name" list="custList" value="${esc(t.name || '')}" oninput="custLookup()" onchange="custFill()" required></label>
-      <label>Phone<input name="phone" value="${esc(t.phone || '')}" oninput="custLookup()" onblur="this.value=fmtPhone(this.value)"></label>
+      <label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="(817) 555-1234" value="${esc(fmtPhone(t.phone || ''))}" oninput="custLookup()"></label>
       <label>Email<input name="email" type="email" value="${esc(t.email || '')}"></label>
       <label>Address (on-site jobs)<input name="addr" value="${esc(t.addr || '')}"></label></div>
       <div id="cquick" class="quick"></div>
@@ -1889,7 +1904,7 @@ function quickSale(pre) {
   const last = localStorage.getItem('rcr-paymethod') || 'Cash';
   modal('⚡ Quick sale', `<form id="qsf" onsubmit="event.preventDefault();qsSave()" autocomplete="off">
     <div class="row2"><label>Customer name<input id="qsname" list="custList" value="${esc(pre.name || '')}" placeholder="Name" onchange="qsFill()"></label>
-      <label>Phone<input id="qsphone" type="tel" inputmode="tel" value="${esc(pre.phone || '')}" placeholder="(817) 555-1234" onchange="qsFill()"></label></div>
+      <label>Phone<input id="qsphone" type="tel" inputmode="tel" value="${esc(fmtPhone(pre.phone || ''))}" placeholder="(817) 555-1234" onchange="qsFill()"></label></div>
     <div id="qsret" class="small muted" style="margin:-2px 0 8px"></div>
     <label class="fl">What did you do?<input id="qsjob" class="inp" value="${esc(pre.job || '')}" placeholder="e.g. Virus Removal"></label>
     <div class="qschips">${QS_JOBS.map(([j, lab]) => `<button type="button" class="chipbtn" onclick="qsJob(${js(j)},${js(lab || 'Labor – Physical')})">${j}</button>`).join('')}</div>
@@ -2295,7 +2310,7 @@ function editAppt(id, pre) {
     <label>Date<input type="date" name="date" value="${esc(a.date)}"></label><label>Time<input type="time" name="time" value="${esc(a.time || '')}"></label>
     <label>Type<select name="type">${APPT_TYPES.map(t => `<option ${t === a.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
     <label>Ticket<select name="ticketId"><option value="">—</option>${DB.tickets.filter(t => OPEN.includes(t.status) || t.id === a.ticketId).sort((x, y) => y.no - x.no).map(t => `<option value="${t.id}" ${t.id === a.ticketId ? 'selected' : ''}>#${t.no} ${esc(t.name)} — ${esc(devName(t))}</option>`).join('')}</select></label>
-    <label>Customer<input name="name" list="custList" value="${esc(a.name || '')}"></label><label>Phone<input name="phone" value="${esc(a.phone || '')}"></label>
+    <label>Customer<input name="name" list="custList" value="${esc(a.name || '')}"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="(817) 555-1234" value="${esc(fmtPhone(a.phone || ''))}"></label>
     <label class="full">Address (on-site)<select class="inp" onchange="if(this.value)this.form.addr.value=this.value" style="margin-bottom:4px"><option value="">Pick a shop address or type below…</option>${ADDRS.map(x => `<option>${x}</option>`).join('')}</select><input name="addr" value="${esc(a.addr || '')}"></label>
     <label class="full">Notes<textarea name="notes">${esc(a.notes || '')}</textarea></label></form>`,
     `<button class="btn pri" onclick="saveAppt('${a.id}')">Save</button>${id ? `<span class="grow"></span><button class="btn danger" onclick="if(confirm('Delete this appointment?')){removeRec('appts','${a.id}');closeModal(true);render()}">Delete</button>` : ''}`);
@@ -2953,7 +2968,7 @@ function vSettings() {
     <p class="small muted">${invInfo.files.length ? 'Loaded: ' + esc(invInfo.files.join(', ')) + ' · ' + INV.length + ' invoices' + (invInfo.loadedAt ? ' · ' + fmtTs(invInfo.loadedAt) : '') : ''}${invInfo.errors.length ? '<br><span class="down">' + esc(invInfo.errors.join(' · ')) + '</span>' : ''}</p></div>
   <div class="card"><h3>🏪 Shop</h3><form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')">
     <label class="full">Address on printed tickets<select name="shopAddr">${ADDRS.map(a => `<option ${a === s.shopAddr ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
-    <label>Phone<input name="shopPhone" value="${esc(s.shopPhone)}"></label><label>Email<input name="shopEmail" value="${esc(s.shopEmail)}"></label>
+    <label>Phone<input name="shopPhone" type="tel" inputmode="tel" value="${esc(fmtPhone(s.shopPhone))}"></label><label>Email<input name="shopEmail" value="${esc(s.shopEmail)}"></label>
     <label>Website<input name="shopWeb" value="${esc(s.shopWeb)}"></label><label>Monthly sales goal $<input name="goal" inputmode="decimal" value="${esc(s.goal || '')}" placeholder="optional"></label>
     <label class="full">Google review link<input name="reviewLink" value="${esc(s.reviewLink)}" placeholder="https://g.page/r/…/review"></label></form>
     <form class="f" style="margin-top:10px" onsubmit="return false" onchange="saveSettings({techs:this.techs.value.split(',').map(x=>x.trim()).filter(Boolean),devTypes:this.devTypes.value.split(',').map(x=>x.trim()).filter(Boolean),staleDays:num(this.staleDays.value)||7,nextTicket:Math.max(1,num(this.nextTicket.value))});toast('Saved')">
