@@ -29,7 +29,7 @@
     }
     return new Promise(() => {});
   }
-  function signOut() { [TK, USERK, ROOTK, 'rcr-gmail', 'rcr-gscope'].forEach(k => localStorage.removeItem(k)); location.href = base; }
+  function signOut() { [TK, USERK, ROOTK, 'rcr-gmail', 'rcr-gscope', 'rcr-drive-ids'].forEach(k => localStorage.removeItem(k)); try { indexedDB.deleteDatabase('rcr-drive-cache'); } catch { } location.href = base; }
   const user = () => { try { return JSON.parse(localStorage.getItem(USERK) || 'null'); } catch { return null; } };
   const wasSignedIn = () => !!user();
 
@@ -76,14 +76,64 @@
   const folderCache = new Map();                          // "parentId/name" → folder metadata (folders rarely change)
   const bodyCache = new Map();                            // file id → { mt, blob } so unchanged files aren't downloaded twice
 
+  /* ---------- speed: remembered between app opens ----------
+     IDS (localStorage "rcr-drive-ids"): "parentId/name" → { id, mimeType } for folders and files, so opening the app doesn't have to
+     look every folder and file up by name again. A remembered file is checked by its metadata (trashed? still in that folder?)
+     before it is read or written; if anything looks off, everything remembered is forgotten and looked up fresh.
+     Bodies (IndexedDB "rcr-drive-cache"): file id → { mt, blob }. A file is only downloaded again when Drive says it changed. */
+  const IDK = 'rcr-drive-ids';
+  let ids = null;
+  const idsGet = () => { if (!ids) { try { ids = JSON.parse(localStorage.getItem(IDK) || '{}') || {}; } catch { ids = {}; } } return ids; };
+  const idsSave = () => { try { localStorage.setItem(IDK, JSON.stringify(ids || {})); } catch { } };
+  const idSet = (parentId, name, f) => { idsGet()[parentId + '/' + name] = { id: f.id, mimeType: f.mimeType }; idsSave(); };
+  const idDel = (parentId, name) => { if (idsGet()[parentId + '/' + name]) { delete ids[parentId + '/' + name]; idsSave(); } };
+  const checked = new Set();                              // remembered ids confirmed this session
+  // something on Drive moved or was deleted: forget all remembered locations AND all "already checked" marks,
+  // so every folder is checked again before anything is read from or written into it
+  let gen = 0;                                            // bumped by idsForget: folder handles from before must be checked again
+  const idsForget = () => { ids = {}; idsSave(); folderCache.clear(); checked.clear(); gen++; };
+  const BODY_MAX = 8e6;
+  const bodyDB = (() => {
+    let p; const db = () => p || (p = new Promise((res, rej) => { const r = indexedDB.open('rcr-drive-cache', 1); r.onupgradeneeded = () => r.result.createObjectStore('b'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+    const tx = (mode, fn) => db().then(d => new Promise((res, rej) => { const t = d.transaction('b', mode), s = t.objectStore('b'), out = fn(s); t.oncomplete = () => res(out && out.result); t.onerror = () => rej(t.error); }));
+    return {
+      get: id => tx('readonly', s => s.get(id)).catch(() => null),
+      put: (id, v) => tx('readwrite', s => s.put(v, id)).then(trim).catch(() => {}),
+      del: id => tx('readwrite', s => s.delete(id)).catch(() => {}),
+      clear: () => tx('readwrite', s => s.clear()).catch(() => {}),
+    };
+    async function trim() {                               // keep the newest ~60 files (photo thumbnails add up)
+      const all = await tx('readonly', s => s.getAll()).catch(() => null), keys = await tx('readonly', s => s.getAllKeys()).catch(() => null);
+      if (!all || !keys || all.length <= 60) return;
+      const order = keys.map((k, i) => [k, all[i].at || 0]).sort((a, b) => a[1] - b[1]);
+      await tx('readwrite', s => { for (const [k] of order.slice(0, all.length - 60)) s.delete(k); });
+    }
+  })();
+  // stored as an ArrayBuffer (older iPhone Safari versions were unreliable with Blobs in IndexedDB)
+  const keep = (id, mt, blob) => { if (blob && blob.size <= BODY_MAX) blob.arrayBuffer().then(buf => bodyDB.put(id, { mt, buf, type: blob.type, at: Date.now() })).catch(() => {}); };
+  const kept = async (id, mt) => { const s = await bodyDB.get(id); return s && s.mt === mt && s.buf ? new Blob([s.buf], { type: s.type || '' }) : null; };
+
   class DriveFile {
-    constructor(id, name, parent) { this.kind = 'file'; this.id = id; this.name = name; this.parent = parent; }
+    constructor(id, name, parent, remembered) { this.kind = 'file'; this.id = id; this.name = name; this.parent = parent; this.remembered = !!remembered; }
+    async _meta() {                                       // metadata; a remembered id must still be a live file in the same folder
+      const meta = await json(`${API}/files/${this.id}?fields=${FIELDS},trashed,parents`).catch(e => { if (e.name === 'NotFoundError' && this.remembered) return null; throw e; });
+      if (this.remembered && (!meta || meta.trashed || !(meta.parents || []).includes(this.parent.id))) {
+        idsForget(); bodyDB.del(this.id);
+        const f = (await this.parent._verify(), (await list(this.parent.id, this.name))[0]);
+        if (!f || f.mimeType === FOLDER) { this.id = null; throw notFound(this.name); }
+        this.id = f.id; this.remembered = false; idSet(this.parent.id, this.name, f);
+        return this._meta();
+      }
+      checked.add(this.id); this.remembered = false;
+      return meta;
+    }
     async getFile() {                                     // a File-like object; the content downloads only when read
       if (!this.id) throw notFound(this.name);
-      const meta = await json(`${API}/files/${this.id}?fields=${FIELDS}`), id = this.id, name = this.name;
+      const meta = await this._meta(), id = this.id, name = this.name;
       const load = () => {                                // one download per version, even when asked for twice at once
         const c = bodyCache.get(id); if (c && c.mt === meta.modifiedTime) return c.blob;
-        const blob = api(`${API}/files/${id}?alt=media`).then(r => r.blob());
+        const blob = kept(id, meta.modifiedTime).then(b => b
+          || api(`${API}/files/${id}?alt=media`).then(r => r.blob()).then(b => { keep(id, meta.modifiedTime, b); return b; }));
         bodyCache.set(id, { mt: meta.modifiedTime, blob });
         blob.catch(() => { if (bodyCache.get(id) && bodyCache.get(id).blob === blob) bodyCache.delete(id); });
         return blob;
@@ -101,39 +151,58 @@
       };
     }
     async _upload(blob) {
+      if (this.id && this.remembered && !checked.has(this.id)) await this._meta();   // never write into a remembered id without checking it first
       if (!this.id) {                                     // new file: someone else may have just made it; otherwise create it empty
+        await this.parent._verify();
         const f = (await list(this.parent.id, this.name))[0];
         this.id = f ? f.id : (await json(`${API}/files?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: this.name, mimeType: mimeOf(this.name), parents: [this.parent.id] }) })).id;
+        idSet(this.parent.id, this.name, { id: this.id, mimeType: mimeOf(this.name) }); checked.add(this.id);
       }
       const meta = await json(`${UP}/files/${this.id}?uploadType=media&fields=${FIELDS}`, { method: 'PATCH', headers: { 'Content-Type': mimeOf(this.name) }, body: blob });
       bodyCache.set(this.id, { mt: meta.modifiedTime, blob: Promise.resolve(blob) });
+      keep(this.id, meta.modifiedTime, blob);
     }
   }
 
   class DriveFolder {
-    constructor(id, name) { this.kind = 'directory'; this.id = id; this.name = name; }
+    constructor(id, name, remembered) { this.kind = 'directory'; this.id = id; this.name = name; this.remembered = !!remembered; this.gen = gen; }
     async _find(name) { return (await list(this.id, name))[0] || null; }
+    // A folder known only from a previous session — or any folder, once something on Drive was found moved or deleted —
+    // is checked (once) before anything is looked up or created in it.
+    async _verify() {
+      if ((!this.remembered && this.gen === gen) || checked.has(this.id)) return;
+      const f = await json(`${API}/files/${this.id}?fields=id,mimeType,trashed`).catch(e => { if (e.name === 'NotFoundError') return null; throw e; });
+      if (!f || f.trashed || f.mimeType !== FOLDER) { idsForget(); throw new Error('Your Google Drive folders changed since last time — please try again.'); }
+      checked.add(this.id);
+    }
     async getDirectoryHandle(name, o) {
       const key = this.id + '/' + name; let f = folderCache.get(key);
+      if (!f) { const r = idsGet()[key]; if (r && r.mimeType === FOLDER) return new DriveFolder(r.id, name, true); }
       if (!f) {
+        await this._verify();
         f = await this._find(name);
         if (f && f.mimeType !== FOLDER) throw mismatch(name);
         if (!f) {
           if (!(o && o.create)) throw notFound(name);
           f = await json(`${API}/files?fields=${FIELDS}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: FOLDER, parents: [this.id] }) });
         }
-        folderCache.set(key, f);
+        folderCache.set(key, f); idSet(this.id, name, f); checked.add(f.id);
       }
       return new DriveFolder(f.id, f.name);
     }
     async getFileHandle(name, o) {
+      const r = idsGet()[this.id + '/' + name];
+      if (r && r.mimeType !== FOLDER) return new DriveFile(r.id, name, this, true);
+      await this._verify();
       const f = await this._find(name);
       if (f && f.mimeType === FOLDER) throw mismatch(name);
       if (!f && !(o && o.create)) throw notFound(name);
+      if (f) { idSet(this.id, name, f); checked.add(f.id); }
       return new DriveFile(f ? f.id : null, name, this);
     }
     async *entries() {
+      await this._verify();
       for (const f of await list(this.id)) {
         if (f.mimeType === FOLDER) { folderCache.set(this.id + '/' + f.name, f); yield [f.name, new DriveFolder(f.id, f.name)]; }
         else yield [f.name, new DriveFile(f.id, f.name, this)];
@@ -143,9 +212,10 @@
     async *values() { for await (const [, h] of this.entries()) yield h; }
     [Symbol.asyncIterator]() { return this.entries(); }
     async removeEntry(name) {                             // moves it to the Drive trash (recoverable for 30 days)
+      await this._verify();
       const f = await this._find(name); if (!f) return;
       await api(`${API}/files/${f.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
-      folderCache.delete(this.id + '/' + name);
+      folderCache.delete(this.id + '/' + name); idDel(this.id, name); bodyDB.del(f.id);
     }
     async queryPermission() { return token() ? 'granted' : 'prompt'; }
     async requestPermission() { return token() ? 'granted' : signIn({ silent: wasSignedIn() }); }
@@ -156,9 +226,10 @@
   async function root() {
     const saved = localStorage.getItem(ROOTK);
     if (saved) {
-      try { const f = await json(`${API}/files/${saved}?fields=id,name,mimeType,trashed`); if (f.mimeType === FOLDER && !f.trashed) return new DriveFolder(f.id, f.name); }
+      try { const f = await json(`${API}/files/${saved}?fields=id,name,mimeType,trashed`); if (f.mimeType === FOLDER && !f.trashed) { checked.add(f.id); return new DriveFolder(f.id, f.name); } }
       catch (e) { if (e.name === 'AuthError') throw e; }
     }
+    idsForget();                                          // the RCR folder itself changed: forget every remembered location
     let id = 'root';
     for (const n of ROOT_PATH) { const f = (await list(id, n)).find(x => x.mimeType === FOLDER); if (!f) { id = null; break; } id = f.id; }
     if (!id) {                                            // not at Documents › RCR: look for a folder named RCR anywhere
@@ -174,6 +245,7 @@
   // Update check: each published build carries <meta name="rcr-build">. When the app is opened or brought back
   // (an iPhone home-screen app has no refresh button), compare with the live copy and offer to reload.
   if (hosted) {
+    if (/[?&]fresh=/.test(location.search)) history.replaceState(null, '', location.pathname + location.search.replace(/[?&]fresh=\d+/, '').replace(/^&/, '?') + location.hash);
     const cur = () => (document.querySelector('meta[name="rcr-build"]') || {}).content;
     let shown = false;
     const checkUpdate = async () => {
@@ -188,7 +260,8 @@
       const b = document.createElement('div');
       b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top));z-index:90;background:#1d5fd1;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;display:flex;gap:12px;align-items:center;font:600 14px/1.3 Segoe UI,system-ui,-apple-system,Arial,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.35);width:max-content;max-width:94vw';
       b.innerHTML = '<span>🔄 A new version of RCR Shop is ready</span><button style="font:inherit;border:0;border-radius:8px;padding:8px 14px;background:#fff;color:#1d5fd1;cursor:pointer">Update now</button>';
-      b.querySelector('button').onclick = () => location.reload();
+      // ?fresh= makes the service worker fetch the new version instead of the saved copy (removed from the address again on load)
+      b.querySelector('button').onclick = () => { location.href = location.pathname + '?fresh=' + Date.now() + location.hash; };
       document.body.appendChild(b);
     };
     document.addEventListener('visibilitychange', checkUpdate);

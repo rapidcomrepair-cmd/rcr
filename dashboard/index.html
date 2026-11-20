@@ -386,7 +386,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-203756">
+<meta name="rcr-build" content="20261119-205233">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -631,8 +631,9 @@ async function pullFromFolder() {           // read the Drive copy and merge it 
   await loadInvoices();
   uploadPhotos();
 }
-async function weeklyBackup(d) {
-  const day = today(); if (backupDay === day) return; backupDay = day;
+async function weeklyBackup(d) {               // checked once a day per device (remembered, so opening the app again doesn't re-list Backups)
+  const day = today(); if (!backupDay) backupDay = localStorage.getItem('rcr-backup-day') || '';
+  if (backupDay === day) return; backupDay = day; localStorage.setItem('rcr-backup-day', day);
   const b = await d.getDirectoryHandle('Backups', { create: true }); const names = [];
   for await (const [n] of b.entries()) if (/^Dashboard Backup \d{4}-\d\d-\d\d\.json$/.test(n)) names.push(n);
   names.sort(); const last = names[names.length - 1];
@@ -664,6 +665,10 @@ async function findLog(root, p) {
   }
   return null;
 }
+// The slimmed invoices are kept on this device together with the log's "last changed" time (invMod), so opening the app
+// doesn't re-read and re-parse the 1.7 MB log unless it changed. Saved a moment later so invMod is already updated after a write.
+let invSaveT = 0;
+function saveInvCache() { clearTimeout(invSaveT); invSaveT = setTimeout(() => idb.set('inv', { INV, invInfo, invMod: { ...invMod } }).catch(() => {}), 800); }
 async function loadInvoices(force) {
   if (!folder || !folderOK) return;
   const map = new Map(), errors = [], files = []; let changed = !!force;
@@ -687,7 +692,7 @@ async function loadInvoices(force) {
   invInfo = { files, errors, loadedAt: nowISO() };
   custCache = null;
   linkInvoices();
-  idb.set('inv', { INV, invInfo }).catch(() => {});
+  saveInvCache();
   softRender();
 }
 
@@ -698,7 +703,7 @@ async function driveConnect(auto) {
   if (!RCRDrive.signedIn()) { if (auto && !RCRDrive.wasSignedIn()) { setSync('local'); return; } return RCRDrive.signIn({ silent: RCRDrive.wasSignedIn() }); }
   try {
     folder = await RCRDrive.root(); folderOK = true;
-    await pullFromFolder(); await loadInvoices(true); render(); gmAfterSignIn();
+    await pullFromFolder(); render(); gmAfterSignIn();          // pullFromFolder also re-reads the invoice log, but only if it changed
   } catch (e) { if (!driveError(e)) toast('Google Drive: ' + e.message, 'err'); }
 }
 function driveError(e) {          // true if it was an expired sign-in
@@ -1918,7 +1923,7 @@ async function setInvoicesPay(changes) {
     const p = c.pay.restore ? { ...(c.pay.data || {}), ...Object.fromEntries(Object.entries(c.pay.top).filter(([, v]) => v !== undefined)) } : c.pay;
     Object.assign(s, { status: p.status ?? '', paidDate: p.paidDate || '', paidMethod: p.paidMethod || '', pnote: p.paidNote || '' });
   }
-  custCache = null; idb.set('inv', { INV, invInfo }).catch(() => {});
+  custCache = null; saveInvCache();
   render();
   return befores;
 }
@@ -2150,7 +2155,7 @@ async function qsSave() {
     await writeText(r.dir, LOG_FILE, text);
     localStorage.setItem('rcr-last-invoice-no', Math.max(parseInt(localStorage.getItem('rcr-last-invoice-no'), 10) || 0, +invno));   // the Invoice Form's "last number" memory
     localStorage.setItem('rcr-paymethod', method);
-    INV.push(slim(entry)); INV.sort((a, b) => b.t - a.t); custCache = null; idb.set('inv', { INV, invInfo }).catch(() => {});
+    INV.push(slim(entry)); INV.sort((a, b) => b.t - a.t); custCache = null; saveInvCache();
     invMod[S().logPaths[0]] = (await r.fh.getFile()).lastModified;
     closeModal(true); render(); qsDone(id);
   } catch (err) {
@@ -2184,7 +2189,7 @@ async function qsUndo(id) {
     log.splice(i, 1); const text = JSON.stringify(log, null, 1);
     if (JSON.parse(text).length !== log.length) throw new Error('safety check failed, nothing was written');
     await writeText(r.dir, LOG_FILE, text);
-    INV = INV.filter(x => x.id !== id); custCache = null; idb.set('inv', { INV, invInfo }).catch(() => {});
+    INV = INV.filter(x => x.id !== id); custCache = null; saveInvCache();
     invMod[S().logPaths[0]] = (await r.fh.getFile()).lastModified;
     closeModal(true); render(); toast('Quick sale removed.');
   } catch (err) { toast('Could not undo: ' + err.message, 'err'); }
@@ -3484,7 +3489,7 @@ window.addEventListener('DOMContentLoaded', async function start() {
   tabHold();
   setSync('local'); render();
   try {
-    const cached = await idb.get('inv'); if (cached && cached.INV) { INV = cached.INV; invInfo = cached.invInfo || invInfo; custCache = null; render(); }
+    const cached = await idb.get('inv'); if (cached && cached.INV) { INV = cached.INV; invInfo = cached.invInfo || invInfo; invMod = { ...(cached.invMod || {}) }; custCache = null; render(); }
     if (HOSTED) return void await driveConnect(true);
     const h = await idb.get('folder');
     if (h) { folder = h; if (await h.queryPermission({ mode: 'readwrite' }) === 'granted') { folderOK = true; await pullFromFolder(); await loadInvoices(true); } else setSync('reconnect'); render(); }
