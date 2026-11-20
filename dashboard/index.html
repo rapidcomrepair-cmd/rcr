@@ -386,7 +386,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-205233">
+<meta name="rcr-build" content="20261119-210256">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -1961,28 +1961,42 @@ function ppParse(text) {
   const c = { date: col(/^date$/), name: col(/^name$/), type: col(/^type$|^description$/), status: col(/^status$/), cur: col(/^currency$/), gross: col(/^gross$/), fee: col(/^fee$/),
     net: col(/^net$/), from: col(/^from email/), txn: col(/^transaction id$/), item: col(/^item title$/), inv: col(/^invoice (number|id)$/), phone: col(/phone/), subject: col(/^subject$/), note: col(/^note$|^message$/), impact: col(/^balance impact$/) };
   const g = (r, k) => c[k] >= 0 ? String(r[c[k]] ?? '').trim() : '';
-  const out = []; let skipped = 0;
+  // What the shop's real file (2026) holds: "POS Payment" Credit = card reader (PayPal Zettle), "POS Payment" Memo = a CASH sale rung up
+  // in Zettle (paired with a "Cash Transfer" memo), "Express Checkout Payment" Credit = a PayPal invoice paid online, "Subscription Payment" =
+  // monthly care plans (not invoices). "Invoice Number" / "for invoice 1542" are PAYPAL's own invoice numbers — they collide with the shop's
+  // numbers, so they are never used for matching. Only a card-reader note the owner typed, like "Invoice 2119 - LCD Repair", names a shop invoice.
+  const out = [], plans = []; let skipped = 0;
   for (const r of rows.slice(hi + 1)) {
-    const gross = num(g(r, 'gross')), type = g(r, 'type'), status = g(r, 'status');
-    const isIn = gross > 0 && (!status || /^(completed|cleared|success)/i.test(status)) && (!g(r, 'impact') || /credit/i.test(g(r, 'impact'))) &&
-      !/refund|reversal|withdraw|transfer|deposit|hold|release|conversion|authori[sz]ation|cancel|chargeback|reserve/i.test(type) && (!g(r, 'cur') || /^usd$/i.test(g(r, 'cur')));
+    const gross = num(g(r, 'gross')), type = g(r, 'type'), status = g(r, 'status'), impact = g(r, 'impact');
+    const done = !status || /^(completed|cleared|success)/i.test(status), usd = !g(r, 'cur') || /^usd$/i.test(g(r, 'cur'));
+    const cash = /^pos\b/i.test(type) && /memo/i.test(impact) && gross > 0 && done && usd;
+    const isIn = cash || (gross > 0 && done && usd && (!impact || /credit/i.test(impact)) &&
+      !/refund|reversal|withdraw|transfer|deposit|hold|release|conversion|authori[sz]ation|cancel|chargeback|reserve|invoice sent/i.test(type));
     if (!isIn) { skipped++; continue; }
     const ds = g(r, 'date'), m = ds.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
     const d = m ? new Date(+(m[3].length === 2 ? '20' + m[3] : m[3]), +m[1] - 1, +m[2], 12) : new Date(ds.slice(0, 10) + 'T12:00');
     if (isNaN(d)) { skipped++; continue; }
-    out.push({ date: isoDay(d), t: d.getTime(), name: g(r, 'name'), email: g(r, 'from').toLowerCase(), phone: digits(g(r, 'phone')).replace(/^1(?=\d{10}$)/, ''), gross, fee: Math.abs(num(g(r, 'fee'))),
-      txn: g(r, 'txn'), type, text: [g(r, 'item'), g(r, 'inv'), g(r, 'subject'), g(r, 'note')].filter(Boolean).join(' · ') });
+    const item = g(r, 'item');
+    const p = { date: isoDay(d), t: d.getTime(), name: g(r, 'name'), email: g(r, 'from').toLowerCase(), phone: digits(g(r, 'phone')).replace(/^1(?=\d{10}$)/, ''), gross, fee: Math.abs(num(g(r, 'fee'))),
+      txn: g(r, 'txn'), type, item, text: [item, g(r, 'subject'), g(r, 'note')].filter(Boolean).join(' · '),
+      invRef: (item.match(/^\s*invoice\s*#?\s*(\d{3,6})\b/i) || [])[1] || '',
+      method: cash ? 'Cash' : /^pos\b/i.test(type) ? 'Card' : 'PayPal', how: cash ? 'Cash (rung up in Zettle)' : /^pos\b/i.test(type) ? 'Card reader' : /subscription/i.test(type) ? 'Care plan' : 'PayPal' };
+    if (/subscription/i.test(type)) plans.push(p); else out.push(p);
   }
-  if (!out.length && !skipped) throw new Error('No payments found in that file.');
-  return { rows: out.sort((a, b) => b.t - a.t), skipped };
+  if (!out.length && !plans.length && !skipped) throw new Error('No payments found in that file.');
+  return { rows: out.sort((a, b) => b.t - a.t), plans: plans.sort((a, b) => b.t - a.t), skipped };
 }
+const CARD_FEE = 0.03;     // the shop adds 3% when a customer pays by card (seen in the PayPal file: $103 paid on a $100 invoice)
 const ppWords = s => String(s || '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(w => w.length > 1);
 // How well a payment fits an invoice: amount, invoice # in the note, name, email, phone, and the payment date vs the invoice date.
 function ppScore(p, e, cust) {
   let s = 0; const why = [];
-  const same = Math.abs(p.gross - e.total) < 0.005; if (same) { s += 40; why.push('same amount'); }
+  const exact = Math.abs(p.gross - e.total) < 0.005, withFee = !exact && p.method === 'Card' && Math.abs(p.gross - e.total * (1 + CARD_FEE)) <= 0.51;
+  const same = exact || withFee;
+  if (exact) { s += 40; why.push('same amount'); } else if (withFee) { s += 38; why.push(`amount + ${CARD_FEE * 100}% card fee`); }
   if (e.status === 'unpaid') s += 5;                                  // marked unpaid beats "payment not tracked"
-  if (e.invno && new RegExp(`(^|\\D)${String(e.invno).replace(/\D/g, '')}(\\D|$)`).test(p.text)) { s += 60; why.push('invoice # in note'); }
+  const days0 = Math.floor((p.t - e.t) / 864e5);
+  if (p.invRef && e.invno === p.invRef && days0 >= -2 && days0 <= 60) { s += 60; why.push('invoice # in the card-reader note'); }
   const pw = ppWords(p.name), ew = ppWords(nameFor(e) || (cust && cust.name));
   if (pw.length && ew.length) {
     const hit = ew.filter(w => pw.includes(w));
@@ -2013,7 +2027,8 @@ function ppMatch() {
   res.filter(x => x.cands).flatMap(x => x.cands.map(c => ({ x, c }))).sort((a, b) => b.c.s - a.c.s).forEach(({ x, c }) => {
     if (x.pick !== undefined || taken.has(c.e.id) || x.hidden) return;
     const rival = x.cands.find(o => o !== c && !taken.has(o.e.id));
-    x.pick = c.e.id; x.sure = c.s >= 60 && (!rival || c.s - rival.s >= 20); taken.add(c.e.id);
+    // ticked only when the amount fits (exactly, or + the card fee) — a payment that names an invoice but pays a different amount may be a deposit
+    x.pick = c.e.id; x.sure = c.same && c.s >= 60 && (!rival || c.s - rival.s >= 20); taken.add(c.e.id);
   });
   return res;
 }
@@ -2028,14 +2043,17 @@ function ppReview() {
     const sel = `<select class="inp" data-pp="${i}" onchange="$('[data-ppc=&quot;${i}&quot;]').checked=!!this.value;ppSync()"><option value="">— No invoice for this payment —</option>${ch.map(c => `<option value="${esc(c.e.id)}" ${x.pick === c.e.id ? 'selected' : ''}>${optE(c.e, c.why.join(', '))}</option>`).join('')}</select>`;
     return `<div class="card pprow" style="padding:10px 12px;margin-bottom:8px">
       <div class="row" style="gap:8px;align-items:baseline;flex-wrap:wrap"><label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" data-ppc="${i}" ${x.pick && x.sure ? 'checked' : ''} ${x.pick ? '' : 'disabled'} onchange="ppSync()">
-        ${money(p.gross)}</label><span>${esc(p.name || p.email || 'Unknown sender')}</span><span class="small muted">${esc(fmtDs(p.date))} · ${esc(p.type || 'Payment')}${p.fee ? ' · fee ' + money(p.fee) : ''}</span></div>
+        ${money(p.gross)}</label><span>${esc(p.name || p.email || (p.method === 'Cash' ? 'Cash sale' : 'Unknown sender'))}</span><span class="small muted">${esc(fmtDs(p.date))} · <b>${esc(p.how || 'PayPal')}</b>${p.fee ? ' · PayPal fee ' + money(p.fee) : ''}</span></div>
       ${p.text ? `<div class="small muted" style="margin:3px 0">“${esc(p.text.slice(0, 140))}”</div>` : ''}
       <div style="margin-top:6px">${ch.length ? sel : `<span class="small muted">No unpaid invoice for ${money(p.gross)} looks like this payment.</span>`}</div>
       <div class="row" style="gap:6px;margin-top:6px"><button class="btn sm" onclick="ppQuick(${i})">⚡ Make a quick sale instead</button><button class="btn sm" onclick="ppHide(${i})">Hide this payment</button>
         ${x.pick && !x.sure ? '<span class="small down">Not sure — check this one</span>' : ''}</div></div>`;
   };
   modal('📥 PayPal payments', `<div style="margin-bottom:10px"><b>${plural(PP.rows.length, 'payment')} received</b>${first ? ` · ${esc(fmtDs(first))} – ${esc(fmtDs(last))}` : ''} · from ${esc(PP.file)}
-      <div class="small muted">${done.length ? `${done.length} already recorded · ` : ''}${hid.length ? `${hid.length} hidden · ` : ''}${PP.skipped ? `${PP.skipped} rows skipped (purchases, transfers, refunds, fees)` : ''}</div></div>
+      <div class="small muted">${['Card reader', 'Cash (rung up in Zettle)', 'PayPal'].map(h => { const r = PP.rows.filter(p => p.how === h); return r.length ? `${h}: ${r.length} (${money0(sum(r, p => p.gross))})` : ''; }).filter(Boolean).join(' · ')}</div>
+      <div class="small muted">${done.length ? `${done.length} already recorded · ` : ''}${hid.length ? `${hid.length} hidden · ` : ''}${PP.skipped ? `${PP.skipped} rows skipped (parts purchases, bank transfers, refunds, holds, PayPal invoice notices)` : ''}</div>
+      ${(PP.plans || []).length ? (() => { const by = {}; for (const p of PP.plans) { const k = p.item || 'Care plan'; (by[k] = by[k] || { n: 0, v: 0, who: new Set() }); by[k].n++; by[k].v += p.gross; by[k].who.add(p.email || p.name); }
+        return `<div class="small" style="margin-top:4px">🔁 <b>Care plans</b> (not invoices, not matched): ${Object.entries(by).map(([k, o]) => `${esc(k)} — ${plural(o.n, 'payment')}, ${money(o.v)}, ${plural(o.who.size, 'customer')}`).join(' · ')}</div>`; })() : ''}</div>
     ${todo.length ? todo.map(x => row(x, res.indexOf(x))).join('') : '<div class="card empty">Nothing new to record — every payment in this file is already on an invoice.</div>'}
     ${done.length ? `<details style="margin-top:8px"><summary class="small">Already recorded (${done.length})</summary><div class="small" style="margin-top:6px">${done.map(x => `<div>${money(x.p.gross)} · ${esc(x.p.name)} · ${esc(fmtDs(x.p.date))} → invoice #${esc(x.done.invno)}</div>`).join('')}</div></details>` : ''}
     ${hid.length ? `<details style="margin-top:8px"><summary class="small">Hidden (${hid.length})</summary><div class="small" style="margin-top:6px">${hid.map(x => `<div>${money(x.p.gross)} · ${esc(x.p.name)} · ${esc(fmtDs(x.p.date))} <a href="#" onclick="ppUnhide(${js(x.p.txn)});return false">show again</a></div>`).join('')}</div></details>` : ''}`,
@@ -2054,14 +2072,16 @@ function ppSync() {
 async function ppApply() {
   const picks = $$('[data-ppc]:checked').map(cb => PP.res[+cb.dataset.ppc]).filter(x => x.pick);
   if (!picks.length) return;
-  const changes = picks.map(x => ({ id: x.pick, pay: { status: 'paid', paidDate: longDate(new Date(x.p.date + 'T12:00')), paidMethod: 'PayPal',
-    paidNote: [`PayPal ${x.p.txn}`.trim(), x.p.fee ? `fee ${money(x.p.fee)}` : '', x.p.name && x.p.name !== nameFor(INV.find(e => e.id === x.pick) || {}) ? `from ${x.p.name}` : ''].filter(Boolean).join(' · ') } }));
+  // the note always starts "PayPal <transaction ID>" — that is how a payment is recognised as already recorded next time
+  const changes = picks.map(x => { const e = INV.find(i => i.id === x.pick) || {}, extra = x.p.gross - (e.total || 0);
+    return { id: x.pick, pay: { status: 'paid', paidDate: longDate(new Date(x.p.date + 'T12:00')), paidMethod: x.p.method,
+      paidNote: [`PayPal ${x.p.txn}`.trim(), x.p.how, extra > 0.005 ? `paid ${money(x.p.gross)} incl. ${money(extra)} card fee` : '', x.p.fee ? `PayPal fee ${money(x.p.fee)}` : '', x.p.name && x.p.name !== nameFor(e) ? `from ${x.p.name}` : ''].filter(Boolean).join(' · ') } }; });
   $('#ppgo').disabled = true;
   try {
     const befores = await setInvoicesPay(changes);
-    localStorage.setItem('rcr-paymethod', 'PayPal');
     ppReview();
-    toast(`${plural(changes.length, 'invoice')} marked paid (PayPal).`, 'ok', [['Undo', () => setInvoicesPay(changes.map((c, i) => ({ id: c.id, pay: befores[i] }))).then(() => { toast('Undone — back to unpaid.'); if (PP && $('#ppgo')) ppReview(); }).catch(err => toast('Undo failed: ' + err.message, 'err'))]]);
+    const ms = [...new Set(changes.map(c => c.pay.paidMethod))].join(' / ');
+    toast(`${plural(changes.length, 'invoice')} marked paid (${ms}).`, 'ok', [['Undo', () => setInvoicesPay(changes.map((c, i) => ({ id: c.id, pay: befores[i] }))).then(() => { toast('Undone — back to unpaid.'); if (PP && $('#ppgo')) ppReview(); }).catch(err => toast('Undo failed: ' + err.message, 'err'))]]);
   } catch (err) {
     if ($('#ppgo')) $('#ppgo').disabled = false;
     if (err.name === 'AuthError') { folderOK = false; setSync('reconnect'); }
@@ -2071,7 +2091,8 @@ async function ppApply() {
 function ppQuick(i) {
   const p = PP.res[i].p, c = (p.phone && findCust('', p.phone)) || customers().find(c => p.email && c.email && c.email.toLowerCase() === p.email);
   closeModal(true);
-  quickSale({ name: (c && c.name) || p.name, phone: (c && c.phone) || p.phone, amt: p.gross.toFixed(2), method: 'PayPal', date: p.date, note: [`PayPal ${p.txn}`.trim(), p.fee ? `fee ${money(p.fee)}` : ''].filter(Boolean).join(' · '), job: '' });
+  quickSale({ name: (c && c.name) || p.name, phone: (c && c.phone) || p.phone, amt: p.gross.toFixed(2), method: p.method, date: p.date, job: /^(invoice|purchase|payment)\b/i.test(p.item || '') ? '' : (p.item || ''),
+    note: [`PayPal ${p.txn}`.trim(), p.how, p.fee ? `PayPal fee ${money(p.fee)}` : ''].filter(Boolean).join(' · ') });
 }
 function ppHide(i) { const t = PP.res[i].p.txn; if (!t) return toast("This payment has no transaction ID, so it can't be hidden.", 'err'); const h = ppHidden(); h.push(t); try { localStorage.setItem(PP_HIDE_KEY, JSON.stringify(h.slice(-500))); } catch {} ppReview(); }
 function ppUnhide(t) { try { localStorage.setItem(PP_HIDE_KEY, JSON.stringify(ppHidden().filter(x => x !== t))); } catch {} ppReview(); }
