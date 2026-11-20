@@ -25,11 +25,11 @@
     if (!leaving) {
       leaving = true;
       const ret = location.pathname + location.search + location.hash;
-      location.href = base + '?signin=1' + (opts && opts.silent ? '&silent=1' : '') + (opts && opts.gmail ? '&gmail=1' : '') + '&ret=' + encodeURIComponent(ret);
+      location.href = base + '?signin=1' + (opts && opts.silent ? '&silent=1' : '') + (opts && opts.gmail ? '&gmail=1' : '') + (opts && opts.cal ? '&cal=1' : '') + '&ret=' + encodeURIComponent(ret);
     }
     return new Promise(() => {});
   }
-  function signOut() { [TK, USERK, ROOTK, 'rcr-gmail', 'rcr-gscope', 'rcr-drive-ids'].forEach(k => localStorage.removeItem(k)); try { indexedDB.deleteDatabase('rcr-drive-cache'); } catch { } location.href = base; }
+  function signOut() { [TK, USERK, ROOTK, 'rcr-gmail', 'rcr-gcal', 'rcr-gcal-map', 'rcr-gscope','rcr-drive-ids'].forEach(k => localStorage.removeItem(k)); try { indexedDB.deleteDatabase('rcr-drive-cache'); } catch { } location.href = base; }
   const user = () => { try { return JSON.parse(localStorage.getItem(USERK) || 'null'); } catch { return null; } };
   const wasSignedIn = () => !!user();
 
@@ -283,5 +283,20 @@
     return r.json();
   }
 
-  window.RCRDrive = { hosted, base, root, signIn, signOut, user, wasSignedIn, signedIn: () => !!token(), minutesLeft, AuthError, hasGmail, gmail };
+  /* ---------- Google Calendar (opt-in): the dashboard keeps an "RCR Appointments" calendar in step with its appointments.
+     Scope calendar.app.created = only calendars this app made; it can't see or change any other calendar. ---------- */
+  const CAL = 'https://www.googleapis.com/calendar/v3/';
+  const hasCal = () => /calendar\.app\.created/.test(localStorage.getItem('rcr-gscope') || '');
+  async function gcal(path, method, body) {        // → JSON (null for 204), or throws; e.status holds Google's HTTP status
+    const t = token(); if (!t) throw new AuthError();
+    const r = await fetch(CAL + path, { method: method || 'GET', headers: { Authorization: 'Bearer ' + t, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    if (r.status === 401) { localStorage.removeItem(TK); throw new AuthError(); }
+    if (!r.ok) {
+      let msg = r.status + ' ' + r.statusText; try { const j = await r.json(); msg = (j.error && j.error.message) || msg; } catch { }
+      const e = new Error('Google Calendar: ' + msg); e.status = r.status; if (r.status === 403 && /scope|permission/i.test(msg)) e.name = 'CalDenied'; throw e;
+    }
+    return r.status === 204 ? null : r.json();
+  }
+
+  window.RCRDrive = { hosted, base, root, signIn, signOut, user, wasSignedIn, signedIn: () => !!token(), minutesLeft, AuthError, hasGmail, gmail, hasCal, gcal };
 })();

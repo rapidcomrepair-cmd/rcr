@@ -386,7 +386,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-210256">
+<meta name="rcr-build" content="20261120-091204">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -582,7 +582,7 @@ async function syncLeads(d, force) {
   return JSON.stringify(merged) !== before;          // true when another device added or changed leads
 }
 function persistLocal() { try { localStorage.setItem(LS, JSON.stringify(DB)); } catch (e) { toast('Could not save in the browser: ' + e.message, 'err'); } }
-function commit() { DB.savedAt = nowISO(); persistLocal(); pending = true; setSync('saving'); clearTimeout(wt); wt = setTimeout(flush, 700); }
+function commit() { DB.savedAt = nowISO(); persistLocal(); pending = true; setSync('saving'); clearTimeout(wt); wt = setTimeout(flush, 700); gcalSoon(); }
 function upsert(coll, rec) { rec.upd = nowISO(); if (coll === 'leads') leadsDirty = true; const a = DB[coll], i = a.findIndex(x => x.id === rec.id); if (i < 0) a.push(rec); else a[i] = rec; commit(); }
 function removeRec(coll, id) { DB[coll] = DB[coll].filter(x => x.id !== id); DB.deleted[id] = nowISO(); commit(); }
 function saveSettings(patch) { if (patch.shopPhone) patch.shopPhone = fmtPhone(patch.shopPhone); Object.assign(DB.settings, patch); DB.settingsUpd = nowISO(); commit(); }
@@ -607,7 +607,7 @@ async function flush() {
     pending = false;
     await weeklyBackup(d);
     setSync('saved');
-    if (JSON.stringify(DB) !== before) softRender();
+    if (JSON.stringify(DB) !== before) { softRender(); gcalSoon(); }
   } catch (e) { driveError(e); }
   finally { busy = false; }
 }
@@ -625,7 +625,7 @@ async function pullFromFolder() {           // read the Drive copy and merge it 
     await syncLeads(d, true);
     await weeklyBackup(d);
     setSync('saved');
-    if (JSON.stringify(DB) !== before) softRender();
+    if (JSON.stringify(DB) !== before) { softRender(); gcalSoon(); }
   } catch (e) { driveError(e); }
   finally { busy = false; }
   await loadInvoices();
@@ -703,7 +703,7 @@ async function driveConnect(auto) {
   if (!RCRDrive.signedIn()) { if (auto && !RCRDrive.wasSignedIn()) { setSync('local'); return; } return RCRDrive.signIn({ silent: RCRDrive.wasSignedIn() }); }
   try {
     folder = await RCRDrive.root(); folderOK = true;
-    await pullFromFolder(); render(); gmAfterSignIn();          // pullFromFolder also re-reads the invoice log, but only if it changed
+    await pullFromFolder(); render(); gmAfterSignIn(); calAfterSignIn();          // pullFromFolder also re-reads the invoice log, but only if it changed
   } catch (e) { if (!driveError(e)) toast('Google Drive: ' + e.message, 'err'); }
 }
 function driveError(e) {          // true if it was an expired sign-in
@@ -2743,7 +2743,7 @@ function vCalendarPhone() {
         ${a.addr ? `<div class="ad">📍 ${esc(a.addr)}</div>` : ''}${a.notes ? `<div class="nt">${esc(a.notes)}</div>` : ''}</div>
       <button class="ok" title="${a.done ? 'Mark not done' : 'Mark done'}" onclick="apptDone('${a.id}')">${a.done ? '✓' : ''}</button>
       <div class="acts">${p.length >= 10 ? `<a class="btn sm" href="tel:${p}">📞 Call</a><a class="btn sm" href="sms:${p}">💬 Text</a>` : ''}${a.addr ? `<a class="btn sm" target="_blank" rel="noopener" href="https://maps.google.com/?q=${encodeURIComponent(a.addr)}">📍 Directions</a>` : ''}${t ? `<button class="btn sm" onclick="editTicket('${t.id}')">🛠️ Ticket</button>` : ''}</div></div>`; };
-  return `<div class="row" style="margin-bottom:10px"><button class="btn pri" onclick="editAppt(null${ui.aDay ? `,{date:'${ui.aDay}'}` : ''})">+ New appointment</button><span class="grow"></span>
+  return `<div class="row" style="margin-bottom:10px"><button class="btn pri" onclick="editAppt(null${ui.aDay ? `,{date:'${ui.aDay}'}` : ''})">+ New appointment</button>${calBtn()}<span class="grow"></span>
       <button class="chipbtn ${ui.aPast ? 'on' : ''}" onclick="ui.aPast=!ui.aPast;render()">${ui.aPast ? '✓ ' : ''}Show past</button></div>
     <div class="dstrip">${days14.map(chip).join('')}</div>
     ${ui.aDay ? `<div class="small muted" style="margin:-2px 2px 8px">Showing ${esc(dayName(ui.aDay))} only · <a href="#" onclick="ui.aDay='';render();return false">show all</a></div>` : ''}
@@ -2756,7 +2756,7 @@ function vCalendar() {
   if (ui.aPast) list.reverse();
   const days = {}; for (const a of list) (days[a.date] = days[a.date] || []).push(a);
   const week = [...Array(7)].map((_, i) => addDays(td, i));
-  return `<div class="toolbar"><button class="btn pri" onclick="editAppt()">+ New appointment</button><label class="row small"><input type="checkbox" ${ui.aPast ? 'checked' : ''} onchange="ui.aPast=this.checked;render()"> Show past</label></div>
+  return `<div class="toolbar"><button class="btn pri" onclick="editAppt()">+ New appointment</button>${calBtn()}<label class="row small"><input type="checkbox" ${ui.aPast ? 'checked' : ''} onchange="ui.aPast=this.checked;render()"> Show past</label></div>
    <div class="grid" style="grid-template-columns:repeat(7,1fr);margin-bottom:14px">${week.map(d => { const n = DB.appts.filter(a => a.date === d && !a.done); return `<div class="kpi" onclick="editAppt(null,{date:'${d}'})" title="Add on this day"><div class="l">${d === td ? 'Today' : parseYMD(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div><div class="v" style="font-size:20px">${n.length || '·'}</div><div class="s">${n.slice(0, 2).map(a => fmtT(a.time) + ' ' + esc(a.type)).join('<br>')}</div></div>`; }).join('')}</div>
    ${Object.keys(days).length ? Object.entries(days).map(([d, as]) => `<div class="sec-h">${d === td ? 'Today — ' : d < td ? '<span class="down">Missed / past</span> — ' : ''}${parseYMD(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
      <div class="card" style="padding:4px 14px">${as.map(a => `<div class="li ${a.done ? 'done' : ''}"><input type="checkbox" ${a.done ? 'checked' : ''} onchange="apptDone('${a.id}')" title="Done" style="margin-top:4px"><div class="ic">${apptIcon(a.type)}</div>
@@ -2783,6 +2783,104 @@ function saveAppt(id) {
   upsert('appts', Object.assign(a, d, { phone: fmtPhone(d.phone) })); closeModal(true); render(); toast('Appointment saved');
 }
 function apptDone(id) { const a = DB.appts.find(x => x.id === id); a.done = !a.done; upsert('appts', a); render(); }
+
+/* ---- 📲 iPhone Calendar (web app): keeps an "RCR Appointments" Google Calendar in step with the appointments here.
+   The iPhone shows it through the shop Google account (Settings › Calendar › Accounts). Event ids are made from the
+   appointment id, so every device writes the same event and nothing is ever duplicated. Per device, localStorage
+   "rcr-gcal-map" remembers what was last sent ({cal, m: {apptId: signature}}), so only changes are sent. ---- */
+const calBtn = () => !HOSTED ? '' : `<button class="btn" style="margin-left:6px" onclick="calPanel()">📲 ${calOn() ? (GC.err ? '<span class="down">Calendar ⚠</span>' : 'iPhone Calendar ✓') : 'Add to iPhone Calendar'}</button>`;
+const APPT_LEN = { 'Drop-off': 15, Pickup: 15, 'On-site': 90, 'Remote session': 60, 'Phone call': 15, Consultation: 30 };
+const APPT_COLOR = { 'Drop-off': '9', Pickup: '10', 'On-site': '11', 'Remote session': '3', 'Phone call': '5', Consultation: '7' };
+const GC = { busy: false, again: false, t: 0, last: '', err: '' };
+const calOn = () => !!(window.RCRDrive && RCRDrive.hosted && RCRDrive.hasCal()) && !localStorage.getItem('rcr-gcal-off');
+const gcalEid = id => 'rcr' + [...String(id)].map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+const gcalMap = () => { try { return JSON.parse(localStorage.getItem('rcr-gcal-map') || 'null') || { cal: '', m: {} }; } catch { return { cal: '', m: {} }; } };
+function gcalEvent(a) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Chicago';
+  const t = a.ticketId && DB.tickets.find(x => x.id === a.ticketId), p = fmtPhone(a.phone || '');
+  let start, end;
+  if (a.time) {
+    const s = new Date(parseYMD(a.date)); const [h, m] = a.time.split(':').map(Number); s.setHours(h, m, 0, 0);
+    const e = new Date(+s + (APPT_LEN[a.type] || 30) * 6e4), loc = d => `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+    start = { dateTime: loc(s), timeZone: tz }; end = { dateTime: loc(e), timeZone: tz };
+  } else { start = { date: a.date }; end = { date: addDays(a.date, 1) }; }
+  const desc = [p && '📞 ' + p, t && `🛠️ Ticket #${t.no} — ${devName(t)}${t.issue ? ': ' + t.issue.slice(0, 160) : ''}`, a.notes, '',
+    'Open in RCR: ' + location.origin + RCRDrive.base + 'dashboard/#calendar'].filter(x => x != null && x !== false).join('\n').replace(/^\n+/, '');
+  return { summary: `${a.done ? '✓ ' : ''}${apptIcon(a.type)} ${a.type}: ${a.name || 'No name'}`, location: a.addr || '', description: desc, start, end, status: 'confirmed',
+    colorId: APPT_COLOR[a.type] || '8', reminders: { useDefault: false, overrides: a.done ? [] : [{ method: 'popup', minutes: !a.time ? 900 : a.type === 'On-site' ? 60 : 30 }] } };
+}
+let gcalTimer;
+function gcalSoon() { try { if (!calOn()) return; clearTimeout(gcalTimer); gcalTimer = setTimeout(gcalSync, 1500); } catch { }  }   // try: commit() can run before this part of the script has loaded
+async function gcalSync(loud) {
+  if (!calOn() || !RCRDrive.signedIn()) return;
+  if (GC.busy) { GC.again = true; return; } GC.busy = true;
+  let n = 0;
+  try {
+    let cal = S().gcalId;
+    if (!cal) {                                   // first time (on any device): make the calendar and remember it in the shared settings
+      const c = await RCRDrive.gcal('calendars', 'POST', { summary: 'RCR Appointments', description: 'Appointments from the Rapid Computer Repair dashboard. Change them in RCR — edits here are overwritten.',
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Chicago' });
+      cal = c.id; saveSettings({ gcalId: cal });
+    }
+    const M = gcalMap(); if (M.cal !== cal) { M.cal = cal; M.m = {}; }
+    const from = addDays(today(), -14), keep = DB.appts.filter(a => a.date >= from), ids = new Set(keep.map(a => a.id));
+    const path = e => `calendars/${encodeURIComponent(cal)}/events` + (e ? '/' + e : '');
+    for (const a of keep) {
+      const ev = gcalEvent(a), sig = JSON.stringify(ev); if (M.m[a.id] === sig) continue;
+      const eid = gcalEid(a.id);
+      try { await RCRDrive.gcal(path(eid), 'PUT', ev); }
+      catch (e) { if (e.status !== 404) throw e; await RCRDrive.gcal(path(), 'POST', { id: eid, ...ev }); }
+      M.m[a.id] = sig; n++; localStorage.setItem('rcr-gcal-map', JSON.stringify(M));
+    }
+    for (const id of Object.keys(M.m)) {          // deleted here (or now older than 2 weeks: those are just left as they are)
+      if (ids.has(id)) continue;
+      if (DB.deleted[id] || !DB.appts.some(a => a.id === id)) { try { await RCRDrive.gcal(path(gcalEid(id)), 'DELETE'); n++; } catch (e) { if (e.status !== 404 && e.status !== 410) throw e; } }
+      delete M.m[id]; localStorage.setItem('rcr-gcal-map', JSON.stringify(M));
+    }
+    GC.t = Date.now(); GC.err = ''; localStorage.setItem('rcr-gcal-at', GC.t);
+    if (loud) toast(n ? `📲 Sent ${plural(n, 'change')} to your iPhone calendar.` : '📲 iPhone calendar is up to date.', 'ok');
+  } catch (e) {
+    GC.err = e.message;
+    if (e.name === 'AuthError') { folderOK = false; setSync('reconnect'); }
+    else if (e.status === 404 && /calendar/i.test(e.message) && S().gcalId) { saveSettings({ gcalId: '' }); localStorage.removeItem('rcr-gcal-map'); GC.again = true; }   // calendar deleted in Google: make a new one
+    else if (e.name === 'CalDenied') { localStorage.removeItem('rcr-gscope'); if (loud) calSetup(e.message); }
+    else if (loud) toast(e.message, 'err');
+    console.warn('calendar sync:', e);
+  } finally {
+    GC.busy = false;
+    if (GC.again) { GC.again = false; setTimeout(gcalSync, 800); }
+    if (view === 'calendar') softRender();
+  }
+}
+function calSetup(err) {
+  if (!HOSTED) return toast('The iPhone calendar is switched on from the web app (your phone). Appointments you add here still go to it — the phone sends them the next time RCR is opened there.', 'err');
+  modal('📲 Appointments on your iPhone calendar', `${err ? `<p class="down small">${esc(err)}</p>` : ''}
+    <p>RCR keeps a calendar called <b>RCR Appointments</b> in the shop Google account. Every appointment you add, change, finish or delete here updates it automatically — with a reminder 30 minutes before (1 hour for on-site visits).</p>
+    <p class="small muted">Google will ask once to let RCR Shop make and manage <i>its own</i> calendar — tick that box. It can't see or change any of your other calendars. Appointments from the last 2 weeks and everything coming up are sent.</p>`,
+    `<button class="btn" onclick="closeModal()">Not now</button><button class="btn pri" onclick="localStorage.removeItem('rcr-gcal-off');sessionStorage.setItem('rcr-gcal-after','1');RCRDrive.signIn({cal:true})">Turn on</button>`);
+}
+function calPanel() {
+  if (!calOn()) return calSetup();
+  const at = +localStorage.getItem('rcr-gcal-at') || 0, n = Object.keys(gcalMap().m).length;
+  modal('📲 iPhone calendar is on', `<p>${n ? plural(n, 'appointment') + ' in' : 'Your appointments go to'} the <b>RCR Appointments</b> calendar${at ? ` · last sent ${new Date(at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}.${GC.err ? `<br><span class="down small">Last try failed: ${esc(GC.err)}</span>` : ''}</p>
+    <div class="sec-h">Not seeing it on the iPhone?</div>
+    <ol class="small" style="margin:4px 0 0 18px;padding:0;line-height:1.6">
+      <li>iPhone <b>Settings › Apps › Calendar › Calendar Accounts</b> (older iPhones: Settings › Calendar › Accounts).</li>
+      <li>Tap the shop Google account (or <b>Add Account › Google</b> and sign in), and turn <b>Calendars</b> on.</li>
+      <li>Open the Calendar app › <b>Calendars</b> at the bottom › make sure <b>RCR Appointments</b> is ticked.</li>
+      <li>Still missing after a minute? Open <a target="_blank" rel="noopener" href="https://calendar.google.com/calendar/syncselect">calendar.google.com/calendar/syncselect</a> in Safari, tick RCR Appointments, Save.</li></ol>
+    <p class="small muted">Change appointments here in RCR — edits made in the iPhone calendar get replaced the next time that appointment is changed here.</p>`,
+    `<button class="btn" onclick="localStorage.setItem('rcr-gcal-off','1');closeModal();render();toast('Stopped sending appointments from this device.')">Turn off on this device</button><span class="grow"></span><button class="btn pri" onclick="closeModal();gcalSync(true)">⟳ Sync now</button>`);
+}
+function calAfterSignIn() {        // once the web app is connected: finish "Turn on", then catch up on anything changed elsewhere
+  if (!HOSTED) return;
+  if (sessionStorage.getItem('rcr-gcal-after')) {
+    sessionStorage.removeItem('rcr-gcal-after');
+    if (RCRDrive.hasCal()) { toast('📲 iPhone calendar is on. Sending your appointments…', 'ok'); gcalSync(true); setTimeout(calPanel, 600); return; }
+    if (localStorage.getItem('rcr-gcal-note')) { localStorage.removeItem('rcr-gcal-note'); return calSetup('It wasn\'t turned on — the box that lets RCR Shop manage its calendar was not ticked. Try again and tick it.'); }
+  }
+  gcalSoon();
+}
 
 /* ============ INVENTORY ============ */
 function vInventory() {
