@@ -378,7 +378,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261119-193827">
+<meta name="rcr-build" content="20261119-201258">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -638,7 +638,7 @@ function slim(e) {
     name: noPhone(e.name || d.custname || String(e.customer || '').split('\n')[0] || ''), phone: e.phone || d.custphone || '',
     job: e.job || d.job || '', make: e.make || d.make || '', model: e.model || d.model || '',
     total: num(e.total), sub: num(e.subtotal), status: e.status ?? d.status ?? '', kind: e.kind || '',
-    paidDate: e.paidDate || '', paidMethod: e.paidMethod || '', flags: e.ok ? [] : (e.flags || []).filter(Boolean), note: e.reviewNote || '', file: e.file || '', addr: d.addr || '',
+    paidDate: e.paidDate || '', paidMethod: e.paidMethod || '', pnote: e.paidNote || d.paidNote || '', flags: e.ok ? [] : (e.flags || []).filter(Boolean), note: e.reviewNote || '', file: e.file || '', addr: d.addr || '',
     desc: d.desc || '', res: d.res || '', ticketNo: String(e.ticketNo || d.ticketNo || ''),
     lines: (d.lines || []).filter(l => l && (l.desc || l.price)).map(l => ({ q: num(l.qty) || 1, d: l.desc || '', p: num(l.price) })) };
 }
@@ -1859,26 +1859,191 @@ async function doPay(id, method) {
   } catch (err) { if (err.name === 'AuthError') { folderOK = false; setSync('reconnect'); } toast('Could not mark it paid: ' + err.message + (err.name === 'AuthError' ? ' — tap "Sign in again" at the top, then try again.' : ''), 'err'); }
 }
 // Reads the log fresh from the folder, changes only this invoice's payment fields, writes it back. Returns the old values (for Undo).
-async function setInvoicePay(id, pay) {
+async function setInvoicePay(id, pay) { return (await setInvoicesPay([{ id, pay }]))[0]; }
+// Same for several invoices at once (PayPal import): one read and one write per log file. Returns the old values in the same order.
+async function setInvoicesPay(changes) {
   if (!folder || !folderOK) throw new Error('the RCR folder is not connected');
+  const befores = new Array(changes.length), left = new Set(changes.map((c, i) => i));
   for (const p of S().logPaths) {
+    if (!left.size) break;
     const r = await findLog(folder, p); if (!r) continue;
     const log = parseJSON(await (await r.fh.getFile()).text());
     if (!Array.isArray(log)) continue;
-    const e = log.find(x => slim(x).id === id); if (!e) continue;
-    const before = { status: e.status ?? e.data?.status ?? 'unpaid', paidDate: e.paidDate || '', paidMethod: e.paidMethod || '', paidNote: e.paidNote || '' };
-    Object.assign(e, pay); if (e.data) Object.assign(e.data, pay);
+    const byId = new Map(log.map(x => [slim(x).id, x])); let n = 0;
+    for (const i of [...left]) {
+      const e = byId.get(changes[i].id); if (!e) continue;
+      // the old values exactly as they were (a missing field stays missing after Undo, so "payment not tracked" stays that way)
+      const raw = o => ({ status: o.status, paidDate: o.paidDate, paidMethod: o.paidMethod, paidNote: o.paidNote });
+      befores[i] = { restore: true, top: raw(e), data: e.data ? raw(e.data) : null };
+      const pay = changes[i].pay;
+      if (pay.restore) { Object.assign(e, pay.top); if (e.data && pay.data) Object.assign(e.data, pay.data); }
+      else { Object.assign(e, pay); if (e.data) Object.assign(e.data, pay); }
+      left.delete(i); n++;
+    }
+    if (!n) continue;
     const text = JSON.stringify(log, null, 1);
     if (!Array.isArray(JSON.parse(text)) || JSON.parse(text).length !== log.length) throw new Error('safety check failed, nothing was written');
     await writeText(r.dir, LOG_FILE, text);
-    const s = INV.find(x => x.id === id); if (s) Object.assign(s, { status: pay.status, paidDate: pay.paidDate, paidMethod: pay.paidMethod });
-    custCache = null; idb.set('inv', { INV, invInfo }).catch(() => {});
     invMod[p] = (await r.fh.getFile()).lastModified;
-    render();
-    return before;
   }
-  throw new Error('that invoice was not found in the invoice log');
+  if (left.size) throw new Error(left.size === changes.length ? 'that invoice was not found in the invoice log' : `${left.size} of the invoices were not found in the invoice log (the others were saved)`);
+  for (const c of changes) {
+    const s = INV.find(x => x.id === c.id); if (!s) continue;
+    const p = c.pay.restore ? { ...(c.pay.data || {}), ...Object.fromEntries(Object.entries(c.pay.top).filter(([, v]) => v !== undefined)) } : c.pay;
+    Object.assign(s, { status: p.status ?? '', paidDate: p.paidDate || '', paidMethod: p.paidMethod || '', pnote: p.paidNote || '' });
+  }
+  custCache = null; idb.set('inv', { INV, invInfo }).catch(() => {});
+  render();
+  return befores;
 }
+
+/* ---- 📥 PayPal import: read PayPal's activity download (CSV), match each payment received to an unpaid invoice, mark the chosen ones paid.
+   Only reads the file; the only write is the normal "mark paid" (status / paidDate / paidMethod 'PayPal' / paidNote with the transaction ID).
+   The transaction ID in paidNote is how a payment is recognised as already recorded next time, on any computer. ---- */
+let PP = null;   // { rows: [payments], file, skipped } from the last file read on this page
+const PP_HIDE_KEY = 'rcr-paypal-hide';
+const ppHidden = () => { try { return JSON.parse(localStorage.getItem(PP_HIDE_KEY) || '[]'); } catch { return []; } };
+function ppStart() {
+  if (!folder || !folderOK) return toast(HOSTED ? 'Sign in with Google first (top of the page) so payments can be saved to your invoice log.' : 'Connect your RCR folder first (top of the page) so payments can be saved to your invoice log.', 'err');
+  document.body.classList.remove('navopen');
+  modal('📥 Import PayPal payments', `<p>Matches money you received in PayPal to your unpaid invoices. You check every match before anything is marked paid.</p>
+    <ol class="small" style="padding-left:18px;line-height:1.6">
+      <li>On <b>paypal.com</b> (a computer works best): <b>Activity</b> › <b>Download</b> (or <b>Reports › Activity download</b>).</li>
+      <li>Pick <b>Completed payments</b>, a date range (e.g. the last month) and <b>CSV</b>, then download.</li>
+      <li>Choose that file here. Importing the same dates again is fine — payments already recorded are recognised.</li></ol>
+    <div class="row" style="gap:8px;margin-top:10px"><label class="btn pri">📄 Choose PayPal CSV file<input type="file" accept=".csv,text/csv" hidden onchange="ppFile(this)"></label>
+    ${PP ? `<button class="btn" onclick="ppReview()">↻ Check the last file again (${esc(PP.file)})</button>` : ''}</div>`,
+    `<button class="btn" onclick="closeModal()">Close</button>`);
+}
+async function ppFile(input) {
+  const file = input.files[0]; input.value = ''; if (!file) return;
+  try { PP = { ...ppParse((await file.text()).replace(/^﻿/, '')), file: file.name }; }
+  catch (err) { return toast(err.message, 'err'); }
+  ppReview();
+}
+// PayPal CSV → payments received. Headers are matched loosely (PayPal changes them now and then).
+function ppParse(text) {
+  const rows = parseCSV(text); if (rows.length < 2) throw new Error('That file has no rows.');
+  const hi = rows.findIndex(r => r.some(x => /^\s*gross\s*$/i.test(x)) && r.some(x => /^\s*date\s*$/i.test(x)));
+  if (hi < 0) throw new Error("That doesn't look like a PayPal activity download (no Date and Gross columns). Download it as CSV from PayPal › Activity.");
+  const h = rows[hi].map(x => x.trim().toLowerCase()), col = rx => h.findIndex(x => rx.test(x));
+  const c = { date: col(/^date$/), name: col(/^name$/), type: col(/^type$|^description$/), status: col(/^status$/), cur: col(/^currency$/), gross: col(/^gross$/), fee: col(/^fee$/),
+    net: col(/^net$/), from: col(/^from email/), txn: col(/^transaction id$/), item: col(/^item title$/), inv: col(/^invoice (number|id)$/), phone: col(/phone/), subject: col(/^subject$/), note: col(/^note$|^message$/), impact: col(/^balance impact$/) };
+  const g = (r, k) => c[k] >= 0 ? String(r[c[k]] ?? '').trim() : '';
+  const out = []; let skipped = 0;
+  for (const r of rows.slice(hi + 1)) {
+    const gross = num(g(r, 'gross')), type = g(r, 'type'), status = g(r, 'status');
+    const isIn = gross > 0 && (!status || /^(completed|cleared|success)/i.test(status)) && (!g(r, 'impact') || /credit/i.test(g(r, 'impact'))) &&
+      !/refund|reversal|withdraw|transfer|deposit|hold|release|conversion|authori[sz]ation|cancel|chargeback|reserve/i.test(type) && (!g(r, 'cur') || /^usd$/i.test(g(r, 'cur')));
+    if (!isIn) { skipped++; continue; }
+    const ds = g(r, 'date'), m = ds.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    const d = m ? new Date(+(m[3].length === 2 ? '20' + m[3] : m[3]), +m[1] - 1, +m[2], 12) : new Date(ds.slice(0, 10) + 'T12:00');
+    if (isNaN(d)) { skipped++; continue; }
+    out.push({ date: isoDay(d), t: d.getTime(), name: g(r, 'name'), email: g(r, 'from').toLowerCase(), phone: digits(g(r, 'phone')).replace(/^1(?=\d{10}$)/, ''), gross, fee: Math.abs(num(g(r, 'fee'))),
+      txn: g(r, 'txn'), type, text: [g(r, 'item'), g(r, 'inv'), g(r, 'subject'), g(r, 'note')].filter(Boolean).join(' · ') });
+  }
+  if (!out.length && !skipped) throw new Error('No payments found in that file.');
+  return { rows: out.sort((a, b) => b.t - a.t), skipped };
+}
+const ppWords = s => String(s || '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(w => w.length > 1);
+// How well a payment fits an invoice: amount, invoice # in the note, name, email, phone, and the payment date vs the invoice date.
+function ppScore(p, e, cust) {
+  let s = 0; const why = [];
+  const same = Math.abs(p.gross - e.total) < 0.005; if (same) { s += 40; why.push('same amount'); }
+  if (e.status === 'unpaid') s += 5;                                  // marked unpaid beats "payment not tracked"
+  if (e.invno && new RegExp(`(^|\\D)${String(e.invno).replace(/\D/g, '')}(\\D|$)`).test(p.text)) { s += 60; why.push('invoice # in note'); }
+  const pw = ppWords(p.name), ew = ppWords(nameFor(e) || (cust && cust.name));
+  if (pw.length && ew.length) {
+    const hit = ew.filter(w => pw.includes(w));
+    if (hit.length >= 2 || (hit.length && hit.length === ew.length)) { s += 40; why.push('name'); }
+    else if (hit.length && ew[ew.length - 1] === hit[hit.length - 1]) { s += 25; why.push('last name'); }
+    else if (hit.length) { s += 12; why.push('first name'); }
+  }
+  if (p.email && cust && cust.email && cust.email.toLowerCase() === p.email) { s += 45; why.push('email'); }
+  if (p.phone.length === 10 && digits(e.phone).replace(/^1(?=\d{10}$)/, '') === p.phone) { s += 45; why.push('phone'); }
+  const days = Math.floor((p.t - e.t) / 864e5);                       // payment at noon vs invoice at midnight → same day = 0
+  if (days >= -2 && days <= 45) { s += 15 - Math.min(10, Math.floor(days / 5)); why.push(days <= 0 ? 'same day' : plural(days, 'day') + ' after invoice'); }
+  else if (days < -2) s -= 25; else s -= 10;
+  return { s, why, same };
+}
+function ppMatch() {
+  const cmap = new Map(customers().map(c => [c.key, c])), custOf = e => cmap.get(ckey(e.name, e.phone));
+  const hidden = new Set(ppHidden()), recorded = new Map();
+  for (const e of INV) { const m = e.pnote && e.pnote.match(/PayPal\s+([A-Z0-9]{8,})/i); if (m) recorded.set(m[1].toUpperCase(), e); }
+  const open = INV.filter(e => canPay(e) && e.total > 0);
+  const res = PP.rows.map(p => {
+    const done = p.txn && recorded.get(p.txn.toUpperCase());
+    if (done) return { p, done };
+    const cands = open.map(e => ({ e, ...ppScore(p, e, custOf(e)) })).filter(x => x.same ? x.s >= 40 : x.s >= 50).sort((a, b) => b.s - a.s).slice(0, 12);
+    return { p, cands, hidden: hidden.has(p.txn) };
+  });
+  // give each invoice to its best payment only, strongest matches first; pre-tick only clear winners (more than the amount alone, well ahead of the next one)
+  const taken = new Set();
+  res.filter(x => x.cands).flatMap(x => x.cands.map(c => ({ x, c }))).sort((a, b) => b.c.s - a.c.s).forEach(({ x, c }) => {
+    if (x.pick !== undefined || taken.has(c.e.id) || x.hidden) return;
+    const rival = x.cands.find(o => o !== c && !taken.has(o.e.id));
+    x.pick = c.e.id; x.sure = c.s >= 60 && (!rival || c.s - rival.s >= 20); taken.add(c.e.id);
+  });
+  return res;
+}
+function ppReview() {
+  if (!PP) return ppStart();
+  const res = ppMatch(); PP.res = res;
+  const todo = res.filter(x => !x.done && !x.hidden), done = res.filter(x => x.done), hid = res.filter(x => x.hidden && !x.done);
+  const first = PP.rows.length ? PP.rows[PP.rows.length - 1].date : '', last = PP.rows.length ? PP.rows[0].date : '';
+  const optE = (e, why) => `${esc(e.invno ? '#' + e.invno : '(no #)')} · ${esc(e.date)} · ${esc(nameFor(e) || fmtPhone(e.phone) || 'no name')} · ${esc(e.job)} · ${money(e.total)}${why ? ' — ' + esc(why) : ''}`;
+  const row = (x, i) => {
+    const p = x.p, ch = x.cands || [];
+    const sel = `<select class="inp" data-pp="${i}" onchange="$('[data-ppc=&quot;${i}&quot;]').checked=!!this.value;ppSync()"><option value="">— No invoice for this payment —</option>${ch.map(c => `<option value="${esc(c.e.id)}" ${x.pick === c.e.id ? 'selected' : ''}>${optE(c.e, c.why.join(', '))}</option>`).join('')}</select>`;
+    return `<div class="card pprow" style="padding:10px 12px;margin-bottom:8px">
+      <div class="row" style="gap:8px;align-items:baseline;flex-wrap:wrap"><label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" data-ppc="${i}" ${x.pick && x.sure ? 'checked' : ''} ${x.pick ? '' : 'disabled'} onchange="ppSync()">
+        ${money(p.gross)}</label><span>${esc(p.name || p.email || 'Unknown sender')}</span><span class="small muted">${esc(fmtDs(p.date))} · ${esc(p.type || 'Payment')}${p.fee ? ' · fee ' + money(p.fee) : ''}</span></div>
+      ${p.text ? `<div class="small muted" style="margin:3px 0">“${esc(p.text.slice(0, 140))}”</div>` : ''}
+      <div style="margin-top:6px">${ch.length ? sel : `<span class="small muted">No unpaid invoice for ${money(p.gross)} looks like this payment.</span>`}</div>
+      <div class="row" style="gap:6px;margin-top:6px"><button class="btn sm" onclick="ppQuick(${i})">⚡ Make a quick sale instead</button><button class="btn sm" onclick="ppHide(${i})">Hide this payment</button>
+        ${x.pick && !x.sure ? '<span class="small down">Not sure — check this one</span>' : ''}</div></div>`;
+  };
+  modal('📥 PayPal payments', `<div style="margin-bottom:10px"><b>${plural(PP.rows.length, 'payment')} received</b>${first ? ` · ${esc(fmtDs(first))} – ${esc(fmtDs(last))}` : ''} · from ${esc(PP.file)}
+      <div class="small muted">${done.length ? `${done.length} already recorded · ` : ''}${hid.length ? `${hid.length} hidden · ` : ''}${PP.skipped ? `${PP.skipped} rows skipped (purchases, transfers, refunds, fees)` : ''}</div></div>
+    ${todo.length ? todo.map(x => row(x, res.indexOf(x))).join('') : '<div class="card empty">Nothing new to record — every payment in this file is already on an invoice.</div>'}
+    ${done.length ? `<details style="margin-top:8px"><summary class="small">Already recorded (${done.length})</summary><div class="small" style="margin-top:6px">${done.map(x => `<div>${money(x.p.gross)} · ${esc(x.p.name)} · ${esc(fmtDs(x.p.date))} → invoice #${esc(x.done.invno)}</div>`).join('')}</div></details>` : ''}
+    ${hid.length ? `<details style="margin-top:8px"><summary class="small">Hidden (${hid.length})</summary><div class="small" style="margin-top:6px">${hid.map(x => `<div>${money(x.p.gross)} · ${esc(x.p.name)} · ${esc(fmtDs(x.p.date))} <a href="#" onclick="ppUnhide(${js(x.p.txn)});return false">show again</a></div>`).join('')}</div></details>` : ''}`,
+    `<button class="btn" onclick="closeModal()">Close</button><button class="btn" onclick="ppStart()">📄 Another file</button><button class="btn ok" id="ppgo" onclick="ppApply()">Mark paid</button>`, true);
+  ppSync();
+}
+// keep the checkboxes, the "one invoice per payment" rule and the button count in step with the dropdowns
+function ppSync() {
+  const sels = $$('[data-pp]'), used = new Map();
+  sels.forEach(s => { const i = +s.dataset.pp, cb = $(`[data-ppc="${i}"]`); PP.res[i].pick = s.value || undefined; cb.disabled = !s.value; if (!s.value) cb.checked = false; });
+  sels.forEach(s => { if (s.value) used.set(s.value, (used.get(s.value) || 0) + 1); });
+  sels.forEach(s => s.style.borderColor = s.value && used.get(s.value) > 1 ? '#dc2626' : '');
+  const n = $$('[data-ppc]:checked').length, dup = [...used.values()].some(v => v > 1), go = $('#ppgo');
+  if (go) { go.textContent = dup ? 'Same invoice picked twice' : n ? `💵 Mark ${plural(n, 'invoice')} paid` : 'Tick the payments to record'; go.disabled = !n || dup; }
+}
+async function ppApply() {
+  const picks = $$('[data-ppc]:checked').map(cb => PP.res[+cb.dataset.ppc]).filter(x => x.pick);
+  if (!picks.length) return;
+  const changes = picks.map(x => ({ id: x.pick, pay: { status: 'paid', paidDate: longDate(new Date(x.p.date + 'T12:00')), paidMethod: 'PayPal',
+    paidNote: [`PayPal ${x.p.txn}`.trim(), x.p.fee ? `fee ${money(x.p.fee)}` : '', x.p.name && x.p.name !== nameFor(INV.find(e => e.id === x.pick) || {}) ? `from ${x.p.name}` : ''].filter(Boolean).join(' · ') } }));
+  $('#ppgo').disabled = true;
+  try {
+    const befores = await setInvoicesPay(changes);
+    localStorage.setItem('rcr-paymethod', 'PayPal');
+    ppReview();
+    toast(`${plural(changes.length, 'invoice')} marked paid (PayPal).`, 'ok', [['Undo', () => setInvoicesPay(changes.map((c, i) => ({ id: c.id, pay: befores[i] }))).then(() => { toast('Undone — back to unpaid.'); if (PP && $('#ppgo')) ppReview(); }).catch(err => toast('Undo failed: ' + err.message, 'err'))]]);
+  } catch (err) {
+    if ($('#ppgo')) $('#ppgo').disabled = false;
+    if (err.name === 'AuthError') { folderOK = false; setSync('reconnect'); }
+    toast('Could not mark them paid: ' + err.message + (err.name === 'AuthError' ? ' — tap "Sign in again" at the top, then try again.' : ''), 'err');
+  }
+}
+function ppQuick(i) {
+  const p = PP.res[i].p, c = (p.phone && findCust('', p.phone)) || customers().find(c => p.email && c.email && c.email.toLowerCase() === p.email);
+  closeModal(true);
+  quickSale({ name: (c && c.name) || p.name, phone: (c && c.phone) || p.phone, amt: p.gross.toFixed(2), method: 'PayPal', date: p.date, note: [`PayPal ${p.txn}`.trim(), p.fee ? `fee ${money(p.fee)}` : ''].filter(Boolean).join(' · '), job: '' });
+}
+function ppHide(i) { const t = PP.res[i].p.txn; if (!t) return toast("This payment has no transaction ID, so it can't be hidden.", 'err'); const h = ppHidden(); h.push(t); try { localStorage.setItem(PP_HIDE_KEY, JSON.stringify(h.slice(-500))); } catch {} ppReview(); }
+function ppUnhide(t) { try { localStorage.setItem(PP_HIDE_KEY, JSON.stringify(ppHidden().filter(x => x !== t))); } catch {} ppReview(); }
 
 /* ---- ⚡ Quick Sale: a paid invoice in seconds for quick fixes with no ticket (virus removal, password reset, remote help…).
    Adds a normal numbered entry to the invoice log in the Invoice Form's own format, so the form can open, print or PDF it later. ---- */
@@ -1909,16 +2074,17 @@ function quickSale(pre) {
     <label class="fl">What did you do?<input id="qsjob" class="inp" value="${esc(pre.job || '')}" placeholder="e.g. Virus Removal"></label>
     <div class="qschips">${QS_JOBS.map(([j, lab]) => `<button type="button" class="chipbtn" onclick="qsJob(${js(j)},${js(lab || 'Labor – Physical')})">${j}</button>`).join('')}</div>
     <div class="row2"><label>Type<select id="qslab" class="inp">${QS_LABOR.map(l => `<option>${l}</option>`).join('')}</select></label>
-      <label>Amount<input id="qsamt" inputmode="decimal" placeholder="0.00" oninput="qsTot()"></label></div>
+      <label>Amount<input id="qsamt" inputmode="decimal" placeholder="0.00" value="${esc(pre.amt || '')}" oninput="qsTot()"></label></div>
     <div class="row2"><label>Part sold (optional)<input id="qspart" list="partList" placeholder="e.g. Charger, flash drive"></label>
       <label>Part price<input id="qspp" inputmode="decimal" placeholder="0.00" oninput="qsTot()"></label></div>
     <label class="fl">Notes for the invoice (optional)<textarea id="qsres" class="inp" rows="2" placeholder="What you did — prints under Resolution on the invoice"></textarea></label>
     <div class="small muted" style="margin:10px 0 6px">How did they pay?</div>
-    <div class="paygrid" id="qspay">${PAY_METHODS.map(m => `<button type="button" class="btn ${m === last ? 'ok' : ''}" data-m="${m}" onclick="$$('#qspay .btn').forEach(b=>b.classList.toggle('ok',b===this))">${m}</button>`).join('')}</div>
-    <div class="row2" style="margin-top:10px"><label>Date<input id="qsdate" type="date" value="${isoDay()}"></label><label>Payment note (optional)<input id="qsnote" placeholder="e.g. last 4 of card"></label></div>
+    <div class="paygrid" id="qspay">${PAY_METHODS.map(m => `<button type="button" class="btn ${m === (pre.method || last) ? 'ok' : ''}" data-m="${m}" onclick="$$('#qspay .btn').forEach(b=>b.classList.toggle('ok',b===this))">${m}</button>`).join('')}</div>
+    <div class="row2" style="margin-top:10px"><label>Date<input id="qsdate" type="date" value="${esc(pre.date || isoDay())}"></label><label>Payment note (optional)<input id="qsnote" placeholder="e.g. last 4 of card" value="${esc(pre.note || '')}"></label></div>
     <div class="qstot">Total <b id="qstot">$0.00</b></div></form>`,
     `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn pri" id="qsgo" onclick="qsSave()">⚡ Save paid invoice</button>`);
   if (pre.name || pre.phone) qsFill();
+  if (pre.amt) qsTot();
 }
 function qsJob(j, lab) { $('#qsjob').value = j; $('#qslab').value = lab; $('#qsamt').focus(); }
 function qsTot() { $('#qstot').textContent = money(num($('#qsamt').value) + num($('#qspp').value)); }
@@ -2038,6 +2204,7 @@ function vMoney() {
   </div>
   <div class="toolbar"><b>Invoices in this period</b><input type="search" placeholder="Search number, name, job…" value="${esc(ui.iq)}" oninput="ui.iq=this.value;$('#ilist').innerHTML=invBody()">
     <select onchange="ui.iStatus=this.value;$('#ilist').innerHTML=invBody()">${[['', 'All'], ['unpaid', 'Unpaid'], ['paid', 'Paid'], ['quote', 'Quotes'], ['untracked', 'Payment not tracked'], ['flag', '⚠ Problems']].map(([v, l]) => `<option value="${v}" ${ui.iStatus === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <button class="btn sm" onclick="ppStart()" title="Match PayPal payments you received to unpaid invoices">📥 Import PayPal</button>
     <span class="grow"></span><span class="small muted">${flagged ? flagged + ' invoices have import warnings · ' : ''}💵 Paid marks an invoice paid · edit everything else in the Invoice Form</span></div>
   <div id="ilist">${invBody()}</div>`;
 }
