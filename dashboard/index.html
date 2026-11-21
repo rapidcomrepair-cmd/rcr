@@ -424,7 +424,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261120-205535">
+<meta name="rcr-build" content="20261121-085124">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -1645,7 +1645,7 @@ function openInvoice(ticketId) {
     const e = invoiceFor(t);
     return openInvoiceForm('#open=' + encodeURIComponent(e ? e.id : t.invno), `Opening invoice #${t.invno} for ticket #${t.no}.`);
   }
-  openInvoiceForm(t ? '#ticket=' + encodeURIComponent(JSON.stringify(invoicePayload(t))) : '',
+  openInvoiceForm(t ? '#ticket=' + encodeURIComponent(JSON.stringify(invoicePayload(t))) : '#new',      // #new: a fresh invoice, not the last one left on screen
     t ? `Invoice started for ticket #${t.no}. Check it and save it — it links back to the ticket by itself.` : '');
 }
 function openInvoiceEntry(id) { const e = INV.find(x => x.id === id); openInvoiceForm('#open=' + encodeURIComponent(id), e ? `Opening invoice #${e.invno}.` : ''); }

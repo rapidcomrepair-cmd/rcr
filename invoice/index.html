@@ -179,7 +179,7 @@
     table.items th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
-<meta name="rcr-build" content="20261120-205535">
+<meta name="rcr-build" content="20261121-085124">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -1324,7 +1324,8 @@ if (HOSTED) {                       // web app: Google Drive instead of a picked
 
 /* ---- Links from the RCR Dashboard ----
    …Invoice Form….html#ticket=<JSON>   start a new invoice filled in from a repair ticket
-   …Invoice Form….html#open=<id or #> open an invoice that's already in the log (e.g. to mark it paid) */
+   …Invoice Form….html#open=<id or #> open an invoice that's already in the log (e.g. to mark it paid)
+   …Invoice Form….html#new            start a new blank invoice (the dashboard's "New Invoice" with no ticket) */
 const hasWork = () => { const cd = collect(); return [cd.custname, cd.custphone, cd.job, cd.desc, cd.res].some(s => (s || '').trim()) || cd.lines.some(l => num(l.price)); };
 async function logEntries() { try { return await loadLog(); } catch { return JSON.parse(localStorage.getItem('rcr-log') || '[]'); } }
 function openEntry(e) {
@@ -1332,8 +1333,12 @@ function openEntry(e) {
   resetFields(); load(e.data || e); markSaved(); document.title = 'RCR Invoices';
 }
 async function fromTicketHash() {
-  const m = location.hash.match(/^#(ticket|open)=(.+)$/); if (!m) return;
+  const m = location.hash.match(/^#(ticket|open)=(.+)$|^#(new)$/); if (!m) return;
   history.replaceState(null, '', location.pathname + location.search);   // so a refresh doesn't do it again
+  if (m[3]) {                         // dashboard "New Invoice": start fresh, unless the one on screen is already blank
+    if (!hasWork()) { await firstNumber(); return; }
+    return newInvoice();              // asks first if the invoice on screen has unsaved changes
+  }
   if (m[1] === 'open') {
     const ref = decodeURIComponent(m[2]), log = await logEntries();
     const e = log.find(x => x.id === ref) || log.filter(x => String(x.invno) === ref).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''))[0];
