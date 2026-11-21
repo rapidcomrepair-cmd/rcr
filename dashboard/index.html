@@ -424,7 +424,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261121-124919">
+<meta name="rcr-build" content="20261121-125321">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -1100,12 +1100,43 @@ function msgSent(id, k, how) {
 function msgTicket(id, which) { const t = DB.tickets.find(x => x.id === id); if (!t) return; copyText(fillMsg(S()[which], t), 'Message'); if (which === 'msgReminder') remindedTicket(id, true); if (which === 'msgReview') reviewAsked(id, true); }
 function remindedTicket(id, quiet) { const t = DB.tickets.find(x => x.id === id); t.lastReminder = nowISO(); (t.notes = t.notes || []).push({ t: nowISO(), x: 'Pickup reminder sent.' }); upsert('tickets', t); if (!quiet) toast('Marked as reminded'); softRender(); }
 function reviewAsked(id, quiet) { const t = DB.tickets.find(x => x.id === id); t.reviewAsked = nowISO(); upsert('tickets', t); if (!quiet) toast('Marked as asked'); softRender(); }
+// "💵 Did they pay?" — asked whenever a ticket is moved to Picked Up outside the pickup checklist (ticket window's Status
+// dropdown + Save, dragging a board card). go() carries on with the change; Cancel leaves the ticket as it was.
+function paidCheck(id, go) {
+  const t = DB.tickets.find(x => x.id === id) || (tmp && tmp.id === id ? tmp : null); if (!t) return go();
+  const e = invoiceFor(t);
+  if (e && (e.status === 'paid' || e.status === 'quote')) return go();
+  const note = x => { const n = { t: nowISO(), x }; if (tmp && tmp.id === id && !$('#modal').hidden) (tmp.notes = tmp.notes || []).push(n); else { const d = DB.tickets.find(y => y.id === id); if (d) { (d.notes = d.notes || []).push(n); upsert('tickets', d); } } };
+  const due = e ? money(e.total) : t.estimate ? money(num(t.estimate) - num(t.deposit)) : '';
+  const ov = overlay(`<div class="ob pk"><div style="font-weight:700;font-size:17px">💵 Did they pay?</div>
+    <div class="small muted" style="margin:2px 0 12px">#${t.no} ${esc(t.name)} — ${esc(devName(t))}</div>
+    ${e ? `<div style="margin-bottom:8px"><span class="tag red">Unpaid · Invoice #${esc(e.invno)} · ${money(e.total)}</span></div>
+      <div class="small muted" style="margin-bottom:6px">Yes — paid by:</div><div class="paygrid">${PAY_METHODS.map(m => `<button class="btn" data-pay="${esc(m)}">${esc(m)}</button>`).join('')}</div>`
+    : `<div class="small muted" style="margin-bottom:8px">No invoice for this ticket yet${due ? ` · about ${due} due` : ''}.</div>
+      <button class="btn pri" data-a="inv" style="width:100%;margin-bottom:6px">✓ Yes, they paid — make the invoice</button>`}
+    <div class="row" style="margin-top:12px"><button class="btn" data-a="x">Cancel</button><span class="grow"></span><button class="btn" data-a="no">Not paid yet</button></div></div>`);
+  ov.onclick = async ev => {
+    const b = ev.target.closest('[data-a],[data-pay]'); if (ev.target === ov) { ov.remove(); render(); return; } if (!b) return;
+    if (b.dataset.pay) {
+      $$('button', ov).forEach(x => x.disabled = true);
+      try { await setInvoicePay(e.id, { status: 'paid', paidDate: longDate(new Date()), paidMethod: b.dataset.pay, paidNote: '' }); }
+      catch (err) { $$('button', ov).forEach(x => x.disabled = false); return toast('Could not mark it paid: ' + err.message, 'err'); }
+      ov.remove(); note(`Picked up — paid (${b.dataset.pay}), invoice #${e.invno}.`); go(); toast(`Invoice ${e.invno} marked paid (${b.dataset.pay}).`, 'ok'); return;
+    }
+    const a = b.dataset.a; ov.remove();
+    if (a === 'x') return render();                       // back as it was (resets a dragged card)
+    if (a === 'no') { note(`Picked up — NOT paid yet${e ? ` (invoice #${e.invno}, ${money(e.total)})` : due ? ` (about ${due} due, no invoice yet)` : ' (no invoice yet)'}.`); go(); toast(`#${t.no} picked up — not paid yet. It stays on Follow-ups until it's paid.`); return; }
+    if (a === 'inv') { note('Picked up — customer paid; invoice made from the ticket.'); go(); setTimeout(() => openInvoice(id), 300); }
+  };
+}
 function setStatus(id, k, quiet) {
   const t = DB.tickets.find(x => x.id === id); if (!t || t.status === k) return;
+  if (k === 'done' && quiet !== true && quiet !== 'asked') return paidCheck(id, () => setStatus(id, 'done', 'asked'));
   t.status = k; t.updated = nowISO(); (t.history = t.history || []).push({ t: nowISO(), s: k });
   if (k === 'done') t.pickedUp = nowISO();
   upsert('tickets', t); render();
-  if (quiet) return;
+  if (quiet === true) return;
+  if (k === 'done' && quiet === 'asked') { if (!t.sigOut) toast(`#${t.no} picked up.`, '', [['✍️ Pickup signature', () => { editTicket(id); sigPad('sigOut'); }]]); return; }
   if (k === 'ready') toast(`#${t.no} is ready for pickup.`, '', [['💬 Tell the customer', () => msgOpen(id, 'msgReady')]]);
   else if (k === 'approval') toast(`#${t.no} is waiting for approval.`, '', [['💬 Ask for approval', () => msgOpen(id, 'msgApproval')]]);
   else if (k === 'done') toast(`#${t.no} picked up.${t.invno ? '' : ' Remember to make the invoice.'}`, '', [...(t.sigOut ? [] : [['✍️ Pickup signature', () => { editTicket(id); sigPad('sigOut'); }]]), ...(t.invno ? [] : [['🧾 Make invoice', () => openInvoice(id)]])]);
@@ -1588,10 +1619,12 @@ function tLabor(sel) {
 function useEstimate() { const v = sum(tmp.parts || [], p => num(p.price)); if (v) { $('#tf').estimate.value = v.toFixed(2); modalDirty = true; } }
 function drawNotes() { $('#tnotes').innerHTML = (tmp.notes || []).length ? [...tmp.notes].reverse().map(n => `<div class="note"><small>${fmtTs(n.t)}</small>${esc(n.x)}</div>`).join('') : '<div class="muted small">No notes yet.</div>'; }
 function addNote() { const v = $('#nadd').value.trim(); if (!v) return; (tmp.notes = tmp.notes || []).push({ t: nowISO(), x: v }); $('#nadd').value = ''; modalDirty = true; drawNotes(); }
-function saveTicket(andPrint) {
+function saveTicket(andPrint, paidAsked) {
   const f = $('#tf'), d = formData(f);
   if (!d.name) { f.name.focus(); return toast('Please enter the customer name.', 'err'); }
   if (!d.issue) { f.issue.focus(); return toast('Please describe the problem.', 'err'); }
+  const was = DB.tickets.find(x => x.id === tmp.id);
+  if (!paidAsked && d.status === 'done' && was && was.status !== 'done') return paidCheck(tmp.id, () => saveTicket(andPrint, true));   // 💵 Did they pay?
   if ($('#nadd').value.trim()) addNote();
   const isNew = !DB.tickets.some(x => x.id === tmp.id);
   const t = tmp, old = DB.tickets.find(x => x.id === t.id);
