@@ -424,7 +424,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261120-202756">
+<meta name="rcr-build" content="20261120-205535">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -620,7 +620,7 @@ async function syncLeads(d, force) {
   return JSON.stringify(merged) !== before;          // true when another device added or changed leads
 }
 function persistLocal() { try { localStorage.setItem(LS, JSON.stringify(DB)); } catch (e) { toast('Could not save in the browser: ' + e.message, 'err'); } }
-function commit() { DB.savedAt = nowISO(); persistLocal(); pending = true; setSync('saving'); clearTimeout(wt); wt = setTimeout(flush, 700); gcalSoon(); }
+function commit() { DB.savedAt = nowISO(); persistLocal(); pending = true; setSync('saving'); clearTimeout(wt); wt = setTimeout(flush, 700); gcalSoon(); contSoon(60000); }
 function upsert(coll, rec) { rec.upd = nowISO(); if (coll === 'leads') leadsDirty = true; const a = DB[coll], i = a.findIndex(x => x.id === rec.id); if (i < 0) a.push(rec); else a[i] = rec; commit(); }
 function removeRec(coll, id) { DB[coll] = DB[coll].filter(x => x.id !== id); DB.deleted[id] = nowISO(); commit(); }
 function saveSettings(patch) { if (patch.shopPhone) patch.shopPhone = fmtPhone(patch.shopPhone); Object.assign(DB.settings, patch); DB.settingsUpd = nowISO(); commit(); }
@@ -730,7 +730,7 @@ async function loadInvoices(force) {
   invInfo = { files, errors, loadedAt: nowISO() };
   custCache = null;
   linkInvoices();
-  saveInvCache();
+  saveInvCache(); contSoon(60000);                  // a new invoice may be a new customer for caller ID
   softRender();
 }
 
@@ -741,7 +741,7 @@ async function driveConnect(auto) {
   if (!RCRDrive.signedIn()) { if (auto && !RCRDrive.wasSignedIn()) { setSync('local'); return; } return RCRDrive.signIn({ silent: RCRDrive.wasSignedIn() }); }
   try {
     folder = await RCRDrive.root(); folderOK = true;
-    await pullFromFolder(); render(); gmAfterSignIn(); calAfterSignIn();          // pullFromFolder also re-reads the invoice log, but only if it changed
+    await pullFromFolder(); render(); gmAfterSignIn(); calAfterSignIn(); contAfterSignIn();         // pullFromFolder also re-reads the invoice log, but only if it changed
   } catch (e) { if (!driveError(e)) toast('Google Drive: ' + e.message, 'err'); }
 }
 function driveError(e) {          // true if it was an expired sign-in
@@ -1889,7 +1889,7 @@ function vCustomers() {
   const cs = customers();
   return `<div class="toolbar"><input type="search" placeholder="Search name, phone, email, device…" value="${esc(ui.cq)}" oninput="ui.cq=this.value;ui.cLimit=100;ui.cLimitP=0;$('#clist').innerHTML=custBody()">
     <select onchange="ui.cSort=this.value;$('#clist').innerHTML=custBody()">${[['last', 'Most recent visit'], ['spent', 'Total spent'], ['visits', 'Most visits'], ['name', 'Name A–Z'], ['unpaid', 'Owes money']].map(([v, l]) => `<option value="${v}" ${ui.cSort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-    <span class="muted">${cs.length} customers · ${cs.filter(c => c.visits > 1).length} repeat</span></div><div id="clist">${custBody()}</div>`;
+    <span class="muted">${cs.length} customers · ${cs.filter(c => c.visits > 1).length} repeat</span>${contBtn()}</div><div id="clist">${custBody()}</div>`;
 }
 function custBody() {
   const q = ui.cq.trim().toLowerCase(), qd = digits(q);
@@ -2958,6 +2958,136 @@ function calAfterSignIn() {        // once the web app is connected: finish "Tur
     if (localStorage.getItem('rcr-gcal-note')) { localStorage.removeItem('rcr-gcal-note'); return calSetup('It wasn\'t turned on — the box that lets RCR Shop manage its calendar was not ticked. Try again and tick it.'); }
   }
   gcalSoon();
+}
+
+/* ---- 📇 Caller ID (web app): customers become contacts in the shop Google account, in an "RCR Customers" group,
+   so the iPhone shows "Jane Doe (RCR)" when they call. The People API scope can read every contact, but this code only
+   ever changes or deletes contacts that carry its own clientData key "rcr" (= the customer key). Each sync lists the
+   account's contacts first, so it is stateless and safe from several devices: it creates the missing ones, updates the
+   ones whose details changed (signature in clientData "rcrsig"), deletes its own for customers that no longer exist,
+   and skips customers whose number is already saved as one of the owner's own contacts (no duplicates). ---- */
+const PC = { busy: false, again: false, t: 0, err: '', stats: null };
+const contOn = () => !!(window.RCRDrive && RCRDrive.hosted && RCRDrive.hasContacts && RCRDrive.hasContacts()) && !localStorage.getItem('rcr-gcont-off');
+const contBtn = () => !HOSTED ? '' : `<button class="btn sm" onclick="contPanel()">📇 ${contOn() ? (PC.err ? '<span class="down">Caller ID ⚠</span>' : 'Caller ID ✓') : 'Caller ID on iPhone'}</button>`;
+const p10 = s => digits(s).replace(/^1(?=\d{10}$)/, '');
+const hashStr = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); };
+// What the contact says. Notes show on the iPhone contact card, never on the incoming-call screen; no money amounts.
+function contPerson(c, grp) {
+  const nm = String(c.name || '').trim(), parts = nm.split(/\s+/);
+  const open = c.tix.filter(t => OPEN.includes(t.status)).sort((a, b) => b.no - a.no)[0], lastT = [...c.tix].sort((a, b) => b.no - a.no)[0];
+  const lastJob = open ? `Open ticket #${open.no} — ${devName(open)} — ${ST[open.status]?.l || open.status}` : c.inv[0] ? `Last job: ${c.inv[0].job}${c.inv[0].make || c.inv[0].model ? ' — ' + [c.inv[0].make, c.inv[0].model].filter(Boolean).join(' ') : ''}` : lastT ? `Last ticket #${lastT.no} — ${devName(lastT)}` : '';
+  const note = ['Rapid Computer Repair customer', `${plural(c.visits || 1, 'visit')}${c.last ? ' · last ' + new Date(c.last).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}`,
+    lastJob, c.unpaid ? '⚠ Has an unpaid invoice' : '', (DB.custNotes[c.key]?.text || '').slice(0, 300)].filter(Boolean).join('\n');
+  const body = { names: [nm ? { givenName: parts[0], familyName: parts.slice(1).join(' '), honorificSuffix: '(RCR)' } : { givenName: 'RCR customer' }],
+    phoneNumbers: [{ value: fmtPhone(c.phone), type: 'mobile' }], emailAddresses: c.email ? [{ value: c.email }] : [], biographies: [{ value: note, contentType: 'TEXT_PLAIN' }] };
+  const sig = hashStr(JSON.stringify(body));
+  return { ...body, clientData: [{ key: 'rcr', value: c.key }, { key: 'rcrsig', value: sig }], ...(grp ? { memberships: [{ contactGroupMembership: { contactGroupResourceName: grp } }] } : {}), _sig: sig };
+}
+let contTimer;
+function contSoon(ms) { try { if (!contOn()) return; clearTimeout(contTimer); contTimer = setTimeout(contSync, ms || 4000); } catch { } }
+async function contSync(loud) {
+  if (!contOn() || !RCRDrive.signedIn()) return;
+  if (PC.busy) { PC.again = true; return; } PC.busy = true;
+  const st = { created: 0, updated: 0, deleted: 0, skipped: 0, total: 0 };
+  try {
+    // 1. the "RCR Customers" group (made once, id kept in the shared settings)
+    let grp = S().gcontGroup;
+    if (grp) { try { await RCRDrive.people(grp + '?maxMembers=0'); } catch (e) { if (e.status !== 404) throw e; grp = ''; } }
+    if (!grp) { grp = (await RCRDrive.people('contactGroups', 'POST', { contactGroup: { name: 'RCR Customers' } })).resourceName; saveSettings({ gcontGroup: grp }); }
+    // 2. every contact in the account: ours (by clientData) and the owner's own numbers
+    const ours = new Map(), theirs = new Set(); let tok = '';
+    do {
+      const r = await RCRDrive.people('people/me/connections?personFields=phoneNumbers,clientData,metadata&pageSize=1000' + (tok ? '&pageToken=' + encodeURIComponent(tok) : ''));
+      for (const p of r.connections || []) {
+        const cd = Object.fromEntries((p.clientData || []).map(x => [x.key, x.value]));
+        if (cd.rcr) { if (ours.has(cd.rcr)) ours.get(cd.rcr).dupes.push(p.resourceName); else ours.set(cd.rcr, { rn: p.resourceName, etag: p.etag, sig: cd.rcrsig || '', dupes: [] }); }
+        else for (const n of p.phoneNumbers || []) { const d = p10(n.value); if (d.length === 10) theirs.add(d); }
+      }
+      tok = r.nextPageToken || '';
+    } while (tok);
+    // 3. the customers that should be there: everyone with a 10-digit number, one contact per number
+    const want = new Map(), seen = new Set();
+    for (const c of customers()) { const d = p10(c.phone); if (d.length !== 10 || seen.has(d)) continue; seen.add(d); want.set(c.key, c); }
+    st.total = want.size;
+    const toCreate = [], toUpdate = [];
+    for (const [k, c] of want) {
+      const o = ours.get(k), P = contPerson(c, o ? null : grp), sig = P._sig; delete P._sig;
+      if (!o) { if (theirs.has(p10(c.phone))) { st.skipped++; continue; } toCreate.push(P); }
+      else if (o.sig !== sig) toUpdate.push([o.rn, { ...P, etag: o.etag }]);
+    }
+    const toDelete = [...ours].filter(([k]) => !want.has(k)).map(([, o]) => o.rn).concat([...ours.values()].flatMap(o => o.dupes));
+    // 4. send the changes in batches (one at a time — Google asks for that)
+    for (let i = 0; i < toCreate.length; i += 200) {
+      const part = toCreate.slice(i, i + 200);
+      await RCRDrive.people('people:batchCreateContacts', 'POST', { contacts: part.map(p => ({ contactPerson: p })), readMask: 'clientData' }); st.created += part.length;
+    }
+    for (let i = 0; i < toUpdate.length; i += 200) {
+      const part = toUpdate.slice(i, i + 200);
+      try { await RCRDrive.people('people:batchUpdateContacts', 'POST', { contacts: Object.fromEntries(part), updateMask: 'names,phoneNumbers,emailAddresses,biographies,clientData', readMask: 'clientData' }); st.updated += part.length; }
+      catch (e) { if (e.status !== 400 && e.status !== 409) throw e; PC.again = true; }    // changed on another device a moment ago: list again and retry
+    }
+    for (let i = 0; i < toDelete.length; i += 500) {
+      const part = toDelete.slice(i, i + 500);
+      await RCRDrive.people('people:batchDeleteContacts', 'POST', { resourceNames: part }); st.deleted += part.length;
+    }
+    PC.t = Date.now(); PC.err = ''; PC.stats = { ...st };
+    localStorage.setItem('rcr-gcont-at', JSON.stringify({ t: PC.t, ...st }));
+    if (loud) toast(st.created || st.updated || st.deleted ? `📇 Caller ID: ${[st.created && st.created + ' added', st.updated && st.updated + ' updated', st.deleted && st.deleted + ' removed'].filter(Boolean).join(', ')}.` : '📇 Caller ID contacts are up to date.', 'ok');
+  } catch (e) {
+    PC.err = e.message;
+    if (e.name === 'AuthError') { folderOK = false; setSync('reconnect'); }
+    else if (e.name === 'ContactsDenied') { if (/scope|permission/i.test(e.message) && !/disabled|not been used/i.test(e.message)) localStorage.removeItem('rcr-gscope'); if (loud) contSetup(e.message); }
+    else if (loud) toast(e.message, 'err');
+    console.warn('contacts sync:', e);
+  } finally {
+    PC.busy = false;
+    if (PC.again) { PC.again = false; setTimeout(contSync, 1500); }
+    if (view === 'customers' || view === 'settings') softRender();
+  }
+}
+// Removes every contact this app made (and its group). The owner's own contacts are never touched.
+async function contRemoveAll() {
+  if (!confirm('Remove all RCR caller ID contacts from the shop Google account (and the "RCR Customers" group)? Your own contacts are not touched.')) return;
+  localStorage.setItem('rcr-gcont-off', '1'); closeModal(true);
+  try {
+    const rns = []; let tok = '';
+    do { const r = await RCRDrive.people('people/me/connections?personFields=clientData&pageSize=1000' + (tok ? '&pageToken=' + encodeURIComponent(tok) : ''));
+      for (const p of r.connections || []) if ((p.clientData || []).some(x => x.key === 'rcr')) rns.push(p.resourceName); tok = r.nextPageToken || ''; } while (tok);
+    for (let i = 0; i < rns.length; i += 500) await RCRDrive.people('people:batchDeleteContacts', 'POST', { resourceNames: rns.slice(i, i + 500) });
+    if (S().gcontGroup) { await RCRDrive.people(S().gcontGroup + '?deleteContacts=false', 'DELETE').catch(() => {}); saveSettings({ gcontGroup: '' }); }
+    localStorage.removeItem('rcr-gcont-at'); PC.stats = null; render();
+    toast(`Removed ${plural(rns.length, 'RCR contact')}. Caller ID is off on this device.`, 'ok');
+  } catch (e) { toast('Could not remove them: ' + e.message, 'err'); }
+}
+function contSetup(err) {
+  if (!HOSTED) return toast('Caller ID is switched on from the web app (your phone). Customers you add here still reach it — the phone sends them the next time RCR is opened there.', 'err');
+  modal('📇 Caller ID for your customers', `${err ? `<p class="down small">${esc(err)}</p>` : ''}
+    <p>RCR adds your customers to the shop Google account's contacts, in a group called <b>RCR Customers</b>. When one calls, your iPhone shows their name — like <b>Jane Doe (RCR)</b> — instead of just a number. Their contact card notes show the open ticket or last job.</p>
+    <p class="small muted">Google will ask once to let RCR Shop see and manage your contacts — tick that box. RCR only changes or removes contacts <i>it</i> made; customers you already saved yourself are left alone and skipped. Turning it off later can remove all of RCR's contacts in one tap.</p>`,
+    `<button class="btn" onclick="closeModal()">Not now</button><button class="btn pri" onclick="localStorage.removeItem('rcr-gcont-off');sessionStorage.setItem('rcr-gcont-after','1');RCRDrive.signIn({cont:true})">Turn on</button>`);
+}
+function contPanel() {
+  if (!contOn()) return contSetup();
+  let last = null; try { last = JSON.parse(localStorage.getItem('rcr-gcont-at') || 'null'); } catch { }
+  const s = PC.stats || last;
+  modal('📇 Caller ID is on', `<p>${s ? `${plural(s.total, 'customer')} with a phone number${s.skipped ? ` · ${s.skipped} already in your own contacts (left alone)` : ''}.` : 'Your customers are being added to the <b>RCR Customers</b> contact group.'}
+      ${last && last.t ? `<br><span class="small muted">Last synced ${new Date(last.t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>` : ''}${PC.err ? `<br><span class="down small">Last try failed: ${esc(PC.err)}</span>` : ''}</p>
+    <div class="sec-h">Not seeing names when customers call?</div>
+    <ol class="small" style="margin:4px 0 0 18px;padding:0;line-height:1.6">
+      <li>iPhone <b>Settings › Apps › Contacts › Contacts Accounts</b> (older iPhones: Settings › Contacts › Accounts).</li>
+      <li>Tap the shop Google account (or <b>Add Account › Google</b> and sign in) and turn <b>Contacts</b> on.</li>
+      <li>Give it a minute, then search the Contacts app for <b>(RCR)</b>.</li></ol>
+    <p class="small muted">Names, numbers and notes come from RCR and are refreshed when they change here — edit them in RCR, not in Contacts.</p>`,
+    `<button class="btn danger" onclick="contRemoveAll()">Remove RCR contacts</button><button class="btn" onclick="localStorage.setItem('rcr-gcont-off','1');closeModal();render();toast('Caller ID updates stopped on this device.')">Turn off on this device</button><span class="grow"></span><button class="btn pri" onclick="closeModal();contSync(true)">⟳ Sync now</button>`);
+}
+function contAfterSignIn() {
+  if (!HOSTED) return;
+  if (sessionStorage.getItem('rcr-gcont-after')) {
+    sessionStorage.removeItem('rcr-gcont-after');
+    if (RCRDrive.hasContacts()) { toast('📇 Caller ID is on. Adding your customers to Google Contacts…', 'ok'); contSync(true); setTimeout(contPanel, 800); return; }
+    if (localStorage.getItem('rcr-gcont-note')) { localStorage.removeItem('rcr-gcont-note'); return contSetup('It wasn\'t turned on — the box that lets RCR Shop manage contacts was not ticked. Try again and tick it.'); }
+  }
+  contSoon(8000);                                    // catch up a little after opening, once Drive and the invoices are loaded
 }
 
 /* ============ INVENTORY ============ */

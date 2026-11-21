@@ -64,7 +64,8 @@ const wantGmail = () => localStorage.getItem('rcr-gmail') === '1';
 // Optional extras, each asked for only after the user turns it on in the dashboard (?gmail=1 / ?cal=1).
 // key: [URL flag, localStorage flag, scope]
 const EXTRAS = { gmail: ['gmail', 'rcr-gmail', GSCOPE],
-  cal: ['cal', 'rcr-gcal', 'https://www.googleapis.com/auth/calendar.app.created'] };   // iPhone calendar: only the "RCR Appointments" calendar this app makes
+  cal: ['cal', 'rcr-gcal', 'https://www.googleapis.com/auth/calendar.app.created'],     // iPhone calendar: only the "RCR Appointments" calendar this app makes
+  cont: ['cont', 'rcr-gcont', 'https://www.googleapis.com/auth/contacts'] };            // caller ID: customers as contacts (the app only changes contacts it made itself)
 const wanted = () => Object.values(EXTRAS).filter(([, f]) => localStorage.getItem(f) === '1');
 const BASE = location.pathname.replace(/index\.html$/, '');
 const HERE = location.origin + BASE;
@@ -88,7 +89,7 @@ function goGoogle(silent, ret) {
 function signOut() {
   const t = (() => { try { return JSON.parse(localStorage.getItem('rcr-gtoken') || 'null'); } catch { return null; } })();
   if (t && t.token) fetch('https://oauth2.googleapis.com/revoke?token=' + encodeURIComponent(t.token), { method: 'POST' }).catch(() => {});
-  ['rcr-gtoken', 'rcr-guser', 'rcr-drive-root', 'rcr-gmail', 'rcr-gcal', 'rcr-gscope'].forEach(k => localStorage.removeItem(k));
+  ['rcr-gtoken', 'rcr-guser', 'rcr-drive-root', 'rcr-gmail', 'rcr-gcal', 'rcr-gcont', 'rcr-gscope'].forEach(k => localStorage.removeItem(k));
   start();
 }
 

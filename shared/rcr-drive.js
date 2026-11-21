@@ -25,11 +25,11 @@
     if (!leaving) {
       leaving = true;
       const ret = location.pathname + location.search + location.hash;
-      location.href = base + '?signin=1' + (opts && opts.silent ? '&silent=1' : '') + (opts && opts.gmail ? '&gmail=1' : '') + (opts && opts.cal ? '&cal=1' : '') + '&ret=' + encodeURIComponent(ret);
+      location.href = base + '?signin=1' + (opts && opts.silent ? '&silent=1' : '') + (opts && opts.gmail ? '&gmail=1' : '') + (opts && opts.cal ? '&cal=1' : '') + (opts && opts.cont ? '&cont=1' : '') + '&ret=' + encodeURIComponent(ret);
     }
     return new Promise(() => {});
   }
-  function signOut() { [TK, USERK, ROOTK, 'rcr-gmail', 'rcr-gcal', 'rcr-gcal-map', 'rcr-gscope','rcr-drive-ids'].forEach(k => localStorage.removeItem(k)); try { indexedDB.deleteDatabase('rcr-drive-cache'); } catch { } location.href = base; }
+  function signOut() { [TK, USERK, ROOTK, 'rcr-gmail', 'rcr-gcal', 'rcr-gcal-map', 'rcr-gcont', 'rcr-gscope','rcr-drive-ids'].forEach(k => localStorage.removeItem(k)); try { indexedDB.deleteDatabase('rcr-drive-cache'); } catch { } location.href = base; }
   const user = () => { try { return JSON.parse(localStorage.getItem(USERK) || 'null'); } catch { return null; } };
   const wasSignedIn = () => !!user();
 
@@ -298,5 +298,26 @@
     return r.status === 204 ? null : r.json();
   }
 
-  window.RCRDrive = { hosted, base, root, signIn, signOut, user, wasSignedIn, signedIn: () => !!token(), minutesLeft, AuthError, hasGmail, gmail, hasCal, gcal };
+  /* ---------- Google Contacts / People API (opt-in): caller ID — the dashboard keeps an "RCR Customers" contact group in step
+     with its customers. The scope can read all contacts, but the dashboard only ever changes or deletes contacts it made
+     (they carry its own clientData "rcr" key). ---------- */
+  const PEOPLE = 'https://people.googleapis.com/v1/';
+  const hasContacts = () => /auth\/contacts(\s|$)/.test(localStorage.getItem('rcr-gscope') || '');
+  async function people(path, method, body) {      // → JSON, or throws; e.status holds Google's HTTP status
+    const t = token(); if (!t) throw new AuthError();
+    let r;
+    for (let i = 0; i < 4; i++) {                    // Google asks to slow down now and then: wait and retry
+      r = await fetch(PEOPLE + path, { method: method || 'GET', headers: { Authorization: 'Bearer ' + t, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+      if (r.status !== 429 && r.status < 500) break;
+      await new Promise(res => setTimeout(res, 1500 * (i + 1)));
+    }
+    if (r.status === 401) { localStorage.removeItem(TK); throw new AuthError(); }
+    if (!r.ok) {
+      let msg = r.status + ' ' + r.statusText; try { const j = await r.json(); msg = (j.error && j.error.message) || msg; } catch { }
+      const e = new Error('Google Contacts: ' + msg); e.status = r.status; if (r.status === 403 && /scope|permission|disabled|not been used/i.test(msg)) e.name = 'ContactsDenied'; throw e;
+    }
+    return r.status === 204 ? null : r.json();
+  }
+
+  window.RCRDrive = { hosted, base, root, signIn, signOut, user, wasSignedIn, signedIn: () => !!token(), minutesLeft, AuthError, hasGmail, gmail, hasCal, gcal, hasContacts, people };
 })();
