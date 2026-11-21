@@ -3,4 +3,4 @@
 Web app for Rapid Computer Repair (repair tickets, customers, invoices).
 Shop data is not stored here: it stays in the owner's Google Drive and is only reachable after Google sign-in.
 
-Built 20261121-085124 from the files in Google Drive (Claude Projects/RCR). Do not edit these files here - edit the originals and run build-site.ps1.
+Built 20261121-124919 from the files in Google Drive (Claude Projects/RCR). Do not edit these files here - edit the originals and run build-site.ps1.
