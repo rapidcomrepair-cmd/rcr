@@ -269,6 +269,35 @@
     setInterval(checkUpdate, 10 * 60e3);
   }
 
+  // Office copies opened straight from Drive (file://) never refresh on their own, so a tab left open since the morning
+  // keeps running the morning's version. Each published page carries <meta name="rcr-src"> = when its source file was
+  // last changed; if that is newer than this file was when the tab loaded it (document.lastModified), offer to reload.
+  if (location.protocol === 'file:') {
+    const page = /Invoice(%20| )Form/i.test(location.pathname) ? 'invoice' : /RCR(%20| )Dashboard/i.test(location.pathname) ? 'dashboard' : '';
+    const loaded = Date.parse(document.lastModified) || Date.now();
+    let shown = false;
+    const checkLocal = async () => {
+      if (!page || shown || document.visibilityState !== 'visible' || !navigator.onLine) return;
+      try {
+        const t = await (await fetch('https://rapidcomrepair-cmd.github.io/rcr/' + page + '/?update-check=' + Date.now(), { cache: 'no-store' })).text();
+        const m = t.match(/<meta name="rcr-src" content="(\d+)"/);
+        if (m && +m[1] > loaded + 60e3) { shown = true; showLocal(); }
+      } catch { }
+    };
+    const showLocal = () => {
+      const b = document.createElement('div'); b.className = 'noprint';
+      b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:10px;z-index:90;background:#1d5fd1;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;display:flex;gap:12px;align-items:center;font:600 14px/1.3 Segoe UI,system-ui,Arial,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:94vw';
+      b.innerHTML = '<span>🔄 A newer version of this page is ready<br><small style="font-weight:400;opacity:.85">Save what you\'re working on, then reload. If this shows again, Google Drive is still syncing — try in a minute.</small></span><button style="font:inherit;border:0;border-radius:8px;padding:8px 14px;background:#fff;color:#1d5fd1;cursor:pointer;white-space:nowrap">Reload</button><button title="Later" style="font:inherit;border:0;background:none;color:#fff;cursor:pointer;font-size:18px">×</button>';
+      const [go, later] = b.querySelectorAll('button');
+      go.onclick = () => location.reload();
+      later.onclick = () => { b.remove(); setTimeout(() => { shown = false; }, 30 * 60e3); };   // ask again in 30 min
+      document.body.appendChild(b);
+    };
+    document.addEventListener('visibilitychange', checkLocal);
+    window.addEventListener('load', () => setTimeout(checkLocal, 4000));
+    setInterval(checkLocal, 10 * 60e3);
+  }
+
   /* ---------- Gmail (read-only, opt-in): used by the dashboard's "Check Gmail" for Amazon / eBay order emails ---------- */
   const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me/';
   const hasGmail = () => /gmail\.readonly/.test(localStorage.getItem('rcr-gscope') || '');
