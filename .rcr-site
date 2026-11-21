@@ -1,12 +1,12 @@
 Built by Claude Projects\RCR\Web App\build-site.ps1 - this folder is cleared and rebuilt on every build.
-source|RCR Dashboard/RCR Dashboard.html|2026-11-20T15:09:55Z|29142ee0ecebb55081e2a0daf79fb583f373779e56f015671a9cce8b5bb8f857
-source|Invoice Form/Invoice Form - Rapid Computer Repair.html|2026-11-20T01:36:22Z|eeb253c5ddc9075fd1b5361808e2ad426e16a73375019719a17c6d05ed7311ef
-source|shared/rcr-drive.js|2026-11-20T15:08:17Z|8750ae86cdff16ddd18ff63877b5ac418904d1a357f942e31d75e6e40fd2e361
-source|Web App/index.html|2026-11-20T15:08:16Z|f7d22879ef5dc34b63d8c968a9ac180df3c0a33dcb4b042940d445d302f4aed0
-source|Web App/privacy.html|2026-11-20T15:11:59Z|b2448ae8c507ed5d7fce5893d710a8207160d46751579c5bb049fe1135ea2c9b
+source|RCR Dashboard/RCR Dashboard.html|2026-11-21T02:04:22Z|e1cae38d70ebe2974dcda12bfd624936c86217372264d98ece295464374c7cb4
+source|Invoice Form/Invoice Form - Rapid Computer Repair.html|2026-11-20T01:36:23Z|eeb253c5ddc9075fd1b5361808e2ad426e16a73375019719a17c6d05ed7311ef
+source|shared/rcr-drive.js|2026-11-20T15:08:24Z|8750ae86cdff16ddd18ff63877b5ac418904d1a357f942e31d75e6e40fd2e361
+source|Web App/index.html|2026-11-20T15:08:23Z|f7d22879ef5dc34b63d8c968a9ac180df3c0a33dcb4b042940d445d302f4aed0
+source|Web App/privacy.html|2026-11-20T15:12:09Z|b2448ae8c507ed5d7fce5893d710a8207160d46751579c5bb049fe1135ea2c9b
 source|Web App/manifest.webmanifest|2026-11-19T15:58:17Z|d4a3deb8bb534a230546790c03ba44256f922042788658753c0c25a113b8dce0
-source|Web App/sw.js|2026-11-20T02:46:57Z|eec133fe1d1589ebd9c8218a69fda532e82aac19893236e6666b41bd04f7c5e6
-source|Web App/icons/icon-180.png|2026-11-19T15:58:35Z|6d16c863446d16024db962bc86c22c6a12ba7087ed1a33989b442924019c8e9e
-source|Web App/icons/icon-192.png|2026-11-19T15:58:35Z|9e0ac170b4b23ab86c0bee6bba06ffb478b4fabe97e35674580412433dba7651
-source|Web App/icons/icon-512.png|2026-11-19T15:58:35Z|0d2d86eecee9fa3c0d1f2c6e6f3d095f9b0f137d93f28d7b8f07eda787d97e74
-source|Web App/icons/icon-maskable-512.png|2026-11-19T15:58:35Z|5274f93b6a0b0d6930f8a0e8dce84b25347cd96007944e27d9ca8444dcde09ba
+source|Web App/sw.js|2026-11-20T02:46:53Z|eec133fe1d1589ebd9c8218a69fda532e82aac19893236e6666b41bd04f7c5e6
+source|Web App/icons/icon-180.png|2026-11-19T15:58:44Z|6d16c863446d16024db962bc86c22c6a12ba7087ed1a33989b442924019c8e9e
+source|Web App/icons/icon-192.png|2026-11-19T15:58:44Z|9e0ac170b4b23ab86c0bee6bba06ffb478b4fabe97e35674580412433dba7651
+source|Web App/icons/icon-512.png|2026-11-19T15:58:44Z|0d2d86eecee9fa3c0d1f2c6e6f3d095f9b0f137d93f28d7b8f07eda787d97e74
+source|Web App/icons/icon-maskable-512.png|2026-11-19T15:58:44Z|5274f93b6a0b0d6930f8a0e8dce84b25347cd96007944e27d9ca8444dcde09ba

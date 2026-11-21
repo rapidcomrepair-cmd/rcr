@@ -25,6 +25,16 @@
   nav a .ct.hot { background:var(--bad); color:#fff; }
   nav a.on .ct { background:rgba(255,255,255,.25); }
   nav .sep { height:1px; background:#26314a; margin:10px 6px; }
+  nav .navgrp { font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#7f8bab; margin:12px 10px 4px; }
+  nav .navgrp:first-child { margin-top:2px; }
+  details.cfold { margin-bottom:14px; }
+  details.cfold > summary.bh { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:12px 14px; font-size:14px; }
+  details.cfold[open] > summary.bh { margin-bottom:12px; }
+  .card.fc > h3 { cursor:pointer; }
+  .card.fc > h3::after { content:'▾'; margin-left:8px; color:var(--mut); font-weight:400; }
+  .card.fc.folded > h3::after { content:'▸'; }
+  .card.fc.folded > :not(h3) { display:none !important; }
+  .card.fc.folded > h3 { margin-bottom:0; }
   .side-foot { margin-top:auto; font-size:11px; color:#8f9ab0; padding:8px; }
   main { min-width:0; }
   .top { position:sticky; top:0; z-index:5; background:rgba(242,244,248,.94); backdrop-filter:blur(6px); display:flex; align-items:center; gap:12px; padding:12px 22px; border-bottom:1px solid var(--line); }
@@ -163,6 +173,15 @@
   @media (max-width:900px) { .tk { grid-template-columns:1fr; } .f.three { grid-template-columns:1fr 1fr; } }
   .box { border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:12px; }
   .box > .bh { font-weight:700; font-size:13px; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+  /* sections that fold to one line (tap the heading); on a phone some start folded */
+  details.fold > summary.bh { font-weight:700; font-size:13px; display:flex; align-items:center; gap:8px; cursor:pointer; list-style:none; margin-bottom:8px; }
+  details.fold > summary.bh::-webkit-details-marker { display:none; }
+  details.fold:not([open]) > summary.bh { margin-bottom:0; }
+  details.fold > summary.bh::after { content:'▾'; margin-left:auto; color:var(--mut); font-weight:400; }
+  details.fold:not([open]) > summary.bh::after { content:'▸'; }
+  details.fold > summary .sum { display:none; }
+  details.fold:not([open]) > summary .sum { display:block; font-weight:400; color:var(--mut); font-size:12.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fmore { display:none; }
   .box > .bh .r { margin-left:auto; }
   .ret { background:#f0f6ff; border:1px solid #cfe0fb; border-radius:8px; padding:8px 10px; font-size:12.5px; margin-top:8px; }
   .ret[hidden] { display:none; }
@@ -272,7 +291,7 @@
   /* phone */
   .btn.menu, #scrim, #tabbar { display:none; }
   .tc .mv { display:none; margin-left:4px; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:6px; padding:0 9px; font-size:15px; line-height:22px; cursor:pointer; }
-  @media (pointer:coarse), (max-width:760px) { .tc .mv { display:inline-block; } }
+  @media (pointer:coarse), (max-width:760px) { .tc .mv { display:inline-block; padding:5px 13px; font-size:17px; } }
   .quick { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; } .quick:empty { display:none; }
   .inrow { display:flex; gap:5px; } .inrow input { flex:1; min-width:0; }
   .photos { display:grid; grid-template-columns:repeat(auto-fill, minmax(78px, 1fr)); gap:6px; }
@@ -353,7 +372,26 @@
     #toasts { bottom:calc(92px + env(safe-area-inset-bottom)); }
     .sigs { grid-template-columns:1fr; }
     body[data-view=tickets] .top .search, body[data-view=leads] .top .search { display:none; }
-    .mbox { overflow-x:hidden; }                                       /* windows never slide sideways */
+    .mbox { overflow-x:hidden; overflow-x:clip; }                      /* windows never slide sideways; "clip" (unlike "hidden") keeps the title and button bar pinned */
+    .mbox > footer .fm { display:none; }                                /* ticket window: Save · Pickup · ⋯ More (the rest is in ⋯) */
+    .mbox > footer .fmore { display:inline-flex; }
+    .mbox > footer:has(.fmore) { flex-wrap:nowrap; }
+    .mbox > footer:has(.fmore) .btn { flex:1 1 0; justify-content:center; padding:11px 6px; white-space:nowrap; }
+    .mbox > footer:has(.fmore) .grow { display:none; }
+    /* cleanup 2026-11-20: compact number boxes (3 across), finger-size small buttons, one search box, no desk-only tools */
+    .content .grid.kpis { grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; margin-bottom:10px; }
+    .content .kpi { padding:8px 9px; border-radius:10px; }
+    .content .kpi .l { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .content .kpi .v { font-size:19px; line-height:1.2; }
+    .content .kpi .s { font-size:10.5px; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .btn.sm { padding:7px 11px; min-height:34px; font-size:13px; }
+    .chipbtn { padding:8px 13px; }
+    .seg.pseg { display:grid; grid-template-columns:repeat(4, 1fr); width:100%; }
+    .seg.pseg button { padding:9px 2px; font-size:13px; }
+    body[data-view=customers] .top .search { display:none; }
+    .toolbar input[type=search] { flex:1 1 100%; min-width:0 !important; }
+    .tablewrap > table.t td.zero { display:none; }
+    .desk-only { display:none !important; }
     .mbody .grid.kpis { grid-template-columns:repeat(2, minmax(0, 1fr)) !important; gap:8px; }
     .mbody .kpi .v { font-size:22px; overflow-wrap:anywhere; }
     .mbody .kpi .tag { white-space:normal; display:inline-block; line-height:1.3; }
@@ -386,7 +424,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261120-091204">
+<meta name="rcr-build" content="20261120-202756">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -784,7 +822,8 @@ function navHTML() {
     lateOrders = DB.orders.filter(o => !['received', 'cancelled'].includes(o.status)).length;
   const ct = { tickets: open, follow: fu, inventory: low, calendar: tdAppts, orders: lateOrders, quotes: (DB.quotes || []).filter(q => q.status === 'open').length };
   const hot = { follow: fu > 0, inventory: low > 0 };
-  return Object.entries(VIEWS).map(([k, [ic, l]], i) => (k === 'follow' || k === 'tools' ? '<div class="sep"></div>' : '') +
+  const GROUP = { home: 'Work', money: 'Money', follow: 'Shop', tools: 'Tools' };      // small headings that split the menu into groups
+  return Object.entries(VIEWS).map(([k, [ic, l]], i) => (GROUP[k] ? `<div class="navgrp">${GROUP[k]}</div>` : '') +
     `<a class="${k === view ? 'on' : ''}" onclick="go('${k}')" title="Shortcut: ${(i + 1) % 10}">${ic} ${l}${ct[k] ? `<span class="ct ${hot[k] ? 'hot' : ''}">${ct[k]}</span>` : ''}</a>`).join('');
 }
 const TOUCH = () => matchMedia('(pointer:coarse)').matches || matchMedia('(max-width:760px)').matches;
@@ -844,6 +883,25 @@ function render() {
   document.documentElement.style.setProperty('--toph', $('.top').offsetHeight + 'px');
   if (view === 'tools') toolsInit();
   $$('.dstrip .on').forEach(el => el.scrollIntoView({ inline: 'center', block: 'nearest' }));   // keep the picked chip in sight
+  phoneFolds();
+}
+// Phone only: long reference cards start folded to their heading (tap the heading to open; remembered until the app is closed).
+const PHONE_FOLD = {
+  settings: ['Folders inside RCR', 'Shop', 'Message templates', 'Printed check-in ticket', 'Backup'],
+  tools: ['Windows commands', 'Mac commands', 'Data transfer time', 'Subnet calculator', 'Password generator', 'BIOS & boot menu keys'],
+  profit: ['Where the expenses go', 'Parts bought from', 'Profit by job type', 'Part costs still blank', 'Needs Review'] };
+const PHONE_HIDE = { settings: ['Shortcuts'] };                 // keyboard shortcuts mean nothing on a phone
+function phoneFolds() {
+  if (!PHONE_W.matches) return;
+  for (const c of $$('#main .card')) {
+    const h = c.querySelector(':scope > h3'); if (!h) continue;
+    const name = h.textContent.trim();
+    if ((PHONE_HIDE[view] || []).some(n => name.includes(n))) { c.style.display = 'none'; continue; }
+    if (!(PHONE_FOLD[view] || []).some(n => name.includes(n))) continue;
+    const k = view + ':' + name.slice(0, 40);
+    c.classList.add('fc'); c.classList.toggle('folded', !(ui.unfold || {})[k]);
+    h.onclick = e => { if (e.target.closest('button,a,input,select,label')) return; c.classList.toggle('folded'); (ui.unfold = ui.unfold || {})[k] = !c.classList.contains('folded'); };
+  }
 }
 function softRender() {              // re-render unless the user is typing on the page
   const a = document.activeElement;
@@ -1134,16 +1192,18 @@ function editTicket(id, pre) {
   if (!t) return; tmp = t; modalDirty = false;
   const opt = (arr, v) => arr.map(x => { const [val, lab] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(val)}" ${val === v ? 'selected' : ''}>${esc(lab)}</option>`; }).join('');
   const accOther = (t.accessories || []).filter(a => !ACCESSORIES.includes(a)).join(', ');
+  // On a phone, an existing ticket opens with the less-used sections folded to one line (tap to open). Check-in and the computer show everything.
+  const op = id && PHONE_W.matches ? '' : 'open', sumOf = a => `<span class="sum">${esc(a.filter(Boolean).join(' · '))}</span>`;
   const body = `<form id="tf" class="tk" oninput="modalDirty=true" onsubmit="return false">
    <div>
-    <div class="box" oninput="cquick()"><div class="bh">👤 Customer</div>
+    <div class="box" oninput="cquick()"><details class="fold" ${op}><summary class="bh">👤 Customer ${sumOf([t.name, fmtPhone(t.phone || '')])}</summary>
       <div class="f"><label>Name *<input name="name" list="custList" value="${esc(t.name || '')}" oninput="custLookup()" onchange="custFill()" required></label>
       <label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="(817) 555-1234" value="${esc(fmtPhone(t.phone || ''))}" oninput="custLookup()"></label>
       <label>Email<input name="email" type="email" value="${esc(t.email || '')}"></label>
-      <label>Address (on-site jobs)<input name="addr" value="${esc(t.addr || '')}"></label></div>
+      <label>Address (on-site jobs)<input name="addr" value="${esc(t.addr || '')}"></label></div></details>
       <div id="cquick" class="quick"></div>
       <div id="ret" class="ret" hidden></div></div>
-    <div class="box" oninput="wl()"><div class="bh">💻 Device</div>
+    <details class="box fold" oninput="wl()" ${op}><summary class="bh">💻 Device ${sumOf([devName(t), t.serial ? 'SN ' + t.serial : '', (t.accessories || []).length ? 'left: ' + t.accessories.join(', ') : ''])}</summary>
       <div class="f three"><label>Type<select name="devType">${opt(S().devTypes, t.devType)}</select></label>
       <label>Make<input name="make" value="${esc(t.make || '')}" list="makes"></label><label>Model<input name="model" value="${esc(t.model || '')}"></label>
       <label>Serial / service tag<span class="inrow"><input name="serial" value="${esc(t.serial || '')}"><button class="btn sm" type="button" title="Scan the barcode / QR code on the label with the camera" onclick="scanInto($('#tf').serial)">📷</button></span></label>
@@ -1153,13 +1213,13 @@ function editTicket(id, pre) {
         <input name="accOther" class="inp" style="width:170px;padding:3px 7px" placeholder="Other…" value="${esc(accOther)}"></div></div></div>
       <div id="shist" class="ret" hidden></div>
       <div id="wlinks" class="small" style="margin-top:8px;line-height:1.8"></div>
-      <datalist id="makes">${['Dell', 'HP', 'Lenovo', 'Apple', 'ASUS', 'Acer', 'MSI', 'Microsoft', 'Samsung', 'Razer', 'Gigabyte', 'Toshiba', 'LG', 'Alienware', 'Custom'].map(x => `<option value="${x}">`).join('')}</datalist></div>
+      <datalist id="makes">${['Dell', 'HP', 'Lenovo', 'Apple', 'ASUS', 'Acer', 'MSI', 'Microsoft', 'Samsung', 'Razer', 'Gigabyte', 'Toshiba', 'LG', 'Alienware', 'Custom'].map(x => `<option value="${x}">`).join('')}</datalist></details>
     <div class="box"><div class="bh">📷 Photos <span class="r muted small" id="phcount"></span></div>
       <div id="tphotos" class="photos"></div>
       <div class="row" style="margin-top:8px"><label class="btn sm">📷 Take photo<input type="file" accept="image/*" capture="environment" hidden onchange="addPhotos(this)"></label>
         <label class="btn sm">🖼 Add from library<input type="file" accept="image/*" multiple hidden onchange="addPhotos(this)"></label>
         <span class="muted small">Condition on arrival, damage, serial label… Saved to Drive with the ticket.</span></div></div>
-    <div class="box"><div class="bh">✍️ Customer signatures</div><div id="tsigs" class="sigs"></div></div>
+    <details class="box fold" ${op}><summary class="bh">✍️ Customer signatures ${sumOf([t.sigIn ? 'drop-off ✓' : 'no drop-off signature', t.sigOut ? 'pickup ✓' : ''])}</summary><div id="tsigs" class="sigs"></div></details>
     <div class="box"><div class="bh">🛠️ Job</div>
       <div class="f"><label class="full">Problem (what the customer says) *<textarea name="issue">${esc(t.issue || '')}</textarea></label>
       <label class="full">Diagnosis / work done<textarea name="diag">${esc(t.diag || '')}</textarea></label></div>
@@ -1181,15 +1241,15 @@ function editTicket(id, pre) {
       <button class="btn sm" type="button" onclick="useEstimate()" title="Set the estimate to the parts + labor total">= Estimate</button></div>
       <div class="row" style="margin-top:6px"><select class="inp" style="width:auto;max-width:100%" onchange="tLabor(this)"><option value="">＋ Labor from price sheet…</option>${PRICING().labor.map((l, i) => `<option value="${i}">${esc(l.job)} — ${money0(l.price)}</option>`).join('')}</select></div>
       <div class="muted small" style="margin-top:4px">Type a part's cost and its price fills in from your price sheet. Parts picked from inventory are taken out of stock when you save.</div></div>
-    <div class="box"><div class="bh">🩺 Diagnostics checklist <span class="r muted small" id="chksum"></span></div>
+    <details class="box fold" ${op}><summary class="bh">🩺 Diagnostics checklist <span class="r muted small" id="chksum"></span></summary>
       <div class="small muted" style="margin-bottom:6px">Click to mark: ✓ works → ✗ problem → N/A → not tested</div><div id="tchecks" class="chips"></div>
       <div class="f three" style="margin-top:10px"><label>Battery health %<input name="battHealth" inputmode="numeric" value="${esc(t.battHealth || '')}" placeholder="e.g. 78"></label>
       <label>Drive health<input name="driveHealth" value="${esc(t.driveHealth || '')}" placeholder="Good · 96% · 3 bad sectors"></label>
-      <label>Temps (idle / load)<input name="temps" value="${esc(t.temps || '')}" placeholder="45° / 88°C"></label></div></div>
+      <label>Temps (idle / load)<input name="temps" value="${esc(t.temps || '')}" placeholder="45° / 88°C"></label></div></details>
     <div class="box"><div class="bh">📝 Notes</div><div id="tnotes"></div>
       <div class="row" style="margin-top:6px"><textarea class="inp" id="nadd" rows="2" placeholder="Add a note (called customer, found bad SSD…)" style="flex:1"></textarea><button class="btn sm" type="button" onclick="addNote()">Add</button></div></div>
-    <div class="box"><div class="bh">🕓 History</div><div class="small">${(t.history || []).length ? [...t.history].reverse().map(h => `<div>${fmtTs(h.t)} — ${ST[h.s]?.l || h.s}</div>`).join('') : 'New ticket'}
-      ${t.created && id ? `<div class="muted">Created ${fmtTs(t.created)}</div>` : ''}${t.invno ? invLinkFor(t.invno) : ''}</div></div>
+    <details class="box fold" ${op}><summary class="bh">🕓 History ${sumOf([(t.history || []).length ? `${ST[t.history[t.history.length - 1].s]?.l || ''} ${fmtTs(t.history[t.history.length - 1].t)}` : ''])}</summary><div class="small">${(t.history || []).length ? [...t.history].reverse().map(h => `<div>${fmtTs(h.t)} — ${ST[h.s]?.l || h.s}</div>`).join('') : 'New ticket'}
+      ${t.created && id ? `<div class="muted">Created ${fmtTs(t.created)}</div>` : ''}${t.invno ? invLinkFor(t.invno) : ''}</div></details>
    </div></form>
    <div id="msgpanel" class="box" hidden style="margin-top:4px"><div class="bh">💬 Message customer <span class="r"><button class="btn sm" type="button" onclick="$('#msgpanel').hidden=true">Close</button></span></div>
      <div class="row"><div class="seg" id="msgseg">${MSG_TYPES.map(([k, l]) => `<button type="button" data-k="${k}" onclick="showMsg('${k}')">${l}</button>`).join('')}</div><span class="small" id="msgto"></span></div>
@@ -1197,16 +1257,19 @@ function editTicket(id, pre) {
      <label class="fl" style="margin-top:6px">Message (you can edit it)<textarea class="inp" id="msgbody" rows="4" style="overflow-x:hidden;resize:vertical"></textarea></label>
      <div class="row" style="margin-top:8px"><button class="btn pri" type="button" onclick="sendMsg('email')">✉ Email</button><button class="btn" type="button" onclick="sendMsg('text')">📱 Text</button><button class="btn" type="button" onclick="sendMsg('copy')">📋 Copy</button>
      <span class="small muted">Email opens a ready-to-send message in your email program. Each message is noted on the ticket.</span></div></div>`;
+  // On a phone only Save, Pickup and "⋯ More" show; the buttons marked "fm" move into the ⋯ sheet (footMore).
   const foot = `<button class="btn pri" onclick="saveTicket()">${id ? 'Save' : 'Check in'}</button>
-    <button class="btn" onclick="saveTicket(true)">${id ? 'Save' : 'Check in'} & print ticket</button>
+    <button class="btn fm" onclick="saveTicket(true)">${id ? 'Save' : 'Check in'} & print ticket</button>
     ${id && OPEN.includes(t.status) ? `<button class="btn ok" onclick="pickupFlow('${t.id}')">📦 Pickup</button>` : ''}
-    ${id ? `<button class="btn" onclick="printClaim('${t.id}')">🖨 Print</button><button class="btn" onclick="showMsg()">💬 Message customer</button><button class="btn" onclick="openInvoice('${t.id}')" title="${t.invno ? 'Opens this ticket\'s invoice in the Invoice Form (to mark it paid, reprint…)' : 'Opens the Invoice Form with this ticket\'s customer, device, work and parts filled in'}">${invoiceBtnLabel(t)}</button>
-    <button class="btn" onclick="editAppt(null,{ticketId:'${t.id}',name:${js(t.name || '')},phone:${js(t.phone || '')},type:'Pickup'})">📅 Schedule</button>
-    <button class="btn" onclick="editOrder(null,{ticketId:'${t.id}'})">🚚 Order part</button>
-    <span class="grow"></span><button class="btn danger" onclick="delTicket('${t.id}')">Delete</button>` : ''}`;
+    ${id ? `<button class="btn fm" onclick="printClaim('${t.id}')">🖨 Print</button><button class="btn fm" onclick="showMsg()">💬 Message customer</button><button class="btn fm" onclick="openInvoice('${t.id}')" title="${t.invno ? 'Opens this ticket\'s invoice in the Invoice Form (to mark it paid, reprint…)' : 'Opens the Invoice Form with this ticket\'s customer, device, work and parts filled in'}">${invoiceBtnLabel(t)}</button>
+    <button class="btn fm" onclick="editAppt(null,{ticketId:'${t.id}',name:${js(t.name || '')},phone:${js(t.phone || '')},type:'Pickup'})">📅 Schedule</button>
+    <button class="btn fm" onclick="editOrder(null,{ticketId:'${t.id}'})">🚚 Order part</button>
+    <span class="grow"></span><button class="btn danger fm" onclick="delTicket('${t.id}')">Delete</button>` : ''}
+    <button class="btn fmore" onclick="footMore()">⋯ More</button>`;
   modal(id ? `Ticket #${t.no} · ${badge(t.status)}` : 'New repair ticket — check in', body, foot, true);
   drawParts(); drawNotes(); custLookup(); drawChecks(); wl(); cquick(); drawPhotos(); drawSigs(); drawTimer();
 }
+function footMore() { sheet('More', $$('.mbox > footer .fm').map(b => [b.innerHTML, () => b.click()])); }
 /* ---- ⏱ labor timer: t.timeLog = [{s, e}], t.timerStart while running; total goes to the invoice's Time field ---- */
 const timeMins = t => Math.round((t.timeLog || []).reduce((s, x) => s + (Date.parse(x.e) - Date.parse(x.s)), 0) / 6e4 + (t.timerStart ? (Date.now() - Date.parse(t.timerStart)) / 6e4 : 0));
 const fmtMins = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} hr${m >= 120 ? 's' : ''}${m % 60 ? ' ' + (m % 60) + ' min' : ''}`;
@@ -1313,32 +1376,39 @@ async function addPhotos(input) {
   const files = [...input.files]; input.value = '';
   for (const f of files) {
     try {
-      const blob = await shrinkImage(f, 1600, 0.82), d = new Date(), p2 = n => String(n).padStart(2, '0');
+      // 1280 px is plenty to show damage or a serial label (about 250–350 KB instead of 450–820 KB at 1600 px),
+      // plus a 240 px thumbnail (~15 KB) so a ticket's photo squares load fast; the full photo loads only when tapped
+      const blob = await shrinkImage(f, 1280, 0.78), thumb = await shrinkImage(f, 240, 0.7), d = new Date(), p2 = n => String(n).padStart(2, '0');
       const name = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}.${p2(d.getMinutes())}.${p2(d.getSeconds())} ${Math.random().toString(36).slice(2, 5)}.jpg`;
-      await idb.set('photo:' + name, blob);
-      (tmp.photos = tmp.photos || []).push({ f: name, t: nowISO(), pending: true });
-      photoURL.set(name, URL.createObjectURL(blob));
+      const th = name.replace(/\.jpg$/, ' thumb.jpg');
+      await idb.set('photo:' + name, blob); await idb.set('photo:' + th, thumb);
+      (tmp.photos = tmp.photos || []).push({ f: name, th, t: nowISO(), pending: true });
+      photoURL.set(name, URL.createObjectURL(blob)); photoURL.set(th, URL.createObjectURL(thumb));
     } catch (e) { toast('Could not add that photo: ' + e.message, 'err'); }
   }
   modalDirty = true; drawPhotos();
 }
 const photoDir = (t, create) => getDir(folder, `${S().dataPath}/Photos/Ticket ${t.no}`, create);
-async function photoSrc(t, p) {
-  if (photoURL.has(p.f)) return photoURL.get(p.f);
-  let blob = await idb.get('photo:' + p.f).catch(() => null);
+// thumb = true: the small thumbnail if the photo has one (photos taken before 2026-11-20 don't; they use the full photo)
+async function photoSrc(t, p, thumb) {
+  const name = thumb && p.th ? p.th : p.f;
+  if (photoURL.has(name)) return photoURL.get(name);
+  let blob = await idb.get('photo:' + name).catch(() => null);
   if (!blob && folder && folderOK && t.no) {
-    const f = await (await (await photoDir(t, false)).getFileHandle(p.f)).getFile();
+    let f;
+    try { f = await (await (await photoDir(t, false)).getFileHandle(name)).getFile(); }
+    catch (e) { if (name !== p.f && e.name !== 'AuthError') return photoSrc(t, p, false); throw e; }   // thumbnail missing on Drive: use the full photo
     blob = f instanceof Blob ? f : await f.blob();         // a real File on the computer, a Drive file object in the web app
   }
   if (!blob) return null;
-  const u = URL.createObjectURL(blob); photoURL.set(p.f, u); return u;
+  const u = URL.createObjectURL(blob); photoURL.set(name, u); return u;
 }
 function drawPhotos() {
   const el = $('#tphotos'); if (!el || !tmp) return; const ps = tmp.photos || [];
   $('#phcount').textContent = ps.length ? plural(ps.length, 'photo') : '';
   el.innerHTML = ps.length ? ps.map((p, i) => `<div class="ph" onclick="viewPhoto(${i})" data-f="${esc(p.f)}">…${p.pending ? '<span class="up" title="Uploads to Drive when the ticket is saved">⏳</span>' : ''}</div>`).join('') : '<div class="muted small" style="grid-column:1/-1">No photos yet.</div>';
   const t = tmp;
-  ps.forEach(p => photoSrc(t, p).then(u => { const d = el.querySelector(`[data-f="${CSS.escape(p.f)}"]`); if (d) { if (u) d.innerHTML = `<img src="${u}" alt="">` + (p.pending ? '<span class="up">⏳</span>' : ''); else d.textContent = 'On another device'; } })
+  ps.forEach(p => photoSrc(t, p, true).then(u => { const d = el.querySelector(`[data-f="${CSS.escape(p.f)}"]`); if (d) { if (u) d.innerHTML = `<img src="${u}" alt="">` + (p.pending ? '<span class="up">⏳</span>' : ''); else d.textContent = 'On another device'; } })
     .catch(() => { const d = el.querySelector(`[data-f="${CSS.escape(p.f)}"]`); if (d) d.textContent = 'Not found'; }));
 }
 function viewPhoto(i) {
@@ -1357,7 +1427,10 @@ async function uploadPhotos() {       // send photos taken on this device to Dri
       const d = await photoDir(t, true); let changed = false;
       for (const p of t.photos.filter(p => p.pending)) {
         const blob = await idb.get('photo:' + p.f);
-        if (blob) { await writeBlob(d, p.f, blob); await idb.del('photo:' + p.f); }
+        if (blob) {
+          if (p.th) { const tb = await idb.get('photo:' + p.th); if (tb) await writeBlob(d, p.th, tb); }   // the small thumbnail first, so other devices show it quickly
+          await writeBlob(d, p.f, blob); await idb.del('photo:' + p.f); if (p.th) await idb.del('photo:' + p.th);
+        }
         else { try { await d.getFileHandle(p.f); } catch { continue; } }   // taken on another device and not uploaded yet
         delete p.pending; changed = true;
       }
@@ -1625,17 +1698,18 @@ function vHomePhone() {
     ${kpi('Ready for pickup', cnt('ready'), stale ? `${stale} waiting ${S().staleDays}+ days` : 'none waiting long', "ui.tMode='list';ui.tFilter='ready';go('tickets')", cnt('ready') ? 'good' : '')}
     ${kpi('Waiting', cnt('approval') + cnt('parts'), `${cnt('approval')} approval · ${cnt('parts')} parts`, "go('follow')", cnt('approval') + cnt('parts') ? 'warn' : '')}
     ${kpi('Past promised', late.length, late.length ? 'needs attention' : 'all on time', "go('follow')", late.length ? 'alert' : '')}
-    ${kpi('Today', `${inDay} in / ${outDay} out`, 'checked in / picked up', "go('tickets')")}
-    ${kpi('This week', `${inWk} in / ${outWk} out`, 'checked in / picked up', "go('tickets')")}
+    ${kpi('Today', `${inDay} / ${outDay}`, 'in / out', "go('tickets')")}
+    ${kpi('This week', `${inWk} / ${outWk}`, 'in / out', "go('tickets')")}
   </div>
   <div class="card" style="margin-bottom:12px"><h3>🛠️ Work queue <span class="r"><button class="btn sm" onclick="go('tickets')">Board →</button></span></h3>
-    ${queue.slice(0, 10).map(row).join('') || '<div class="empty">Nothing to work on — all caught up 🎉</div>'}
-    ${queue.length > 10 ? `<div style="margin-top:8px"><button class="btn sm" onclick="ui.tMode='list';ui.tFilter='open';go('tickets')">All ${queue.length} in the queue →</button></div>` : ''}</div>
+    ${queue.slice(0, 5).map(row).join('') || '<div class="empty">Nothing to work on — all caught up 🎉</div>'}
+    ${queue.length > 5 ? `<div style="margin-top:8px"><button class="btn sm" onclick="ui.tMode='list';ui.tFilter='open';go('tickets')">See all ${queue.length} in the queue →</button></div>` : ''}</div>
   ${ready.length ? `<div class="card" style="margin-bottom:12px"><h3>📦 Ready for pickup <span class="r muted small">oldest first</span></h3>${ready.slice(0, 8).map(row).join('')}</div>` : ''}
   <div class="card" style="margin-bottom:12px"><h3>Open tickets by status</h3>
     ${open.length ? hbars(OPEN.map(k => ({ l: ST[k].l, v: cnt(k), k, click: `ui.tMode='list';ui.tFilter='${k}';go('tickets')` })), null, i => ST[i.k].c) : '<div class="empty">No open tickets. Tap ＋ Add › Check in when a device comes in.</div>'}</div>
   <div class="card" style="margin-bottom:12px"><h3>🔔 Needs attention <span class="r"><button class="btn sm" onclick="go('follow')">All →</button></span></h3>
-    ${fu.slice(0, 6).map(liHTML).join('') || '<div class="empty">All caught up 🎉</div>'}</div>
+    ${fu.slice(0, 3).map(liHTML).join('') || '<div class="empty">All caught up 🎉</div>'}
+    ${fu.length > 3 ? `<div style="margin-top:8px"><button class="btn sm" onclick="go('follow')">See all ${fu.length} →</button></div>` : ''}</div>
   <div class="card" style="margin-bottom:12px"><h3>📅 Next 7 days <span class="r"><button class="btn sm" onclick="editAppt()">+ Add</button></span></h3>
     ${appts.map(a => `<div class="li"><div class="ic">${apptIcon(a.type)}</div><div class="tx"><b>${a.date === td ? 'Today' : fmtDs(a.date)} ${fmtT(a.time)}</b> · ${esc(a.type)}<div class="s">${esc(a.name || '')} ${a.phone ? '· ' + esc(fmtPhone(a.phone)) : ''}</div></div><div class="ac"><button class="btn sm" onclick="editAppt('${a.id}')">Edit</button></div></div>`).join('') || '<div class="empty">Nothing scheduled.</div>'}</div>
   <div class="card"><h3>✅ To-do</h3>${tasksHTML(6)}</div>`;
@@ -1734,7 +1808,7 @@ function vLeads() {
     </div>
     <div class="toolbar"><input type="search" class="inp" style="flex:1;min-width:180px" placeholder="Search name, phone, email…" value="${esc(ui.lq || '')}" oninput="ui.lq=this.value;$('#llist').innerHTML=leadsBody()">
       <div class="seg">${[['30', '30 days'], ['90', '90 days'], ['365', '12 months'], ['all', 'All']].map(([k, l]) => `<button class="${per === k ? 'on' : ''}" onclick="ui.lPer='${k}';render()">${l}</button>`).join('')}</div>
-      <label class="btn sm" title="In Wix: Contacts › ⋯ › Export › CSV, then pick the file here. Only new people are added.">⬆ Import Wix CSV<input type="file" accept=".csv,text/csv" hidden onchange="leadImport(this)"></label></div>
+      <label class="btn sm desk-only" title="In Wix: Contacts › ⋯ › Export › CSV, then pick the file here. Only new people are added.">⬆ Import Wix CSV<input type="file" accept=".csv,text/csv" hidden onchange="leadImport(this)"></label></div>
     <div class="dstrip chips-row">${[['open', 'To follow up'], ['new', 'New'], ['contacted', 'Contacted'], ['won', 'Customers'], ['lost', 'Not interested'], ['spam', 'Spam'], ['all', 'All']].map(([k, l]) => `<button class="chipbtn ${f === k ? 'on' : ''}" onclick="ui.lSt='${k}';render()">${k !== 'open' && k !== 'all' ? `<span class="dot" style="background:${LST[k].c}"></span>` : ''}${l} <b>${rows.filter(x => inPer(x) && okSt(x, k)).length}</b></button>`).join('')}</div>
     <div id="llist">${leadsBody()}</div>`;
 }
@@ -1745,7 +1819,7 @@ function leadsBody() {
   if (q) list = list.filter(x => [x.l.name, x.l.email, x.l.notes].join(' ').toLowerCase().includes(q) || (qd.length >= 3 && digits(x.l.phone).includes(qd)));
   list.sort((a, b) => (b.l.created || '').localeCompare(a.l.created || ''));
   if (!list.length) return `<div class="card empty">${q ? 'No leads match.' : 'Nothing here for this time range.'}</div>`;
-  const lim = ui.lLimit || 60;
+  const lim = ui.lLimit || (PHONE_W.matches ? 20 : 60);                 // a phone shows 20 at a time
   return list.slice(0, lim).map(({ l, s, a }) => { const p = digits(l.phone).slice(-10), c = s === 'won' ? leadCust(l) : null;
     return `<div class="lead" style="border-left-color:${LST[s].c}">
       <div class="lh"><b>${esc(l.name || l.email || fmtPhone(l.phone) || 'No name')}</b> <span class="badge" style="background:${LST[s].c}">${LST[s].l}</span>
@@ -1755,7 +1829,7 @@ function leadsBody() {
       ${l.notes ? `<div class="note">${esc(l.notes)}</div>` : ''}
       <div class="acts">${p.length === 10 ? `<a class="btn sm" href="tel:${p}" onclick="leadTouch('${l.id}','Called')">📞 Call</a><a class="btn sm" href="sms:+1${p}?body=${encodeURIComponent(fillLead(S().msgLead, l))}" onclick="leadTouch('${l.id}','Texted')">💬 Text</a>` : ''}${l.email ? `<a class="btn sm" href="mailto:${encodeURIComponent(l.email)}?subject=${encodeURIComponent('Following up on your request — Rapid Computer Repair')}&body=${encodeURIComponent(fillLead(S().msgLead, l) + sig())}" onclick="leadTouch('${l.id}','Emailed')">✉ Email</a>` : ''}
         ${s !== 'won' ? `<button class="btn sm ok" onclick="leadCheckin('${l.id}')">＋ Check in</button>` : ''}<button class="btn sm" onclick="leadMenu('${l.id}')">⋯</button></div></div>`; }).join('') +
-    (list.length > lim ? `<p><button class="btn" onclick="ui.lLimit=${lim + 100};$('#llist').innerHTML=leadsBody()">Show more (${list.length - lim} left)</button></p>` : '');
+    (list.length > lim ? `<p><button class="btn" onclick="ui.lLimit=${lim + (PHONE_W.matches ? 20 : 100)};$('#llist').innerHTML=leadsBody()">Show more (${list.length - lim} left)</button></p>` : '');
 }
 function leadTouch(id, how) {                 // a call / text / email counts as contact
   const l = (DB.leads || []).find(x => x.id === id); if (!l) return;
@@ -1813,7 +1887,7 @@ async function leadImport(input) {
 
 function vCustomers() {
   const cs = customers();
-  return `<div class="toolbar"><input type="search" placeholder="Search name, phone, email, device…" value="${esc(ui.cq)}" oninput="ui.cq=this.value;ui.cLimit=100;$('#clist').innerHTML=custBody()">
+  return `<div class="toolbar"><input type="search" placeholder="Search name, phone, email, device…" value="${esc(ui.cq)}" oninput="ui.cq=this.value;ui.cLimit=100;ui.cLimitP=0;$('#clist').innerHTML=custBody()">
     <select onchange="ui.cSort=this.value;$('#clist').innerHTML=custBody()">${[['last', 'Most recent visit'], ['spent', 'Total spent'], ['visits', 'Most visits'], ['name', 'Name A–Z'], ['unpaid', 'Owes money']].map(([v, l]) => `<option value="${v}" ${ui.cSort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <span class="muted">${cs.length} customers · ${cs.filter(c => c.visits > 1).length} repeat</span></div><div id="clist">${custBody()}</div>`;
 }
@@ -1824,11 +1898,12 @@ function custBody() {
   const sorters = { last: (a, b) => b.last - a.last, spent: (a, b) => b.spent - a.spent, visits: (a, b) => b.visits - a.visits || b.last - a.last, name: (a, b) => a.name.localeCompare(b.name), unpaid: (a, b) => b.unpaid - a.unpaid };
   list.sort(sorters[ui.cSort]);
   if (!list.length) return `<div class="card empty">${customers().length ? 'No customers match.' : 'Customers appear here from your invoices and tickets.'}</div>`;
+  const lim = PHONE_W.matches ? (ui.cLimitP || 30) : ui.cLimit;          // a phone shows 30 at a time
   return `<div class="tablewrap"><table class="t"><tr><th>Customer</th><th>Phone</th><th class="num">Visits</th><th class="num">Total spent</th><th>Last visit</th><th>Last job</th><th></th></tr>
-   ${list.slice(0, ui.cLimit).map(c => `<tr class="click" onclick="custModal(${js(c.key)})"><td style="white-space:nowrap">${nameCell(c)}</td><td style="white-space:nowrap">${esc(c.phone)}</td><td class="num" data-l="visits">${c.visits}</td><td class="num" data-l="spent">${money0(c.spent)}</td>
-   <td data-l="last">${c.last ? new Date(c.last).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</td><td class="small">${esc(c.inv[0]?.job || (c.tix[0] ? devName(c.tix[0]) : ''))}</td>
+   ${list.slice(0, lim).map(c => `<tr class="click" onclick="custModal(${js(c.key)})"><td style="white-space:nowrap">${nameCell(c)}</td><td style="white-space:nowrap">${esc(c.phone)}</td><td class="num" data-l="${c.visits === 1 ? 'visit' : 'visits'}">${c.visits}</td><td class="num ${c.spent ? '' : 'zero'}" data-l="spent">${money0(c.spent)}</td>
+   <td data-l="last visit">${c.last ? new Date(c.last).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</td><td class="small">${esc(c.inv[0]?.job || (c.tix[0] ? devName(c.tix[0]) : ''))}</td>
    <td>${warranty(c)} ${c.unpaid ? `<span class="tag red">Owes ${money0(c.unpaid)}</span>` : ''} ${c.tix.some(t => OPEN.includes(t.status)) ? '<span class="tag blue">Open ticket</span>' : ''}</td></tr>`).join('')}</table></div>
-   ${list.length > ui.cLimit ? `<p><button class="btn" onclick="ui.cLimit+=200;$('#clist').innerHTML=custBody()">Show more (${list.length - ui.cLimit} left)</button></p>` : ''}`;
+   ${list.length > lim ? `<p><button class="btn" onclick="${PHONE_W.matches ? 'ui.cLimitP=' + (lim + 30) : 'ui.cLimit+=200'};$('#clist').innerHTML=custBody()">Show more (${list.length - lim} left)</button></p>` : ''}`;
 }
 function custModal(key) {
   const c = customers().find(x => x.key === key); if (!c) return;
@@ -2477,7 +2552,8 @@ function vMoney() {
   const pay = {}; for (const e of rev.filter(e => e.status === 'paid')) pay[e.paidMethod || 'Unknown'] = (pay[e.paidMethod || 'Unknown'] || 0) + e.total;
   const flagged = INV.filter(e => e.flags.length).length;
   const periods = [['week', 'Week'], ['month', 'Month'], ['lastmonth', 'Last month'], ['quarter', 'Quarter'], ['year', 'Year'], ['lastyear', 'Last year'], ['l12', '12 months'], ['all', 'All']];
-  return `<div class="toolbar"><div class="seg">${periods.map(([k, l]) => `<button class="${ui.period === k ? 'on' : ''}" onclick="ui.period='${k}';render()">${l}</button>`).join('')}</div>
+  const chartsOpen = ui.mCharts ?? !PHONE_W.matches;      // on a phone the charts start folded, so the invoice list is near the top
+  return `<div class="toolbar"><div class="seg pseg">${periods.map(([k, l]) => `<button class="${ui.period === k ? 'on' : ''}" onclick="ui.period='${k}';render()">${l}</button>`).join('')}</div>
     <span class="muted">${P.label}${P.a > 0 ? ' · ' + new Date(P.a).toLocaleDateString() + ' – ' + (P.b === Infinity ? 'today' : new Date(P.b - 1).toLocaleDateString()) : ''}</span></div>
   <div class="grid kpis">
     ${kpi('Sales', money0(total), ui.period !== 'all' && prevTot ? `<span class="${total >= prevTot ? 'up' : 'down'}">${total >= prevTot ? '▲' : '▼'} ${Math.abs(Math.round((total - prevTot) / prevTot * 100))}%</span> vs previous ${money0(prevTot)}` : '', '')}
@@ -2487,6 +2563,7 @@ function vMoney() {
     ${kpi('Parts', money0(kinds.Parts || 0), total ? Math.round((kinds.Parts || 0) / total * 100) + '% of sales' : '', '')}
     ${kpi('Unpaid', money0(sum(unpaid, e => e.total)), plural(unpaid.length, 'invoice'), "ui.iStatus='unpaid';$('#ilist').innerHTML=invBody()", unpaid.length ? 'alert' : '')}
   </div>
+  <details class="fold cfold" ${chartsOpen ? 'open' : ''} ontoggle="ui.mCharts=this.open"><summary class="bh">📊 Charts <span class="sum">sales by month & weekday, job types, top customers, brands, payment methods</span></summary>
   <div class="grid c2" style="margin-bottom:14px"><div class="card"><h3>Sales by month <span class="r small muted">last 24 months</span></h3>${barChart(monthly(24))}</div>
     <div class="card"><h3>Sales by weekday</h3>${hbars(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((l, i) => ({ l, v: wd[i] })), money0)}
       <h3 style="margin-top:14px">Where the money comes from</h3>${hbars(Object.entries(kinds).sort((a, b) => b[1] - a[1]).map(([l, v]) => ({ l, v })), money0)}</div></div>
@@ -2495,7 +2572,7 @@ function vMoney() {
     <div class="card"><h3>Top customers</h3>${hbars(Object.values(tops).sort((a, b) => b.v - a.v).slice(0, 10).map(t => ({ ...t, click: `custModal(${js(t.k)})` })), money0, () => '#9333ea')}</div>
     <div class="card"><h3>Brands repaired</h3>${hbars(Object.entries(brands).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([l, v]) => ({ l, v })), (v) => v + ' jobs', () => '#16a34a')}
       ${Object.keys(pay).length ? `<h3 style="margin-top:14px">Payment methods <span class="r small muted">paid invoices only</span></h3>${hbars(Object.entries(pay).map(([l, v]) => ({ l, v })), money0, () => '#d97706')}` : ''}</div>
-  </div>
+  </div></details>
   <div class="toolbar"><b>Invoices in this period</b><input type="search" placeholder="Search number, name, job…" value="${esc(ui.iq)}" oninput="ui.iq=this.value;$('#ilist').innerHTML=invBody()">
     <select onchange="ui.iStatus=this.value;$('#ilist').innerHTML=invBody()">${[['', 'All'], ['unpaid', 'Unpaid'], ['paid', 'Paid'], ['quote', 'Quotes'], ['untracked', 'Payment not tracked'], ['flag', '⚠ Problems']].map(([v, l]) => `<option value="${v}" ${ui.iStatus === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <button class="btn sm" onclick="ppStart()" title="Match PayPal payments you received to unpaid invoices">📥 Import PayPal</button>
@@ -2508,10 +2585,11 @@ function invBody() {
   if (q) list = list.filter(e => [e.invno, nameFor(e), e.phone, e.job, e.make, e.model, e.date].join(' ').toLowerCase().includes(q));
   if (ui.iStatus === 'untracked') list = list.filter(e => !e.status); else if (ui.iStatus === 'flag') list = list.filter(e => e.flags.length); else if (ui.iStatus) list = list.filter(e => e.status === ui.iStatus);
   if (!list.length) return '<div class="card empty">No invoices match.</div>';
+  const iLim = PHONE_W.matches ? (ui.iLimitP || 30) : ui.iLimit;          // a phone shows 30 at a time
   return `<div class="tablewrap"><table class="t"><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Job</th><th class="num">Total</th><th>Status</th></tr>
-    ${list.slice(0, ui.iLimit).map(e => `<tr class="click" onclick="invModal(${js(e.id)})"><td><b>${esc(e.invno || '—')}</b>${e.flags.length ? ' <span title="' + esc(e.flags.join('; ')) + '">⚠</span>' : ''}</td><td>${esc(e.date)}</td><td>${esc(nameFor(e))}<div class="muted small">${esc(fmtPhone(e.phone))}</div></td><td>${esc(e.job)}</td><td class="num">${money(e.total)}</td><td style="white-space:nowrap">${invStatus(e)} ${e.status === 'unpaid' ? payBtn(e) : ''}</td></tr>`).join('')}
+    ${list.slice(0, iLim).map(e => `<tr class="click" onclick="invModal(${js(e.id)})"><td><b>${esc(e.invno || '—')}</b>${e.flags.length ? ' <span title="' + esc(e.flags.join('; ')) + '">⚠</span>' : ''}</td><td>${esc(e.date)}</td><td>${esc(nameFor(e))}<div class="muted small">${esc(fmtPhone(e.phone))}</div></td><td>${esc(e.job)}</td><td class="num">${money(e.total)}</td><td style="white-space:nowrap">${invStatus(e)} ${e.status === 'unpaid' ? payBtn(e) : ''}</td></tr>`).join('')}
     <tr><td colspan="4"><b>${plural(list.length, 'invoice')}</b>${q ? ' (all dates)' : ''}</td><td class="num"><b>${money(sum(list.filter(isRev), e => e.total))}</b></td><td></td></tr></table></div>
-    ${list.length > ui.iLimit ? `<p><button class="btn" onclick="ui.iLimit+=200;$('#ilist').innerHTML=invBody()">Show more (${list.length - ui.iLimit} left)</button></p>` : ''}`;
+    ${list.length > iLim ? `<p><button class="btn" onclick="${PHONE_W.matches ? 'ui.iLimitP=' + (iLim + 30) : 'ui.iLimit+=200'};$('#ilist').innerHTML=invBody()">Show more (${list.length - iLim} left)</button></p>` : ''}`;
 }
 
 /* ============ DAILY CLOSE: what came in, what went out, money collected (by method), tomorrow ============ */
