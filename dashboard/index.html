@@ -424,7 +424,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261121-130535">
+<meta name="rcr-build" content="20261123-121715">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -432,7 +432,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="RCR Shop">
 <meta name="robots" content="noindex">
-<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(function () {});</script><meta name="rcr-src" content="1795287140279">
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(function () {});</script><meta name="rcr-src" content="1795457806926">
 </head>
 <body>
 <div id="app">
@@ -1185,7 +1185,7 @@ function ticketsBody() {
     const done = list.filter(t => !OPEN.includes(t.status)).length;
     return `<div class="board">${OPEN.map(k => { const col = list.filter(t => t.status === k).sort(prioSort);
       return `<div class="col" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="dropOn(event,'${k}')">
-        <header><span class="dot" style="background:${ST[k].c}"></span>${ST[k].l}<span class="n">${col.length}</span></header>${col.map(tCard).join('') || `<div class="empty small">${TOUCH() ? 'No tickets' : 'Drag tickets here'}</div>`}</div>`; }).join('')}</div>
+        <header><span class="dot" style="background:${ST[k].c}"></span>${ST[k].l}<span class="n">${col.length}</span></header>${col.map(t => tCard(t)).join('') || `<div class="empty small">${TOUCH() ? 'No tickets' : 'Drag tickets here'}</div>`}</div>`; }).join('')}</div>
       <p class="muted small">${done ? `${plural(done, 'closed ticket')} not shown on the board — <a href="#" onclick="ui.tMode='list';ui.tFilter='all';render();return false">see all in the list</a>.` : ''} ${TOUCH() ? 'Swipe sideways for more columns · tap ⋯ on a card to move it.' : 'Drag a card to change its status.'}</p>`;
   }
   const rows = list.filter(t => ui.tFilter === 'all' ? true : ui.tFilter === 'open' ? OPEN.includes(t.status) : t.status === ui.tFilter);
