@@ -424,7 +424,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261126-143257">
+<meta name="rcr-build" content="20261126-152511">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -432,7 +432,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="RCR Shop">
 <meta name="robots" content="noindex">
-<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(function () {});</script><meta name="rcr-src" content="1795725113234">
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(function () {});</script><meta name="rcr-src" content="1795728166623">
 </head>
 <body>
 <div id="app">
@@ -546,6 +546,8 @@ const DEF = {
   msgApproval: 'Hi {first}, this is Rapid Computer Repair about your {device} (ticket #{no}). {diag} The estimate is {estimate}. Please reply or call {shopPhone} to approve the repair.',
   msgReminder: 'Hi {first}, a friendly reminder from Rapid Computer Repair: your {device} (ticket #{no}) is still ready for pickup. Call {shopPhone} with any questions.',
   msgReview: 'Hi {first}, thank you for choosing Rapid Computer Repair! If you have a minute, a Google review would really help our small business: {review}',
+  msgAppt: 'Hi {first}, this is a reminder from Rapid Computer Repair about your {type} appointment {when}.{addrLine} If you need to change it, call or text {shopPhone}. See you then!',
+  robot: { brief: true, appt: true, review: true, reviewDays: 3 },   // 🤖 RCR Helper switches (the Google script reads them)
 };
 const CATS = [
   ['Liquid damage', /liquid|spill|water|coffee|oil|soda|wet/i], ['Screen / display', /screen|lcd|display|digitizer|panel|backlight/i],
@@ -661,6 +663,7 @@ async function pullFromFolder() {           // read the Drive copy and merge it 
     persistLocal();
     if (needWrite) await writeText(d, DATA_FILE, mainJSON(DB));
     await syncLeads(d, true);
+    try { await syncRobot(d); } catch (e) { console.warn('RCR Helper log', e); }
     await weeklyBackup(d);
     setSync('saved');
     if (JSON.stringify(DB) !== before) { softRender(); gcalSoon(); }
@@ -873,7 +876,19 @@ function tabHold() {
   bar.addEventListener('click', e => { if (held) { e.stopPropagation(); e.preventDefault(); held = false; } }, true);
   bar.addEventListener('contextmenu', e => e.preventDefault());
 }
+// Links in the ☀️ morning brief: …/dashboard/#msg=<ticketId>.<template> opens that ticket's message panel ("." alone = just the ticket).
+// Kept in sessionStorage so it survives a Google sign-in on the way, and tried again after each render until the ticket has loaded.
+function takeGoto() {
+  const m = location.hash.match(/^#msg=([\w-]+)\.(\w*)$/);
+  if (m) { sessionStorage.setItem('rcr-goto', m[1] + '.' + m[2]); history.replaceState(null, '', location.pathname + location.search + '#home'); }
+}
+function tryGoto() {
+  const g = sessionStorage.getItem('rcr-goto'); if (!g) return;
+  const [id, k] = g.split('.'); if (!DB.tickets.some(t => t.id === id)) return;
+  sessionStorage.removeItem('rcr-goto'); setTimeout(() => k && MSG_TYPES.some(x => x[0] === k) ? msgOpen(id, k) : editTicket(id), 50);
+}
 function render() {
+  takeGoto();
   view = location.hash.slice(1); if (!VIEWS[view]) view = 'home';
   document.body.classList.remove('navopen'); document.body.dataset.view = view;
   $('#nav').innerHTML = navHTML(); $('#title').textContent = VIEWS[view][1]; $('#tabbar').innerHTML = tabbarHTML();
@@ -884,6 +899,7 @@ function render() {
   if (view === 'tools') toolsInit();
   $$('.dstrip .on').forEach(el => el.scrollIntoView({ inline: 'center', block: 'nearest' }));   // keep the picked chip in sight
   phoneFolds();
+  tryGoto();
 }
 // Phone only: long reference cards start folded to their heading (tap the heading to open; remembered until the app is closed).
 const PHONE_FOLD = {
@@ -1037,7 +1053,7 @@ function followItems() {
     if (t.status === 'approval') { const d = daysSince((t.history || []).slice(-1)[0]?.t || t.created); if (d >= 1) out.push({ sev: 2, ic: '☎️', grp: 'Waiting on customer approval', tx: `#${t.no} ${t.name} — ${dev}`, s: `Waiting ${plural(d, 'day')} · estimate ${t.estimate ? money(t.estimate) : 'not set'} · ${esc(fmtPhone(t.phone))}`, ac: `<button class="btn sm" onclick="msgOpen('${t.id}','msgApproval')">💬 Ask approval</button><button class="btn sm" onclick="setStatus('${t.id}','repair')">Approved</button>` }); }
     if (OPEN.includes(t.status) && t.status !== 'ready' && t.due && t.due < td) out.push({ sev: 3, ic: '⏰', grp: 'Past promised date', tx: `#${t.no} ${t.name} — ${dev}`, s: `Promised ${fmtD(t.due)} (${plural(dayDiff(t.due, td), 'day')} late) · ${ST[t.status].l}`, ac: `<button class="btn sm" onclick="editTicket('${t.id}')">Open</button>` });
     if (t.status === 'done' && !t.invno && t.pickedUp && daysSince(t.pickedUp) <= 30) out.push({ sev: 2, ic: '🧾', grp: 'Picked up — no invoice yet', tx: `#${t.no} ${t.name} — ${dev}`, s: `Picked up ${fmtTs(t.pickedUp)}${t.estimate ? ' · estimate ' + money(t.estimate) : ''}`, ac: `<button class="btn sm" onclick="openInvoice('${t.id}')">🧾 Make invoice</button><button class="btn sm" onclick="editTicket('${t.id}')">Open</button>` });
-    if (t.status === 'done' && !t.reviewAsked && t.pickedUp && daysSince(t.pickedUp) <= 21) out.push({ sev: 0, ic: '⭐', grp: 'Ask for a Google review', tx: `#${t.no} ${t.name} — ${dev}`, s: `Picked up ${fmtTs(t.pickedUp)}`, ac: `<button class="btn sm" onclick="msgOpen('${t.id}','msgReview')">💬 Ask for review</button><button class="btn sm" onclick="reviewAsked('${t.id}')">Mark asked</button>` });
+    if (t.status === 'done' && !t.reviewAsked && !t.noReview && t.pickedUp && daysSince(t.pickedUp) <= 21) out.push({ sev: 0, ic: '⭐', grp: 'Ask for a Google review', tx: `#${t.no} ${t.name} — ${dev}`, s: `Picked up ${fmtTs(t.pickedUp)}${robotReview(t)}`, ac: `<button class="btn sm" onclick="msgOpen('${t.id}','msgReview')">💬 Ask for review</button><button class="btn sm" onclick="reviewAsked('${t.id}')">Mark asked</button><button class="btn sm" onclick="noReview('${t.id}')" title="Never send this customer a review request for this repair">🚫 Don't ask</button>` });
   }
   for (const o of DB.orders) if (!['received', 'cancelled'].includes(o.status) && o.eta && o.eta < td) out.push({ sev: 2, ic: '🚚', grp: 'Parts orders past ETA', tx: `${o.part}${o.supplier ? ' from ' + o.supplier : ''}`, s: `ETA ${fmtD(o.eta)}${o.tracking ? ' · tracking ' + o.tracking : ''}${o.ticketId ? ' · ' + ticketRef(o.ticketId) : ''}`, ac: `<button class="btn sm" onclick="orderStatus('${o.id}','received')">Received</button><button class="btn sm" onclick="editOrder('${o.id}')">Edit</button>` });
   for (const e of INV) if (e.status === 'unpaid' && isRev(e)) { const d = Math.floor((Date.now() - e.t) / 864e5); if (d >= 3) out.push({ sev: d > 14 ? 3 : 2, ic: '💵', grp: 'Unpaid invoices', tx: `Invoice ${e.invno || '(no #)'} — ${e.name} — ${money(e.total)}`, s: `${e.date} · ${plural(d, 'day')} ago · ${e.job}`, ac: `${payBtn(e)} <button class="btn sm" onclick="invModal(${js(e.id)})">View</button>` }); }
@@ -1101,6 +1117,13 @@ function msgSent(id, k, how) {
 }
 function msgTicket(id, which) { const t = DB.tickets.find(x => x.id === id); if (!t) return; copyText(fillMsg(S()[which], t), 'Message'); if (which === 'msgReminder') remindedTicket(id, true); if (which === 'msgReview') reviewAsked(id, true); }
 function remindedTicket(id, quiet) { const t = DB.tickets.find(x => x.id === id); t.lastReminder = nowISO(); (t.notes = t.notes || []).push({ t: nowISO(), x: 'Pickup reminder sent.' }); upsert('tickets', t); if (!quiet) toast('Marked as reminded'); softRender(); }
+function noReview(id) { const t = DB.tickets.find(x => x.id === id); t.noReview = true; (t.notes = t.notes || []).push({ t: nowISO(), x: '🚫 No review request for this repair.' }); upsert('tickets', t); toast('Won\'t ask for a review', '', [['Undo', () => { t.noReview = false; t.notes.pop(); upsert('tickets', t); softRender(); }]]); softRender(); }
+// " · 📧 RCR Helper emails it on Mon, Nov 30" when the helper will send this one by itself
+function robotReview(t) {
+  if (!ROBOT || ROBOT.none || !RB().review || !S().reviewLink || !custEmail(t.name, t.phone, t.id)) return '';
+  const pd = ymd(t.pickedUp); if (pd < ymd(ROBOT.startedAt || 0)) return '';
+  const on = addDays(pd, RB().reviewDays); return on > today() ? ` · 📧 RCR Helper emails it ${fmtD(on)}` : ' · 📧 RCR Helper emails it today (from 10 AM)';
+}
 function reviewAsked(id, quiet) { const t = DB.tickets.find(x => x.id === id); t.reviewAsked = nowISO(); upsert('tickets', t); if (!quiet) toast('Marked as asked'); softRender(); }
 // "💵 Did they pay?" — asked whenever a ticket is moved to Picked Up outside the pickup checklist (ticket window's Status
 // dropdown + Save, dragging a board card). go() carries on with the change; Cancel leaves the ticket as it was.
@@ -2949,7 +2972,7 @@ function vCalendarPhone() {
       <div class="tm" onclick="editAppt('${a.id}')">${a.time ? `<b>${fmtT(a.time).replace(/\s?[AP]M$/i, '')}</b><span>${(fmtT(a.time).match(/[AP]M$/i) || [''])[0]}</span>` : '<b style="font-size:13px">Any</b><span>time</span>'}</div>
       <div class="bd" onclick="editAppt('${a.id}')"><div class="ty">${apptIcon(a.type)} ${esc(a.type)}${t ? ` · <span class="muted">#${t.no}</span>` : ''}</div>
         <div class="nm">${esc(a.name || 'No name')}</div>
-        ${a.addr ? `<div class="ad">📍 ${esc(a.addr)}</div>` : ''}${a.notes ? `<div class="nt">${esc(a.notes)}</div>` : ''}</div>
+        ${a.addr ? `<div class="ad">📍 ${esc(a.addr)}</div>` : ''}${a.notes ? `<div class="nt">${esc(a.notes)}</div>` : ''}${apptMail(a) ? `<div class="nt">${apptMail(a).replace(/^ · /, '')}</div>` : ''}</div>
       <button class="ok" title="${a.done ? 'Mark not done' : 'Mark done'}" onclick="apptDone('${a.id}')">${a.done ? '✓' : ''}</button>
       <div class="acts">${p.length >= 10 ? `<a class="btn sm" href="tel:${p}">📞 Call</a><a class="btn sm" href="sms:${p}">💬 Text</a>` : ''}${a.addr ? `<a class="btn sm" target="_blank" rel="noopener" href="https://maps.google.com/?q=${encodeURIComponent(a.addr)}">📍 Directions</a>` : ''}${t ? `<button class="btn sm" onclick="editTicket('${t.id}')">🛠️ Ticket</button>` : ''}</div></div>`; };
   return `<div class="row" style="margin-bottom:10px"><button class="btn pri" onclick="editAppt(null${ui.aDay ? `,{date:'${ui.aDay}'}` : ''})">+ New appointment</button>${calBtn()}<span class="grow"></span>
@@ -2970,7 +2993,7 @@ function vCalendar() {
    ${Object.keys(days).length ? Object.entries(days).map(([d, as]) => `<div class="sec-h">${d === td ? 'Today — ' : d < td ? '<span class="down">Missed / past</span> — ' : ''}${parseYMD(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
      <div class="card" style="padding:4px 14px">${as.map(a => `<div class="li ${a.done ? 'done' : ''}"><input type="checkbox" ${a.done ? 'checked' : ''} onchange="apptDone('${a.id}')" title="Done" style="margin-top:4px"><div class="ic">${apptIcon(a.type)}</div>
        <div class="tx"><b>${fmtT(a.time) || 'Any time'}</b> · ${esc(a.type)} · ${esc(a.name || '')} ${a.phone ? `· <a href="tel:${digits(a.phone)}">${esc(fmtPhone(a.phone))}</a>` : ''}
-       <div class="s">${a.addr ? `<a target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(a.addr)}">📍 ${esc(a.addr)}</a> · ` : ''}${esc(a.notes || '')}${a.ticketId ? ' · ' + ticketRef(a.ticketId) : ''}</div></div>
+       <div class="s">${a.addr ? `<a target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(a.addr)}">📍 ${esc(a.addr)}</a> · ` : ''}${esc(a.notes || '')}${a.ticketId ? ' · ' + ticketRef(a.ticketId) : ''}${apptMail(a)}</div></div>
        <div class="ac">${a.ticketId ? `<button class="btn sm" onclick="editTicket('${a.ticketId}')">Ticket</button>` : ''}<button class="btn sm" onclick="editAppt('${a.id}')">Edit</button></div></div>`).join('')}</div>`).join('') : '<div class="card empty">No appointments. Add drop-offs, pickups, on-site visits and remote sessions here.</div>'}`;
 }
 function editAppt(id, pre) {
@@ -2981,6 +3004,7 @@ function editAppt(id, pre) {
     <label>Type<select name="type">${APPT_TYPES.map(t => `<option ${t === a.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
     <label>Ticket<select name="ticketId"><option value="">—</option>${DB.tickets.filter(t => OPEN.includes(t.status) || t.id === a.ticketId).sort((x, y) => y.no - x.no).map(t => `<option value="${t.id}" ${t.id === a.ticketId ? 'selected' : ''}>#${t.no} ${esc(t.name)} — ${esc(devName(t))}</option>`).join('')}</select></label>
     <label>Customer<input name="name" list="custList" value="${esc(a.name || '')}"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="(817) 555-1234" value="${esc(fmtPhone(a.phone || ''))}"></label>
+    <label class="full">Email <span class="muted">(for the reminder email the day before — filled in from the customer if left blank)</span><input name="email" type="email" inputmode="email" autocomplete="off" value="${esc(a.email || '')}"></label>
     <label class="full">Address (on-site)<select class="inp" onchange="if(this.value)this.form.addr.value=this.value" style="margin-bottom:4px"><option value="">Pick a shop address or type below…</option>${ADDRS.map(x => `<option>${x}</option>`).join('')}</select><input name="addr" value="${esc(a.addr || '')}"></label>
     <label class="full">Notes<textarea name="notes">${esc(a.notes || '')}</textarea></label></form>`,
     `<button class="btn pri" onclick="saveAppt('${a.id}')">Save</button>${id ? `<span class="grow"></span><button class="btn danger" onclick="if(confirm('Delete this appointment?')){removeRec('appts','${a.id}');closeModal(true);render()}">Delete</button>` : ''}`);
@@ -2988,10 +3012,61 @@ function editAppt(id, pre) {
 function saveAppt(id) {
   const d = formData($('#af')); if (!d.date) return toast('Pick a date.', 'err');
   if (d.ticketId && !d.name) { const t = DB.tickets.find(x => x.id === d.ticketId); d.name = t.name; d.phone = d.phone || t.phone; }
+  d.email = String(d.email || '').trim().toLowerCase() || custEmail(d.name, d.phone, d.ticketId);
   const a = DB.appts.find(x => x.id === id) || { id, done: false };
   upsert('appts', Object.assign(a, d, { phone: fmtPhone(d.phone) })); closeModal(true); render(); toast('Appointment saved');
 }
+const apptMail = a => a.reminded && a.date >= today() ? ` · <span class="up">📧 Reminder emailed ${fmtTs(a.reminded)}</span>` : a.email && !a.done && a.date > today() && RB().appt && ROBOT && !ROBOT.none ? ` · 📧 Reminder email the day before` : '';
 function apptDone(id) { const a = DB.appts.find(x => x.id === id); a.done = !a.done; upsert('appts', a); render(); }
+// The customer's email for an appointment or a ticket: the record's own, else the newest one known for that customer.
+function custEmail(name, phone, ticketId) {
+  const t = ticketId && DB.tickets.find(x => x.id === ticketId); if (t && t.email) return t.email;
+  const k = ckey(name || (t && t.name), phone || (t && t.phone)), c = customers().find(x => x.key === k);
+  return (c && c.email) || '';
+}
+
+/* ---- 🤖 RCR Helper: a Google Apps Script in the shop account ("Claude Projects/RCR/RCR Helper/Code.gs") runs every hour,
+   even when every app is closed. It reads the dashboard data and emails the ☀️ morning brief (to the shop), 📅 appointment
+   reminders the day before and ⭐ review requests N days after pickup (to customers with an email). It never changes the
+   dashboard data: it lists what it sent in RCR/Dashboard/_robot-log.json, and every device copies that onto the records here
+   (ticket.reviewAsked + a note, appt.reminded), so nobody is asked twice. Its switches live in S().robot. ---- */
+const ROBOT_FILE = '_robot-log.json';
+let ROBOT = null;                                     // the helper's log as last read ({none:true} = not installed)
+const RB = () => ({ ...DEF.robot, ...(S().robot || {}) });
+async function syncRobot(d) {
+  const t = await readText(d, ROBOT_FILE);
+  if (!t) { ROBOT = { none: true }; return; }
+  try { ROBOT = parseJSON(t); } catch { return; }
+  for (const v of Object.values(ROBOT.sent || {})) {
+    if (v.k === 'review') {
+      const tk = DB.tickets.find(x => x.id === v.ticketId); if (!tk || tk.reviewAsked) continue;
+      tk.reviewAsked = v.at; (tk.notes = tk.notes || []).push({ t: v.at, x: `⭐ Review request emailed to ${v.to} by the RCR Helper.` }); upsert('tickets', tk);
+    } else if (v.k === 'appt') {
+      const a = DB.appts.find(x => x.id === v.apptId); if (!a || (a.reminded || '') >= v.at) continue;
+      a.reminded = v.at; a.remindedTo = v.to; upsert('appts', a);
+    }
+  }
+}
+function robotCard() {
+  const r = RB(), L = ROBOT && !ROBOT.none ? ROBOT : null, last = L && L.lastRun ? fmtTs(L.lastRun) : '';
+  const stale = L && L.lastRun && Date.now() - Date.parse(L.lastRun) > 3 * 36e5;
+  const status = !folderOK || !ROBOT ? '' : !L ? '<span class="tag amber">Not installed yet</span> Its setup steps are in "Claude Projects › RCR › RCR Helper › SETUP.md".'
+    : L.lastError ? `<span class="tag amber">Problem</span> <span class="down">${esc(L.lastError)}</span> (${last})` : stale ? `<span class="tag amber">Last ran ${last}</span> It should run every hour.` : `<span class="tag green">Running</span> Last check ${last}.`;
+  const sent = L ? Object.values(L.sent || {}).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 5) : [];
+  const ck = (k, l) => `<label class="full small" style="display:flex;flex-direction:row;align-items:center;gap:8px;text-align:left"><input type="checkbox" name="${k}" ${r[k] ? 'checked' : ''} style="width:auto;margin:0;flex:none"> <span>${l}</span></label>`;
+  return `<div class="card"><h3>🤖 RCR Helper</h3>
+    <p class="small muted">A small Google script in the shop account that runs every hour, even when this app is closed. It only emails: your morning brief, and customers who have an email on file. It never sends after 8 PM, never sends the same thing twice, and skips anyone you already asked. The ones without an email are listed in the brief so you can text them.</p>
+    <p class="small">${status}</p>
+    <form class="f" onsubmit="return false" onchange="saveRobot(this)">
+      ${ck('brief', `☀️ Morning brief to ${esc(S().shopEmail)} at about 8 AM`)}${ck('appt', '📅 Appointment reminder emails the day before (from 10 AM)')}${ck('review', '⭐ Review request emails after pickup (from 10 AM)')}
+      <label>Review request, days after pickup<input name="reviewDays" type="number" min="1" max="14" inputmode="numeric" value="${esc(r.reviewDays)}"></label></form>
+    ${sent.length ? `<p class="small muted" style="margin-top:8px">Recently sent:<br>${sent.map(v => `${fmtTs(v.at)} · ${v.k === 'review' ? '⭐ review #' + esc(v.no) : '📅 reminder'} → ${esc(v.to)}`).join('<br>')}</p>` : ''}
+    <p class="small muted">The reminder wording is under 💬 Message templates (Appointment reminder); review requests use the Review request template.</p></div>`;
+}
+function saveRobot(f) {
+  saveSettings({ robot: { ...RB(), brief: f.brief.checked, appt: f.appt.checked, review: f.review.checked, reviewDays: Math.min(14, Math.max(1, Math.round(num(f.reviewDays.value)) || 3)) } });
+  toast('Saved — the helper uses it from its next hourly check');
+}
 
 /* ---- 📲 iPhone Calendar (web app): keeps an "RCR Appointments" Google Calendar in step with the appointments here.
    The iPhone shows it through the shop Google account (Settings › Calendar › Accounts). Event ids are made from the
@@ -3878,7 +3953,8 @@ function vSettings() {
     <label>Next ticket number<input name="nextTicket" type="number" value="${esc(s.nextTicket)}"></label><label>Pickup reminder after (days)<input name="staleDays" type="number" value="${esc(s.staleDays)}"></label></form></div>
   <div class="card"><h3>💬 Message templates</h3><p class="small muted">Used by the "Copy … text" buttons. Fill-ins: {first} {name} {device} {no} {estimate} {estimateLine} {total} {diag} {review} {shopPhone} {readyDate} {readyDays}</p>
     <form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')">
-    ${[...MSG_TYPES, ['msgLead', 'Website lead follow-up (Leads page)'], ['msgQuote', 'Price quote (Quotes) — fill-ins {forDevice} {lines} {total} {depositLine} {benchLine}']].map(([k, l]) => `<label class="full">${l}<textarea name="${k}" rows="2">${esc(s[k])}</textarea></label>`).join('')}</form></div>
+    ${[...MSG_TYPES, ['msgAppt', 'Appointment reminder (emailed the day before by the 🤖 RCR Helper) — fill-ins {first} {type} {when} {addrLine} {shopPhone}'], ['msgLead', 'Website lead follow-up (Leads page)'], ['msgQuote', 'Price quote (Quotes) — fill-ins {forDevice} {lines} {total} {depositLine} {benchLine}']].map(([k, l]) => `<label class="full">${l}<textarea name="${k}" rows="2">${esc(s[k])}</textarea></label>`).join('')}</form></div>
+  ${robotCard()}
   <div class="card"><h3>🧾 Printed check-in ticket terms</h3><p class="small muted">Printed on every repair ticket. These are a starting point — not reviewed by a lawyer.</p>
     <form class="f" onsubmit="return false" onchange="saveSettings(formData(this));toast('Saved')"><label class="full"><textarea name="terms" rows="8">${esc(s.terms)}</textarea></label></form></div>
   <div class="card"><h3>💾 Backup</h3><p class="small muted">${DB.tickets.length} tickets · ${DB.parts.length} parts · ${DB.orders.length} orders · ${DB.appts.length} appointments · ${DB.tasks.length} tasks${DB.savedAt ? ' · last change ' + fmtTs(DB.savedAt) : ''}</p>
