@@ -3,7 +3,7 @@
    ("stale-while-revalidate"). A new version shows up through the app's "🔄 Update now" bar, which loads the page
    with ?fresh=… — those requests always go to the network and replace the saved copy.
    Google sign-in and Google Drive requests are never touched. */
-const CACHE = 'rcr-shop-20261123-121715';                 // BUILD is replaced with a timestamp each time the site is published
+const CACHE = 'rcr-shop-20261126-143257';                 // BUILD is replaced with a timestamp each time the site is published
 const SHELL = ['./', 'dashboard/', 'invoice/', 'shared/rcr-drive.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => {
   // cache: 'reload' skips the browser's own HTTP cache (GitHub allows 10 minutes), so a new version really gets the new files

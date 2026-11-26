@@ -388,7 +388,7 @@
     .chipbtn { padding:8px 13px; }
     .seg.pseg { display:grid; grid-template-columns:repeat(4, 1fr); width:100%; }
     .seg.pseg button { padding:9px 2px; font-size:13px; }
-    body[data-view=customers] .top .search { display:none; }
+    body[data-view=customers] .top .search, body[data-view=quotes] .top .search { display:none; }
     .toolbar input[type=search] { flex:1 1 100%; min-width:0 !important; }
     .tablewrap > table.t td.zero { display:none; }
     .desk-only { display:none !important; }
@@ -424,7 +424,7 @@
   .pr-tag { border:2px solid #000; border-radius:8px; padding:10px 14px; display:flex; gap:20px; align-items:center; width:4.4in; }
   .pr-tag .big { font-size:34px; font-weight:800; }
 </style>
-<meta name="rcr-build" content="20261123-121715">
+<meta name="rcr-build" content="20261126-143257">
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="apple-touch-icon" href="../icons/icon-180.png">
 <meta name="theme-color" content="#121a2b">
@@ -432,7 +432,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="RCR Shop">
 <meta name="robots" content="noindex">
-<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(function () {});</script><meta name="rcr-src" content="1795457806926">
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(function () {});</script><meta name="rcr-src" content="1795725113234">
 </head>
 <body>
 <div id="app">
@@ -1043,7 +1043,9 @@ function followItems() {
   for (const e of INV) if (e.status === 'unpaid' && isRev(e)) { const d = Math.floor((Date.now() - e.t) / 864e5); if (d >= 3) out.push({ sev: d > 14 ? 3 : 2, ic: '💵', grp: 'Unpaid invoices', tx: `Invoice ${e.invno || '(no #)'} — ${e.name} — ${money(e.total)}`, s: `${e.date} · ${plural(d, 'day')} ago · ${e.job}`, ac: `${payBtn(e)} <button class="btn sm" onclick="invModal(${js(e.id)})">View</button>` }); }
   for (const p of DB.parts) if (num(p.qty) <= num(p.min) && !DB.orders.some(o => o.invId === p.id && !['received', 'cancelled'].includes(o.status))) out.push({ sev: 1, ic: '📉', grp: 'Low stock', tx: `${p.name}`, s: `${num(p.qty)} left (minimum ${num(p.min)})${p.supplier ? ' · ' + p.supplier : ''}`, ac: `<button class="btn sm" onclick="editOrder(null,{invId:'${p.id}',part:${js(p.name)},supplier:${js(p.supplier || '')},cost:${js(p.cost || '')},addToStock:true})">Order</button><button class="btn sm" onclick="ebaySearch(${js(partWords(p.name))})">🛒 eBay</button>` });
   for (const l of DB.leads || []) if (leadSt(l) === 'new' && leadAge(l) <= 7) { const p = digits(l.phone).slice(-10); out.push({ sev: 2, ic: '🎯', grp: 'New website leads', tx: `${l.name || l.email || fmtPhone(l.phone)}`, s: `Reached out ${leadAge(l) <= 0 ? 'today' : plural(leadAge(l), 'day') + ' ago'} · ${[fmtPhone(l.phone), l.email].filter(Boolean).join(' · ')}`, ac: `${p.length === 10 ? `<a class="btn sm" href="tel:${p}" onclick="leadTouch('${l.id}','Called')">📞 Call</a><a class="btn sm" href="sms:+1${p}?body=${encodeURIComponent(fillLead(S().msgLead, l))}" onclick="leadTouch('${l.id}','Texted')">💬 Text</a>` : ''}<button class="btn sm" onclick="go('leads')">Leads →</button>` }); }
-  for (const q of DB.quotes || []) { const d = daysSince(q.sentAt || q.created); if (q.status === 'open' && d >= 3 && d <= 30) out.push({ sev: 1, ic: '💲', grp: 'Quotes not booked in yet', tx: `${q.name || fmtPhone(q.phone) || 'No name'} — ${quoteDev(q) || 'quote'} — ${money(q.total)}`, s: `Quoted ${plural(d, 'day')} ago${q.lastFollow ? ' · followed up ' + fmtTs(q.lastFollow) : ''}`, ac: `${digits(q.phone).length >= 10 ? `<button class="btn sm" onclick="quoteSend('${q.id}','text',true)">💬 Follow up</button>` : ''}<button class="btn sm" onclick="quoteModal('${q.id}')">Open</button><button class="btn sm" onclick="quoteStatus('${q.id}','lost')">Not interested</button>` }); }
+  for (const q of DB.quotes || []) { const d = daysSince(q.created), p = digits(q.phone).replace(/^1(?=\d{10}$)/, '');      // 🌐 website requests nobody has answered yet
+    if (q.src === 'web' && q.status === 'open' && !q.sentAt && d <= 14) out.push({ sev: 3, ic: '🌐', grp: 'New quote requests from the website', tx: `${q.name || fmtPhone(q.phone) || q.email || 'No name'} — ${q.need || quoteDev(q) || 'quote request'}`, s: esc(`${d <= 0 ? 'Today' : plural(d, 'day') + ' ago'}${q.webPref ? ' · ' + q.webPref : ''}${q.issue ? ' · “' + q.issue.slice(0, 80) + (q.issue.length > 80 ? '…' : '') + '”' : ''}`), ac: `<button class="btn sm pri" onclick="quoteModal('${q.id}')">💲 Price it</button>${p.length === 10 ? `<a class="btn sm" href="tel:${p}">📞 Call</a><a class="btn sm" href="sms:${p}">💬 Text</a>` : ''}` }); }
+  for (const q of DB.quotes || []) { const d = daysSince(q.sentAt || q.created); if (q.status === 'open' && d >= 3 && d <= 30 && (q.sentAt || q.src !== 'web')) out.push({ sev: 1, ic: '💲', grp: 'Quotes not booked in yet', tx: `${q.name || fmtPhone(q.phone) || 'No name'} — ${quoteDev(q) || 'quote'} — ${money(q.total)}`, s: `Quoted ${plural(d, 'day')} ago${q.lastFollow ? ' · followed up ' + fmtTs(q.lastFollow) : ''}`, ac: `${digits(q.phone).length >= 10 ? `<button class="btn sm" onclick="quoteSend('${q.id}','text',true)">💬 Follow up</button>` : ''}<button class="btn sm" onclick="quoteModal('${q.id}')">Open</button><button class="btn sm" onclick="quoteStatus('${q.id}','lost')">Not interested</button>` }); }
   for (const a of DB.tasks) if (!a.done && a.due && a.due <= td) out.push({ sev: a.due < td ? 2 : 1, ic: '✅', grp: 'Tasks due', tx: a.text, s: a.due < td ? 'Due ' + fmtD(a.due) : 'Due today', ac: `<button class="btn sm" onclick="toggleTask('${a.id}')">Done</button>` });
   return out.sort((a, b) => b.sev - a.sev);
 }
@@ -2411,7 +2413,9 @@ function quoteModal(id, pre) {
   QT = saved ? JSON.parse(JSON.stringify(saved)) : { id: uid(), created: nowISO(), status: 'open', name: '', phone: '', email: '', make: '', model: '', issue: '', lines: [], ownPart: false, ...(pre || {}) };
   QT.showProfit = false;
   const P = PRICING();
-  modal(saved ? `💲 Quote · ${esc(QT.name || fmtPhone(QT.phone) || fmtD(QT.created.slice(0, 10)))}` : '💲 New quote', `<form id="qf" onsubmit="return false" autocomplete="off" oninput="qRead()">
+  const webBox = QT.src === 'web' ? `<div class="ret" style="margin-bottom:10px">🌐 <b>Quote request from the website</b> · ${esc(fmtTs(QT.created))}${QT.need ? ' · ' + esc(QT.need) : ''}${QT.webPref ? `<br><span class="small">${esc(QT.webPref)}</span>` : ''}
+      ${QT.issue ? `<div class="small" style="margin-top:4px;white-space:pre-wrap">“${esc(QT.issue)}”</div>` : ''}${(QT.lines || []).some(l => l.auto) ? '<div class="small muted" style="margin-top:4px">The labor line below was suggested from their message — check it, add the part, then send.</div>' : ''}</div>` : '';
+  modal(saved ? `💲 Quote · ${esc(QT.name || fmtPhone(QT.phone) || fmtD(QT.created.slice(0, 10)))}` : '💲 New quote', `${webBox}<form id="qf" onsubmit="return false" autocomplete="off" oninput="qRead()">
     <label class="fl" style="margin-bottom:8px">Customer<input name="name" class="inp" list="custList" value="${esc(QT.name)}" placeholder="Name (optional)" onchange="qCust()"></label>
     <div class="row2"><label>Phone<input name="phone" class="inp" type="tel" inputmode="tel" value="${esc(fmtPhone(QT.phone))}" placeholder="(817) 555-1234" onchange="qCust()"></label>
       <label>Email<input name="email" class="inp" type="email" value="${esc(QT.email || '')}" placeholder="optional"></label></div>
@@ -2546,7 +2550,7 @@ const QST = { open: ['Open', '#1d5fd1'], ticket: ['Became a ticket', '#16a34a'],
 function vQuotes() {
   const all = DB.quotes || [], f = ui.qSt || 'open';
   return `<div class="toolbar"><button class="btn pri" onclick="quoteModal()">＋ New quote</button><input type="search" class="inp" style="flex:1;min-width:160px" placeholder="Search name, phone, device…" value="${esc(ui.qq || '')}" oninput="ui.qq=this.value;$('#qlist').innerHTML=quotesBody()">
-      <button class="btn sm" onclick="loadPricing(true)" title="Read the price sheet again">⟳ Price sheet</button></div>
+      <button class="btn sm" onclick="loadPricing(true)" title="Read the price sheet again">⟳ Price sheet</button>${HOSTED ? `<button class="btn sm" onclick="wqCheck(false)" title="Look in the shop Gmail for new quote requests from rapidcomrepair.com/quote">🌐 Check website requests</button>` : ''}</div>
     <div class="dstrip chips-row">${[['open', 'Open'], ['ticket', 'Became a ticket'], ['lost', 'Not interested'], ['all', 'All']].map(([k, l]) => `<button class="chipbtn ${f === k ? 'on' : ''}" onclick="ui.qSt='${k}';render()">${k !== 'all' ? `<span class="dot" style="background:${QST[k][1]}"></span>` : ''}${l} <b>${all.filter(q => k === 'all' || q.status === k).length}</b></button>`).join('')}</div>
     <div id="qlist">${quotesBody()}</div>`;
 }
@@ -2557,12 +2561,106 @@ function quotesBody() {
   list.sort((a, b) => (b.created || '').localeCompare(a.created || ''));
   if (!list.length) return `<div class="card empty">${(DB.quotes || []).length ? 'No quotes here.' : 'No quotes yet. Tap <b>＋ New quote</b> (or ＋ Add › Price quote on the phone) to price a repair from your price sheet.'}</div>`;
   return list.slice(0, 150).map(q => { const p = digits(q.phone).replace(/^1(?=\d{10}$)/, ''), d = daysSince(q.created), st = QST[q.status] || QST.open;
+    const web = q.src === 'web', unpriced = !(q.lines || []).length || (!q.sentAt && (q.lines || []).some(l => l.auto));   // a suggested price is checked before it's sent
     return `<div class="lead" style="border-left-color:${st[1]}">
-      <div class="lh"><b>${esc(q.name || fmtPhone(q.phone) || 'No name')}</b> <span class="badge" style="background:${st[1]}">${st[0]}${q.ticketNo ? ' #' + q.ticketNo : ''}</span><span class="r"><b>${money(q.total || 0)}</b></span></div>
-      <div class="small muted">${[quoteDev(q), q.issue].filter(Boolean).map(esc).join(' · ') || 'No device'} · ${d <= 0 ? 'today' : d === 1 ? 'yesterday' : d + ' days ago'}${q.sentAt ? ' · sent' : ''}${q.lastFollow ? ' · followed up ' + esc(fmtTs(q.lastFollow)) : ''}</div>
-      <div class="small" style="margin-top:3px">${(q.lines || []).map(l => esc(qLabel(l))).join(' + ')}</div>
-      <div class="acts">${p.length === 10 ? `<a class="btn sm" href="tel:${p}">📞 Call</a><button class="btn sm" onclick="quoteSend('${q.id}','text',${q.sentAt ? 'true' : 'false'})">💬 ${q.sentAt ? 'Follow up' : 'Text quote'}</button>` : ''}
+      <div class="lh"><b>${esc(q.name || fmtPhone(q.phone) || 'No name')}</b> <span class="badge" style="background:${st[1]}">${st[0]}${q.ticketNo ? ' #' + q.ticketNo : ''}</span>${web ? ' <span class="tag blue">🌐 Website</span>' : ''}${unpriced && q.status === 'open' ? ` <span class="tag amber">${(q.lines || []).length ? 'Check the price' : 'Needs a price'}</span>` : ''}<span class="r"><b>${(q.lines || []).length ? money(q.total || 0) : ''}</b></span></div>
+      <div class="small muted">${[quoteDev(q), web ? q.need : '', web ? '' : q.issue].filter(Boolean).map(esc).join(' · ') || 'No device'} · ${d <= 0 ? 'today' : d === 1 ? 'yesterday' : d + ' days ago'}${q.sentAt ? ' · sent' : ''}${q.lastFollow ? ' · followed up ' + esc(fmtTs(q.lastFollow)) : ''}${web && q.webPref ? ' · ' + esc(q.webPref) : ''}</div>
+      ${web && q.issue ? `<div class="small" style="margin-top:3px">“${esc(q.issue.slice(0, 160))}${q.issue.length > 160 ? '…' : ''}”</div>` : ''}
+      <div class="small" style="margin-top:3px">${(q.lines || []).map(l => esc(qLabel(l))).join(' + ')}${(q.lines || []).some(l => l.auto) ? ' <span class="muted">(suggested)</span>' : ''}</div>
+      <div class="acts">${p.length === 10 ? `<a class="btn sm" href="tel:${p}">📞 Call</a>${unpriced ? `<a class="btn sm" href="sms:${p}">💬 Text</a>` : `<button class="btn sm" onclick="quoteSend('${q.id}','text',${q.sentAt ? 'true' : 'false'})">💬 ${q.sentAt ? 'Follow up' : 'Text quote'}</button>`}` : ''}${unpriced && q.status === 'open' ? `<button class="btn sm pri" onclick="quoteModal('${q.id}')">💲 ${(q.lines || []).length ? 'Check & send' : 'Price it'}</button>` : ''}
         <button class="btn sm" onclick="quoteModal('${q.id}')">Open</button>${q.status === 'open' ? `<button class="btn sm ok" onclick="qCheckin('${q.id}')">🛠️ Check in</button>` : ''}<button class="btn sm" onclick="quoteMenu('${q.id}')">⋯</button></div></div>`; }).join('');
+}
+
+/* ---- 🌐 Website quote requests (web app): rapidcomrepair.com/quote is a classic Wix form ("Get A Quote Main Page", saved
+   in the site's CMS collection Forms/getAQuote033). Wix emails a notification for each request; once that notification goes to
+   the shop Gmail, the Gmail reader (gmail.readonly, already on) turns each one into an open Quote marked "🌐 Website".
+   Reading is tolerant of the email's layout: "Label: value" lines or a label line followed by its value (HTML tables become
+   lines through mailText/htmlText). The same Gmail message never makes two quotes (q.webId, synced), and the same person
+   sending the same text twice within 3 hours is one request. Nothing is ever written to Wix or to Gmail. ---- */
+const WQ_FIELDS = [                                   // [field, label pattern] — the /quote page's labels, plus the form's old names
+  ['first', /^first\s*name$/i], ['last', /^last\s*name$/i], ['name', /^(full\s*)?name$/i], ['email', /^e-?mail(\s*address)?$/i], ['phone', /^phone(\s*number)?$/i],
+  ['need', /^(what do(e|es)? you need help with\??|product\s*name|service|help with)$/i],      // the new form (2026-11-25) spells it "What doe you…"
+  ['details', /^(what'?s going on\??.*|give us more details.*|details|message|tell us more.*|describe.*)$/i],
+  ['model', /^(model( of (the|your))?( device)?|device model)\s*:?$/i],
+  ['delivery', /^(how would you like to get it to us\??|best way to get it to us\??|drop.?off.*|dropdown\s*field)$/i],
+  ['contact', /^(best way to reach you\??|contact (method|preference).*|dropdown\s*field\s*2)$/i]];
+const WQ_Q = '(wix OR "form submission" OR "new submission" OR "submitted" OR quote OR "intake form") ("need help with" OR "give us more details" OR "what\'s going on" OR "get a quote" OR "RCR Intake Form" OR "best way to reach you") newer_than:';
+const wqSeen = () => { try { return JSON.parse(localStorage.getItem('rcr-wq-done') || '{}'); } catch { return {}; } };
+function wqParse(text) {
+  const lines = String(text).split(/\r?\n/).map(l => l.replace(/ /g, ' ').trim()).filter(Boolean), R = {};
+  const fieldOf = s => { const k = s.replace(/[*:]+\s*$/, '').trim(); const f = WQ_FIELDS.find(([, rx]) => rx.test(k)); return f && f[0]; };
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^([^:]{2,60}):\s*(.*)$/);
+    // "Model of the device:*" — a star after the colon marks a required field, it isn't the answer;
+    // the new Wix Forms email writes "Label : value", so a label that ends in ":" gives "Model of the device: : HP…"
+    if (m && fieldOf(m[1])) { const f = fieldOf(m[1]); let v = m[2].replace(/^[*:\s]+/, '').trim(); if (!v && lines[i + 1] && !fieldOf(lines[i + 1].replace(/:.*$/, ''))) v = lines[++i]; if (v && !R[f]) R[f] = v; continue; }
+    const f = fieldOf(lines[i]);
+    if (f && lines[i + 1] && !fieldOf(lines[i + 1].replace(/:.*$/, ''))) { if (!R[f]) R[f] = lines[i + 1]; i++; }
+  }
+  if (R.details) {                                    // a long message can run over several lines: take everything up to the next label
+    const at = lines.findIndex(l => l.startsWith(R.details)); if (at >= 0) { const more = []; for (let j = at + 1; j < lines.length && !fieldOf(lines[j].replace(/:.*$/, '')) && !/^(reply|view|sent from|this (email|message)|©|unsubscribe|manage)/i.test(lines[j]); j++) more.push(lines[j]); if (more.length && more.length < 25) R.details = [R.details, ...more].join(' '); }
+  }
+  R.name = (R.name || [R.first, R.last].filter(Boolean).join(' ')).replace(/\s+/g, ' ').trim();
+  R.phone = fmtPhone(R.phone || ''); R.email = String(R.email || '').trim().toLowerCase().replace(/^mailto:/, '');
+  for (const k of ['need', 'delivery', 'contact']) if (R[k] && /^(choose|select)/i.test(R[k])) delete R[k];
+  return R;
+}
+const WQ_BRANDS = [['Apple', /\b(apple|mac\s?book|imac|mac\s?mini|macbook)\b/i], ['Dell', /\bdell\b/i], ['HP', /\b(hp|hewlett)\b/i], ['Lenovo', /\b(lenovo|thinkpad|ideapad|yoga)\b/i], ['ASUS', /\basus\b/i], ['Acer', /\bacer\b/i], ['MSI', /\bmsi\b/i],
+  ['Microsoft', /\b(microsoft|surface)\b/i], ['Samsung', /\bsamsung\b/i], ['Razer', /\brazer\b/i], ['Alienware', /\balienware\b/i], ['Toshiba', /\btoshiba\b/i], ['Gigabyte', /\bgigabyte\b/i], ['LG', /\blg\b/i]];
+function wqDevice(text) {                             // "My Dell Inspiron 15 3520 won't…" → { make: 'Dell', model: 'Inspiron 15 3520' }
+  const s = String(text || ''); for (const [make, rx] of WQ_BRANDS) { const m = s.match(rx); if (!m) continue;
+    const after = s.slice(m.index + m[0].length).match(/^\s+((?:[A-Za-z]*\d[\w-]*|[A-Z][a-z]+)(?:\s+(?:[A-Za-z]*\d[\w-]*|Pro|Air|Plus|Max|Mini|Ultra)){0,3})/);
+    const model = after && /\d|Pro|Air/.test(after[1]) ? after[1].trim() : (make === 'Apple' && /macbook\s?(pro|air)?/i.test(m[0] + s.slice(m.index, m.index + 20)) ? s.slice(m.index).match(/mac\s?book(\s?(pro|air))?/i)[0] : '');
+    return { make, model }; }
+  return { make: '', model: '' };
+}
+// A first price suggestion from the request, using the labor rates on the price sheet (marked "suggested"; parts need a real cost).
+function wqLabor(R) {
+  const t = [R.need, R.details, R.delivery].join(' '), P = PRICING(), job = k => P.labor.find(l => k.test(l.job));
+  const pick = /home visit|office visit|on-?site|house call|come to (me|my)/i.test(t) || /home visit|office visit/i.test(R.delivery || '') ? job(/house|on-?site/i)
+    : /screen|display|lcd|cracked/i.test(t) && !/hinge/i.test(t) ? job(/screen/i) : /virus|malware|pop-?up|slow|password|update|software|email setup/i.test(t) ? job(/quick/i)
+    : /data|recover|transfer|reinstall|backup/i.test(t) ? job(/data/i) : /custom (pc|build)|build (me|a) (pc|computer)|gaming pc build/i.test(t) ? job(/custom/i)
+    : /battery|ram|memory|ssd|hard drive|fan|thermal|upgrade/i.test(t) ? job(/simple|install/i) : null;
+  return pick ? [{ kind: 'labor', job: pick.job, desc: 'Labor – ' + pick.job, cost: '', price: pick.price.toFixed(2), auto: true }] : [];
+}
+const WQ = { busy: false, at: 0 };
+async function wqCheck(quiet) {
+  if (!HOSTED) return quiet || toast('Website requests are checked from the web app (your phone, or rapidcomrepair-cmd.github.io/rcr on a computer).', 'err');
+  if (!RCRDrive.hasGmail()) return quiet || gmailSetup();
+  if (WQ.busy) return; WQ.busy = true;
+  try {
+    const ids = ((await RCRDrive.gmail('messages?maxResults=40&q=' + encodeURIComponent(WQ_Q + '21d'))).messages || []).map(m => m.id);
+    const seen = wqSeen(), have = new Set((DB.quotes || []).map(q => q.webId).filter(Boolean)), added = [];
+    for (const id of ids) {
+      if (have.has(id) || seen[id]) continue;
+      const m = await RCRDrive.gmail('messages/' + id + '?format=full');
+      const subj = (m.payload.headers || []).find(h => /^subject$/i.test(h.name))?.value || '', when = +m.internalDate || Date.now();
+      const R = wqParse(subj + '\n' + mailText(m.payload));
+      const ok = (R.email || digits(R.phone).length >= 10) && (R.need || R.details);
+      seen[id] = ok ? 'quote' : 'skip';
+      if (!ok) continue;
+      // the same request sent twice (double tap on "Send"): same phone/email + same text within 3 hours → one quote
+      const twin = (DB.quotes || []).concat(added).find(q => q.src === 'web' && ((R.email && q.email === R.email) || (R.phone && q.phone === R.phone)) && (q.issue || '') === (R.details || '') && Math.abs(Date.parse(q.created) - when) < 3 * 36e5);
+      if (twin) { if (R.contact && twin.webPref && !twin.webPref.includes(R.contact)) { twin.webPref += ' / ' + R.contact; if (!added.includes(twin)) upsert('quotes', twin); } continue; }
+      const dev = wqDevice([R.model, R.details, R.need].filter(Boolean).join(' ')), lines = wqLabor(R);
+      if (R.model && !dev.model) dev.model = R.model.replace(new RegExp('^' + (dev.make || '§') + '\\s*', 'i'), '').slice(0, 60);   // the form's own "Model of the device" box
+      const pref = [R.delivery && 'wants: ' + R.delivery, R.contact && 'reach by: ' + R.contact].filter(Boolean).join(' · ');
+      const q = { id: uid(), created: new Date(when).toISOString(), status: 'open', src: 'web', webId: id, name: R.name, phone: R.phone, email: R.email, make: dev.make, model: dev.model,
+        need: R.need || '', issue: R.details || R.need || '', webPref: pref, lines, ownPart: false, total: lines.reduce((s, l) => s + num(l.price), 0), deposit: 0,
+        notes: [{ t: new Date(when).toISOString(), x: `🌐 Quote request from the website${R.need ? ' — ' + R.need : ''}${pref ? ' (' + pref + ')' : ''}${lines.length ? '. Suggested ' + lines[0].job + ' labor from the request — check it before sending.' : ''}` }] };
+      added.push(q);
+    }
+    try { const k = Object.keys(seen); if (k.length > 500) k.slice(0, k.length - 500).forEach(x => delete seen[x]); localStorage.setItem('rcr-wq-done', JSON.stringify(seen)); } catch { }
+    for (const q of added) upsert('quotes', q);
+    WQ.at = Date.now(); localStorage.setItem('rcr-wq-at', WQ.at);
+    if (added.length) { render(); toast(`🌐 ${plural(added.length, 'new quote request')} from the website.`, 'ok', [['View', () => { ui.qSt = 'open'; go('quotes'); }]]); }
+    else if (!quiet) toast('No new quote requests from the website. (Wix has to send its form notifications to the shop Gmail for them to show up here.)', 'ok');
+  } catch (e) {
+    if (e.name === 'AuthError') { folderOK = false; setSync('reconnect'); }
+    else if (e.name === 'GmailDenied') { if (!quiet) gmailSetup(e.message); }
+    else if (!quiet) toast(e.message, 'err');
+    console.warn('website requests:', e);
+  } finally { WQ.busy = false; }
 }
 
 function plusSheet() {
@@ -3517,7 +3615,7 @@ async function gmailCheck(quiet) {
 }
 function gmailSetup(err) {
   modal('📬 Read Amazon / eBay orders from Gmail', `${err ? `<p class="down small">${esc(err)}</p>` : ''}
-    <p>RCR can look in the shop Gmail for Amazon and eBay order emails and turn them into parts orders — new orders, then shipped / delivered updates and tracking.</p>
+    <p>RCR can look in the shop Gmail for Amazon and eBay order emails and turn them into parts orders — new orders, then shipped / delivered updates and tracking — and for <b>quote requests from your website</b> (rapidcomrepair.com/quote), which become new quotes.</p>
     <p><b>Your orders go to other inboxes?</b> Just forward each order email to the shop Gmail (one tap: Forward → the shop address). RCR finds forwarded ones too.</p>
     <p class="small muted">Google will ask you once to let RCR Shop <i>read</i> your email — tick that box. It only searches for Amazon / eBay order emails, can't send or delete anything, and nothing leaves this phone except to Google. You can turn it off any time in your Google account › Security › Third-party access.</p>`,
     `<button class="btn" onclick="closeModal()">Not now</button><button class="btn pri" onclick="sessionStorage.setItem('rcr-gmail-after','1');RCRDrive.signIn({gmail:true})">Turn on Gmail</button>`);
@@ -3530,6 +3628,7 @@ function gmAfterSignIn() {        // called once the web app is connected: finis
     if (localStorage.getItem('rcr-gmail-note')) { localStorage.removeItem('rcr-gmail-note'); return gmailSetup('Gmail was not turned on — the box that lets RCR Shop read your email was not ticked. Try again and tick it.'); }
   }
   if (RCRDrive.hasGmail() && Date.now() - (+localStorage.getItem('rcr-gmail-at') || 0) > 30 * 6e4) setTimeout(() => gmailCheck(true), 5000);
+  if (RCRDrive.hasGmail() && Date.now() - (+localStorage.getItem('rcr-wq-at') || 0) > 10 * 6e4) setTimeout(() => wqCheck(true), 3000);   // website quote requests: every 10 min at most
 }
 function gmailList() {
   const L = gmPending();
